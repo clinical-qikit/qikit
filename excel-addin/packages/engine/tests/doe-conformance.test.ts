@@ -2,7 +2,7 @@ import { describe, test, expect } from 'vitest';
 import { globSync } from 'glob';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { design, analyze } from '../src/engine';
+import { design, analyze } from '../src';
 
 const fixturePaths = globSync('../fixtures/experiment/*.json');
 

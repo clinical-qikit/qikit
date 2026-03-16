@@ -1,0 +1,11 @@
+{
+  "name": "@qikit/engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.6.0"
+  }
+}

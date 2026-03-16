@@ -1,0 +1,93 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/vDevPreview/MicrosoftTeams.schema.json",
+  "manifestVersion": "devPreview",
+  "version": "1.0.0",
+  "id": "qikit-spc-doe",
+  "developer": {
+    "name": "qikit",
+    "websiteUrl": "https://github.com/davidvandyke/qikit",
+    "privacyUrl": "https://github.com/davidvandyke/qikit/privacy",
+    "termsOfUseUrl": "https://github.com/davidvandyke/qikit/terms"
+  },
+  "name": {
+    "short": "QI Kit",
+    "full": "QI Kit — SPC & Planned Experimentation"
+  },
+  "description": {
+    "short": "SPC charts and DOE for quality improvement",
+    "full": "Statistical Process Control charts and Design of Experiments for quality improvement in healthcare and manufacturing."
+  },
+  "icons": {
+    "outline": "assets/icon-32.png",
+    "color": "assets/icon-80.png"
+  },
+  "accentColor": "#4F6BED",
+  "extensions": [
+    {
+      "requirements": {
+        "capabilities": [
+          {
+            "name": "Workbook",
+            "minVersion": "1.1"
+          }
+        ]
+      },
+      "runtimes": [
+        {
+          "id": "TaskPaneRuntime",
+          "type": "general",
+          "code": {
+            "page": "https://localhost:3000/taskpane.html"
+          }
+        }
+      ],
+      "ribbons": [
+        {
+          "contexts": [
+            "default"
+          ],
+          "tabs": [
+            {
+              "id": "QIKitTab",
+              "label": "QI Kit",
+              "groups": [
+                {
+                  "id": "QIKitGroup",
+                  "label": "Analysis",
+                  "icons": [
+                    {
+                      "size": 16,
+                      "url": "assets/icon-16.png"
+                    },
+                    {
+                      "size": 32,
+                      "url": "assets/icon-32.png"
+                    }
+                  ],
+                  "controls": [
+                    {
+                      "id": "OpenTaskPane",
+                      "type": "button",
+                      "label": "Open QI Kit",
+                      "icons": [
+                        {
+                          "size": 16,
+                          "url": "assets/icon-16.png"
+                        },
+                        {
+                          "size": 32,
+                          "url": "assets/icon-32.png"
+                        }
+                      ],
+                      "actionId": "TaskPaneRuntime"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

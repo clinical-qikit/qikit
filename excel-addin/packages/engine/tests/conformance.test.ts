@@ -2,7 +2,7 @@ import { describe, test, expect } from 'vitest';
 import { globSync } from 'glob';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { compute, bchart, paretochart } from '../src/engine';
+import { compute, bchart, paretochart } from '../src';
 
 const fixturePaths = globSync('../fixtures/spc/*.json');
 const dispatch = { qic: compute, bchart, paretochart };

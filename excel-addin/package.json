@@ -1,14 +1,26 @@
 {
   "name": "qikit-excel-addin",
-  "version": "0.1.0",
-  "description": "qikit SPC and DOE for Excel",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
+    "dev": "vite --https",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:engine": "vitest run --project engine",
+    "test:addin": "vitest run --project addin",
+    "sideload": "office-addin-debugging start manifest.json",
+    "validate": "office-addin-manifest validate manifest.json"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "glob": "^10.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^1.0.0",
-    "glob": "^10.0.0"
+    "vite": "^5.2.0",
+    "vite-plugin-mkcert": "^1.1.7",
+    "vitest": "^1.6.0"
   }
 }
