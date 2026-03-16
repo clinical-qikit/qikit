@@ -22,13 +22,13 @@ export async function getSelectedRangeValues(): Promise<{ values: any[][], addre
   }
 }
 
-export async function writeToNewSheet(sheetName: string, data: any[][]): Promise<void> {
+export async function writeToNewSheet(sheetName: string, data: any[][]): Promise<{ sheetName: string, rangeAddress: string }> {
   try {
     if (!data || data.length === 0 || !data[0] || data[0].length === 0) {
       throw new Error("No data provided to write to the sheet.");
     }
 
-    await Excel.run(async (context) => {
+    return await Excel.run(async (context) => {
       // Create a unique sheet name to avoid conflicts
       const sheets = context.workbook.worksheets;
       sheets.load("items/name");
@@ -45,7 +45,13 @@ export async function writeToNewSheet(sheetName: string, data: any[][]): Promise
       const range = sheet.getRangeByIndexes(0, 0, data.length, data[0].length);
       range.values = data;
       sheet.activate();
+      range.load("address");
       await context.sync();
+
+      return {
+        sheetName: finalSheetName,
+        rangeAddress: range.address
+      };
     });
   } catch (error) {
     console.error("Error writing to new sheet:", error);

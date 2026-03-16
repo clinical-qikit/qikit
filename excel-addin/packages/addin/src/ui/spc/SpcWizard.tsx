@@ -102,10 +102,17 @@ export const SpcWizard: React.FC = () => {
     const sheetData = [
       ['Point', 'Value', 'CL', 'UCL', 'LCL', 'Signal'],
       ...result.data.map((d, i) => [
-        i + 1, d.y, d.cl, d.ucl, d.lcl, d.sigma_signal || d.runs_signal
+        i + 1, d.y, d.cl, d.ucl, d.lcl, d.sigma_signal || d.runs_signal ? 1 : null
       ])
     ];
-    await writeToNewSheet(`SPC ${result.chart_type.toUpperCase()}`, sheetData);
+    try {
+      const { sheetName, rangeAddress } = await writeToNewSheet(`SPC ${result.chart_type.toUpperCase()}`, sheetData);
+      const { createSPCChart } = await import('../../excel/chart-builder');
+      await createSPCChart(result, sheetName, rangeAddress);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to write SPC results to sheet.");
+      console.error(err);
+    }
   };
 
   return (

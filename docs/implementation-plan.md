@@ -1175,8 +1175,8 @@ All 6 issues fixed. 130 tests passing. See Section 2 for details.
    - `DesignConfigurator.tsx` — full/fractional toggle with run-count badge (inline, not a separate step)
    - `DoeWizard.tsx` — 3-step orchestration (NOT 4-step)
    - `ResultsPanel.tsx` — chart tabs + `InterpretationPanel` + actions
-7. Implement `packages/addin/src/excel/chart-builder.ts` (Excel native charts — "Insert Chart to Sheet")
-8. End-to-end testing: browser dev harness first, then sideloaded add-in
+- [x] 7. Implement `packages/addin/src/excel/chart-builder.ts` (Excel native charts — "Insert Chart to Sheet")
+- [x] 8. End-to-end testing: browser dev harness first, then sideloaded add-in
 
 ### Phase 5: Polish + Distribution (1 week)
 

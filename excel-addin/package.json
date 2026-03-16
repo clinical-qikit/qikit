@@ -1,11 +1,13 @@
 {
   "name": "qikit-excel-addin",
+  "type": "module",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "vite --https",
+    "dev": "vite",
+    "dev:no-https": "VITE_NO_MKCERT=true vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

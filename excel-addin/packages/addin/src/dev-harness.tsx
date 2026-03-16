@@ -22,26 +22,52 @@ const MOCK_DATA = [
 // @ts-ignore
 window.Excel = {
   run: async (callback: (context: any) => Promise<any>) => {
+    const mockRange = {
+      load: () => {},
+      values: MOCK_DATA,
+      address: 'Sheet1!A1:C11',
+      getColumnCount: () => 3,
+      format: { font: { size: 11, bold: false } }
+    };
+    
+    const mockSheet = {
+      name: 'MockSheet',
+      getRange: () => mockRange,
+      getRangeByIndexes: () => mockRange,
+      activate: () => {},
+      charts: {
+        add: () => ({
+          title: { text: '', format: { font: { size: 14, bold: true } } },
+          top: 0, left: 0, width: 0, height: 0
+        })
+      }
+    };
+
     const context = {
       workbook: {
-        getSelectedRange: () => ({
-          load: () => {},
-          values: MOCK_DATA,
-          address: 'A1:C11'
-        }),
+        getSelectedRange: () => mockRange,
         worksheets: {
-          add: (name: string) => ({
-            getRange: () => ({
-              values: []
-            }),
-            activate: () => {}
-          })
+          items: [],
+          load: () => {},
+          add: (name: string) => {
+            return { ...mockSheet, name };
+          },
+          getItem: () => mockSheet
         }
       },
       sync: async () => {}
     };
+    
+    // Some Chart constants
+    // @ts-ignore
+    window.Excel.ChartType = { line: 'Line', barClustered: 'BarClustered' };
+    // @ts-ignore
+    window.Excel.ChartSeriesBy = { columns: 'Columns' };
+
     return callback(context);
-  }
+  },
+  ChartType: { line: 'Line', barClustered: 'BarClustered' },
+  ChartSeriesBy: { columns: 'Columns' }
 };
 
 // @ts-ignore

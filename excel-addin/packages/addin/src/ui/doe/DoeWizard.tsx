@@ -11,6 +11,8 @@ import { InterpretationPanel } from '../shared/InterpretationPanel';
 import { StepIndicator } from '../shared/StepIndicator';
 import { ExampleLoader } from '../shared/ExampleLoader';
 
+import { DesignConfigurator } from './DesignConfigurator';
+
 const useStyles = makeStyles({
   container: {
     display: 'flex',
@@ -34,6 +36,7 @@ const useStyles = makeStyles({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: '8px',
   },
   errorText: {
     color: tokens.colorPaletteRedForeground1,
@@ -53,6 +56,7 @@ export const DoeWizard: React.FC = () => {
     { name: 'A', low: '-1', high: '1' },
     { name: 'B', low: '-1', high: '1' }
   ]);
+  const [designType, setDesignType] = useState<'full_factorial' | 'fractional'>('full_factorial');
   const [currentDesign, setCurrentDesign] = useState<DOEDesign | null>(null);
   const [result, setResult] = useState<DOEResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +75,7 @@ export const DoeWizard: React.FC = () => {
         factors: factors.map(f => f.name),
         lows: factors.map(f => parseFloat(f.low)),
         highs: factors.map(f => parseFloat(f.high)),
-        design_type: factors.length > 3 ? 'fractional' : 'full_factorial'
+        design_type: designType
       });
       setCurrentDesign(d);
       setStep(2);
@@ -79,6 +83,17 @@ export const DoeWizard: React.FC = () => {
       setError(err instanceof Error ? err.message : "Failed to generate design.");
       console.error(err);
     }
+  };
+
+  const onExampleLoaded = (data: any[][]) => {
+    // Example: ['RunOrder', 'A', 'B', 'Response']
+    const headers = data[0];
+    const factorNames = headers.filter((h: string) => h !== 'RunOrder' && h !== 'Response');
+    setFactors(factorNames.map((name: string) => ({
+      name,
+      low: '-1',
+      high: '1'
+    })));
   };
 
   const onWriteTemplate = async () => {
@@ -118,12 +133,29 @@ export const DoeWizard: React.FC = () => {
     }
   };
 
+  const onWriteResults = async () => {
+    if (!result) return;
+    try {
+      const sheetData = [
+        ['Term', 'Effect', 'Coefficient'],
+        ...result.effects.map(e => [e.name, e.effect, e.coefficient])
+      ];
+      const { sheetName, rangeAddress } = await writeToNewSheet(`DOE Effects`, sheetData);
+      const { createEffectsChart } = await import('../../excel/chart-builder');
+      await createEffectsChart(result, sheetName, rangeAddress);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to write DOE results to sheet.");
+      console.error(err);
+    }
+  };
+
   const onReset = () => {
     setStep(1);
     setFactors([
       { name: 'A', low: '-1', high: '1' },
       { name: 'B', low: '-1', high: '1' }
     ]);
+    setDesignType('full_factorial');
     setCurrentDesign(null);
     setResult(null);
     setError(null);
@@ -141,10 +173,17 @@ export const DoeWizard: React.FC = () => {
 
       {step === 1 && (
         <div className={styles.stepContainer}>
-          <ExampleLoader type="doe" onLoaded={() => {}} />
+          <ExampleLoader type="doe" onLoaded={onExampleLoaded} />
           <Text weight="semibold">Step 1: Define Factors</Text>
           <FactorEditor factors={factors} onChange={setFactors} />
-          <Button appearance="primary" onClick={onGenerate}>Choose Design</Button>
+          <DesignConfigurator 
+            nFactors={factors.length} 
+            designType={designType} 
+            onDesignTypeChange={setDesignType} 
+          />
+          <div className={styles.actions}>
+            <Button appearance="primary" onClick={onGenerate}>Choose Design</Button>
+          </div>
         </div>
       )}
 
@@ -153,7 +192,7 @@ export const DoeWizard: React.FC = () => {
           <Text weight="semibold">Step 2: Generate & Run</Text>
           <Card className={styles.designBadge}>
             <Text>Design: <strong>{currentDesign.design_type}</strong></Text>
-            <Badge>{currentDesign.n_runs} runs</Badge>
+            <Badge appearance="tint" color="informative">{currentDesign.n_runs} runs</Badge>
           </Card>
           <Text size={200}>Generate a template sheet, run your experiment, and enter results in the Response column.</Text>
           <div className={styles.actions}>
@@ -170,6 +209,7 @@ export const DoeWizard: React.FC = () => {
           <ChartViewer result={result} type="doe" />
           <InterpretationPanel result={result} type="doe" />
           <div className={styles.actions}>
+            <Button appearance="primary" onClick={onWriteResults}>Write to Sheet</Button>
             <Button appearance="secondary" onClick={onReset}>Start New</Button>
           </div>
         </div>
