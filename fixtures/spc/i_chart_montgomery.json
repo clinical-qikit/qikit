@@ -1,0 +1,313 @@
+{
+  "id": "i_chart_montgomery",
+  "reference": "Montgomery 8th Ed, Example 6.4 \u2014 Chemical Process Concentration",
+  "function": "qic",
+  "input": {
+    "y": [
+      102,
+      94,
+      101,
+      105,
+      108,
+      103,
+      104,
+      107,
+      105,
+      106,
+      101,
+      103,
+      107,
+      105,
+      104,
+      108,
+      100,
+      106,
+      108,
+      107
+    ],
+    "chart": "i",
+    "clOverride": 104.7
+  },
+  "check": {
+    "cl": [
+      104.7,
+      0.01
+    ],
+    "ucl": [
+      114.36,
+      0.1
+    ],
+    "lcl": [
+      95.04,
+      0.1
+    ],
+    "signals": true
+  },
+  "snapshot": {
+    "chart_type": "i",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 20,
+      "n_baseline": 20,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 20,
+      "longest_run": 3,
+      "n_crossings": 9,
+      "run_threshold": 7,
+      "crossings_threshold": 5,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 102.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 94.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 101.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 105.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 108.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 103.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 104.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 8,
+        "y": 107.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 9,
+        "y": 105.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 10,
+        "y": 106.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 11,
+        "y": 101.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 12,
+        "y": 103.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 13,
+        "y": 107.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 14,
+        "y": 105.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 15,
+        "y": 104.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 16,
+        "y": 108.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 17,
+        "y": 100.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 18,
+        "y": 106.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 19,
+        "y": 108.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 20,
+        "y": 107.0,
+        "cl": 104.7,
+        "ucl": 114.35845464725645,
+        "lcl": 95.04154535274355,
+        "ucl_95": 111.13896976483764,
+        "lcl_95": 98.26103023516237,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

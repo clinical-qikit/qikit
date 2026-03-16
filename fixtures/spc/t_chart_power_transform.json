@@ -1,0 +1,134 @@
+{
+  "id": "t_chart_power_transform",
+  "reference": "Wheeler 2004 \u2014 t chart power transform",
+  "function": "qic",
+  "input": {
+    "y": [
+      1,
+      3,
+      7,
+      2,
+      14,
+      5,
+      9
+    ],
+    "chart": "t"
+  },
+  "check": {
+    "cl": [
+      4.74,
+      0.1
+    ]
+  },
+  "snapshot": {
+    "chart_type": "t",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 7,
+      "n_baseline": 7,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 7,
+      "longest_run": 3,
+      "n_crossings": 3,
+      "run_threshold": 8,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 1.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 3.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 7.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 2.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 14.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 5.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 9.0,
+        "cl": 4.720228691656041,
+        "ucl": 41.66882037877511,
+        "lcl": 0.007807478349521281,
+        "ucl_95": 23.084492329381554,
+        "lcl_95": 0.25769311504568276,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

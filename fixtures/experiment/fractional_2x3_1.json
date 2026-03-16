@@ -1,0 +1,74 @@
+{
+  "id": "fractional_2x3_1",
+  "reference": "Montgomery Ch8 \u2014 2^(3-1) Resolution III",
+  "function": "experiment_design",
+  "input": {
+    "factors": [
+      "A",
+      "B",
+      "C"
+    ],
+    "design_type": "fractional"
+  },
+  "check": {
+    "n_runs": 4,
+    "n_factors": 3,
+    "resolution": 3
+  },
+  "snapshot": {
+    "factors": [
+      "A",
+      "B",
+      "C"
+    ],
+    "lows": [
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "highs": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "design_type": "fractional",
+    "matrix": [
+      {
+        "RunOrder": 1,
+        "A": -1,
+        "B": -1,
+        "C": 1,
+        "Response": null
+      },
+      {
+        "RunOrder": 2,
+        "A": 1,
+        "B": -1,
+        "C": -1,
+        "Response": null
+      },
+      {
+        "RunOrder": 3,
+        "A": -1,
+        "B": 1,
+        "C": -1,
+        "Response": null
+      },
+      {
+        "RunOrder": 4,
+        "A": 1,
+        "B": 1,
+        "C": 1,
+        "Response": null
+      }
+    ],
+    "n_factors": 3,
+    "n_runs": 4,
+    "n_replicates": 1,
+    "n_center_points": 0,
+    "generators": [
+      "C=AB"
+    ],
+    "resolution": 3
+  }
+}

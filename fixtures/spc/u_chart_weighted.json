@@ -1,0 +1,120 @@
+{
+  "id": "u_chart_weighted",
+  "reference": "Montgomery \u00a77.4 \u2014 u chart with weighted center",
+  "function": "qic",
+  "input": {
+    "y": [
+      2,
+      3,
+      1,
+      4,
+      2
+    ],
+    "n": [
+      100,
+      150,
+      80,
+      120,
+      90
+    ],
+    "chart": "u"
+  },
+  "check": {
+    "cl": [
+      0.022222,
+      0.001
+    ],
+    "ucl": [
+      0.06694,
+      0.001
+    ],
+    "signals": false
+  },
+  "snapshot": {
+    "chart_type": "u",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 5,
+      "n_baseline": 5,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 4,
+      "longest_run": 3,
+      "n_crossings": 1,
+      "run_threshold": 5,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.02,
+        "cl": 0.022222222222222223,
+        "ucl": 0.06694358177221801,
+        "lcl": 0.0,
+        "ucl_95": 0.05203646192221942,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 0.02,
+        "cl": 0.022222222222222223,
+        "ucl": 0.058737059389233306,
+        "lcl": 0.0,
+        "ucl_95": 0.046565447000229604,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 0.0125,
+        "cl": 0.022222222222222223,
+        "ucl": 0.07222222222222223,
+        "lcl": 0.0,
+        "ucl_95": 0.05555555555555555,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 0.03333333333333333,
+        "cl": 0.022222222222222223,
+        "ucl": 0.06304705126860853,
+        "lcl": 0.0,
+        "ucl_95": 0.04943877491981309,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 0.022222222222222223,
+        "cl": 0.022222222222222223,
+        "ucl": 0.0693626743013254,
+        "lcl": 0.0,
+        "ucl_95": 0.05364919027495767,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

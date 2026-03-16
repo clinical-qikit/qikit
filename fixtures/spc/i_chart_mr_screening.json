@@ -1,0 +1,181 @@
+{
+  "id": "i_chart_mr_screening",
+  "reference": "Provost & Murray 2011, p.140 \u2014 MR screening with outlier",
+  "function": "qic",
+  "input": {
+    "y": [
+      74.13,
+      74.002,
+      74.019,
+      73.992,
+      74.008,
+      73.995,
+      74.009,
+      74.01,
+      73.998,
+      74.025
+    ],
+    "chart": "i"
+  },
+  "check": {
+    "cl": [
+      74.0188,
+      0.001
+    ],
+    "ucl": [
+      74.061,
+      0.01
+    ],
+    "lcl": [
+      73.976,
+      0.01
+    ]
+  },
+  "snapshot": {
+    "chart_type": "i",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 10,
+      "n_baseline": 10,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 10,
+      "longest_run": 6,
+      "n_crossings": 4,
+      "run_threshold": 6,
+      "crossings_threshold": 1,
+      "run_signal": true,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 74.13,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 74.002,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 74.019,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 73.992,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": true,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 74.008,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": true,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 73.995,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": true,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 74.009,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": true,
+        "baseline": true
+      },
+      {
+        "x": 8,
+        "y": 74.01,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": true,
+        "baseline": true
+      },
+      {
+        "x": 9,
+        "y": 73.998,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": true,
+        "baseline": true
+      },
+      {
+        "x": 10,
+        "y": 74.025,
+        "cl": 74.0188,
+        "ucl": 74.06102074468085,
+        "lcl": 73.97657925531915,
+        "ucl_95": 74.04694716312056,
+        "lcl_95": 73.99065283687943,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

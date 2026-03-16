@@ -1,0 +1,313 @@
+{
+  "id": "p_chart_equal_n",
+  "reference": "Montgomery \u00a77.2 \u2014 basic p chart with constant n",
+  "function": "qic",
+  "input": {
+    "y": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+    ],
+    "n": 100,
+    "chart": "p"
+  },
+  "check": {
+    "cl": [
+      0.1,
+      0.01
+    ],
+    "ucl": [
+      0.19,
+      0.01
+    ],
+    "lcl": [
+      0.01,
+      0.01
+    ],
+    "signals": false
+  },
+  "snapshot": {
+    "chart_type": "p",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 20,
+      "n_baseline": 20,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 0,
+      "longest_run": 0,
+      "n_crossings": 0,
+      "run_threshold": 1,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 8,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 9,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 10,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 11,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 12,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 13,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 14,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 15,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 16,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 17,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 18,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 19,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 20,
+        "y": 0.1,
+        "cl": 0.1,
+        "ucl": 0.19,
+        "lcl": 0.009999999999999995,
+        "ucl_95": 0.16,
+        "lcl_95": 0.04000000000000001,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

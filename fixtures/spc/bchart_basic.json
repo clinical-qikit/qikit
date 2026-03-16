@@ -1,0 +1,108 @@
+{
+  "id": "bchart_basic",
+  "reference": "Bernoulli CUSUM basic test",
+  "function": "bchart",
+  "input": {
+    "x": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1
+    ],
+    "target": 0.1,
+    "or_ratio": 2.0
+  },
+  "check": {
+    "target": 0.1,
+    "or_ratio": 2.0,
+    "limit": 3.5
+  },
+  "snapshot": {
+    "title": "Bernoulli CUSUM (p0=0.100, OR=2.0)",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "CUSUM",
+    "xlab": "Case #",
+    "target": 0.1,
+    "or_ratio": 2.0,
+    "limit": 3.5,
+    "data": [
+      {
+        "x": 1,
+        "y": 0.0,
+        "cusum_up": -0.0,
+        "cusum_down": -0.05129329438755048,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 2,
+        "y": 0.0,
+        "cusum_up": -0.0,
+        "cusum_down": -0.10258658877510096,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 3,
+        "y": 0.0,
+        "cusum_up": -0.0,
+        "cusum_down": -0.15387988316265144,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 4,
+        "y": 1.0,
+        "cusum_up": 0.5978370007556204,
+        "cusum_down": 0.0,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 5,
+        "y": 0.0,
+        "cusum_up": 0.5025268209512954,
+        "cusum_down": -0.05129329438755048,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 6,
+        "y": 0.0,
+        "cusum_up": 0.4072166411469704,
+        "cusum_down": -0.10258658877510096,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 7,
+        "y": 0.0,
+        "cusum_up": 0.31190646134264544,
+        "cusum_down": -0.15387988316265144,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      },
+      {
+        "x": 8,
+        "y": 1.0,
+        "cusum_up": 0.9097434620982658,
+        "cusum_down": 0.0,
+        "signal_up": false,
+        "signal_down": false,
+        "limit": 3.5
+      }
+    ]
+  }
+}

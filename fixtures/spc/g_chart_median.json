@@ -1,0 +1,138 @@
+{
+  "id": "g_chart_median",
+  "reference": "Provost & Murray \u2014 g chart median",
+  "function": "qic",
+  "input": {
+    "y": [
+      3,
+      1,
+      5,
+      2,
+      8,
+      1,
+      4
+    ],
+    "chart": "g"
+  },
+  "check": {
+    "cl": [
+      3.0,
+      0.01
+    ],
+    "ucl": [
+      13.392,
+      0.01
+    ]
+  },
+  "snapshot": {
+    "chart_type": "g",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 7,
+      "n_baseline": 7,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 6,
+      "longest_run": 1,
+      "n_crossings": 5,
+      "run_threshold": 7,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 3.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 1.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 5.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 2.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 8.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 1.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 4.0,
+        "cl": 3.0,
+        "ucl": 13.392304845413264,
+        "lcl": 0.0,
+        "ucl_95": 9.928203230275509,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

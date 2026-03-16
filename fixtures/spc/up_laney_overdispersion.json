@@ -1,0 +1,113 @@
+{
+  "id": "up_laney_overdispersion",
+  "reference": "Laney 2002 \u2014 u' chart overdispersion",
+  "function": "qic",
+  "input": {
+    "y": [
+      10,
+      20,
+      5,
+      25,
+      10
+    ],
+    "n": 100,
+    "chart": "up"
+  },
+  "check": {
+    "cl": [
+      0.14,
+      0.01
+    ],
+    "ucl": [
+      0.5384,
+      0.01
+    ]
+  },
+  "snapshot": {
+    "chart_type": "up",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 5,
+      "n_baseline": 5,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 5,
+      "longest_run": 1,
+      "n_crossings": 4,
+      "run_threshold": 6,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.1,
+        "cl": 0.14,
+        "ucl": 0.538936170212766,
+        "lcl": 0.0,
+        "ucl_95": 0.40595744680851065,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 0.2,
+        "cl": 0.14,
+        "ucl": 0.538936170212766,
+        "lcl": 0.0,
+        "ucl_95": 0.40595744680851065,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 0.05,
+        "cl": 0.14,
+        "ucl": 0.538936170212766,
+        "lcl": 0.0,
+        "ucl_95": 0.40595744680851065,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 0.25,
+        "cl": 0.14,
+        "ucl": 0.538936170212766,
+        "lcl": 0.0,
+        "ucl_95": 0.40595744680851065,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 0.1,
+        "cl": 0.14,
+        "ucl": 0.538936170212766,
+        "lcl": 0.0,
+        "ucl_95": 0.40595744680851065,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

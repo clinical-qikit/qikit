@@ -1,0 +1,160 @@
+{
+  "id": "xbar_known_limits",
+  "reference": "Montgomery \u00a76.4 \u2014 xbar chart with S-based limits",
+  "function": "qic",
+  "input": {
+    "data": {
+      "subgroup": [
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5,
+        5
+      ],
+      "y": [
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5,
+        9.5,
+        10.5
+      ]
+    },
+    "x": "subgroup",
+    "y": "y",
+    "chart": "xbar",
+    "subgroupN": 4,
+    "sBar": 0.5773502691896257
+  },
+  "check": {
+    "cl": [
+      10.0,
+      0.01
+    ],
+    "ucl": [
+      10.9399,
+      0.01
+    ],
+    "lcl": [
+      9.0601,
+      0.01
+    ],
+    "signals": false
+  },
+  "snapshot": {
+    "chart_type": "xbar",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 5,
+      "n_baseline": 5,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 0,
+      "longest_run": 0,
+      "n_crossings": 0,
+      "run_threshold": 1,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 10.0,
+        "cl": 10.0,
+        "ucl": 10.93992623824071,
+        "lcl": 9.06007376175929,
+        "ucl_95": 10.626617492160474,
+        "lcl_95": 9.373382507839526,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 10.0,
+        "cl": 10.0,
+        "ucl": 10.93992623824071,
+        "lcl": 9.06007376175929,
+        "ucl_95": 10.626617492160474,
+        "lcl_95": 9.373382507839526,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 10.0,
+        "cl": 10.0,
+        "ucl": 10.93992623824071,
+        "lcl": 9.06007376175929,
+        "ucl_95": 10.626617492160474,
+        "lcl_95": 9.373382507839526,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 10.0,
+        "cl": 10.0,
+        "ucl": 10.93992623824071,
+        "lcl": 9.06007376175929,
+        "ucl_95": 10.626617492160474,
+        "lcl_95": 9.373382507839526,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 10.0,
+        "cl": 10.0,
+        "ucl": 10.93992623824071,
+        "lcl": 9.06007376175929,
+        "ucl_95": 10.626617492160474,
+        "lcl_95": 9.373382507839526,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "qikit-excel-addin",
+  "version": "0.1.0",
+  "description": "qikit SPC and DOE for Excel",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "glob": "^10.0.0"
+  }
+}

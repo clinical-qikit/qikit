@@ -1,0 +1,45 @@
+{
+  "id": "pareto_basic",
+  "reference": "Pareto chart basic test",
+  "function": "paretochart",
+  "input": {
+    "x": [
+      "A",
+      "A",
+      "A",
+      "B",
+      "B",
+      "C"
+    ]
+  },
+  "check": {
+    "ylab": "Frequency"
+  },
+  "snapshot": {
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Frequency",
+    "xlab": "",
+    "data": [
+      {
+        "category": "A",
+        "count": 3,
+        "cum_sum": 3,
+        "cum_percent": 50.0
+      },
+      {
+        "category": "B",
+        "count": 2,
+        "cum_sum": 5,
+        "cum_percent": 83.33333333333334
+      },
+      {
+        "category": "C",
+        "count": 1,
+        "cum_sum": 6,
+        "cum_percent": 100.0
+      }
+    ]
+  }
+}
