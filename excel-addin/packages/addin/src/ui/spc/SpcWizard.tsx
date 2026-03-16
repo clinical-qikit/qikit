@@ -28,6 +28,13 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: '8px',
     marginTop: '12px',
+  },
+  errorText: {
+    color: tokens.colorPaletteRedForeground1,
+    marginTop: '8px',
+    padding: '8px',
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    borderRadius: '4px'
   }
 });
 
@@ -39,17 +46,24 @@ export const SpcWizard: React.FC = () => {
   const [data, setData] = useState<any[][]>([]);
   const [chartType, setChartType] = useState<ChartType | null>(null);
   const [result, setResult] = useState<SPCResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const onSelectData = async () => {
+    setError(null);
     try {
       const res = await getSelectedRangeValues();
       setData(res.values);
+      if (res.values.length < 2) {
+        setError("Please select at least 2 rows of data.");
+      }
     } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to select data.");
       console.error(err);
     }
   };
 
   const onChartResolved = (type: ChartType) => {
+    setError(null);
     setChartType(type);
     
     // Auto-compute
@@ -59,6 +73,10 @@ export const SpcWizard: React.FC = () => {
       const rawY = data.map(row => row[data[0].length > 1 ? 1 : 0]);
       const numericY = rawY.filter(v => typeof v === 'number') as number[];
       
+      if (numericY.length === 0) {
+        throw new Error("No numeric data found in the selected range.");
+      }
+      
       const res = compute({
         y: numericY,
         chart: type
@@ -66,6 +84,7 @@ export const SpcWizard: React.FC = () => {
       setResult(res);
       setStep(3);
     } catch (err) {
+      setError(err instanceof Error ? err.message : "Computation failed.");
       console.error(err);
     }
   };
@@ -75,6 +94,7 @@ export const SpcWizard: React.FC = () => {
     setData([]);
     setChartType(null);
     setResult(null);
+    setError(null);
   };
 
   const onWriteToSheet = async () => {
@@ -92,6 +112,12 @@ export const SpcWizard: React.FC = () => {
     <div className={styles.container}>
       <StepIndicator currentStep={step} steps={STEPS} />
       
+      {error && (
+        <div className={styles.errorText}>
+          <Text>{error}</Text>
+        </div>
+      )}
+
       {step === 1 && (
         <div className={styles.stepContainer}>
           <ExampleLoader type="spc" onLoaded={setData} />

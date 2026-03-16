@@ -34,6 +34,13 @@ const useStyles = makeStyles({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  errorText: {
+    color: tokens.colorPaletteRedForeground1,
+    marginTop: '8px',
+    padding: '8px',
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    borderRadius: '4px'
   }
 });
 
@@ -48,9 +55,18 @@ export const DoeWizard: React.FC = () => {
   ]);
   const [currentDesign, setCurrentDesign] = useState<DOEDesign | null>(null);
   const [result, setResult] = useState<DOEResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const onGenerate = () => {
+    setError(null);
     try {
+      if (factors.length < 2) {
+        throw new Error("At least 2 factors are required.");
+      }
+      if (factors.some(f => !f.name.trim() || isNaN(parseFloat(f.low)) || isNaN(parseFloat(f.high)))) {
+        throw new Error("All factors must have valid names and numeric levels.");
+      }
+
       const d = design({
         factors: factors.map(f => f.name),
         lows: factors.map(f => parseFloat(f.low)),
@@ -60,32 +76,44 @@ export const DoeWizard: React.FC = () => {
       setCurrentDesign(d);
       setStep(2);
     } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate design.");
       console.error(err);
     }
   };
 
   const onWriteTemplate = async () => {
+    setError(null);
     if (!currentDesign) return;
-    const headers = ['RunOrder', ...currentDesign.factors, 'Response'];
-    const rows = currentDesign.matrix.map(row => headers.map(h => row[h]));
-    await writeToNewSheet(`DOE ${currentDesign.n_factors}F`, [headers, ...rows]);
+    try {
+      const headers = ['RunOrder', ...currentDesign.factors, 'Response'];
+      const rows = currentDesign.matrix.map(row => headers.map(h => row[h]));
+      await writeToNewSheet(`DOE ${currentDesign.n_factors}F`, [headers, ...rows]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to write template to sheet.");
+      console.error(err);
+    }
   };
 
   const onReadResults = async () => {
+    setError(null);
     try {
       const resData = await getSelectedRangeValues();
       const headers = resData.values[0];
       const respIdx = headers.indexOf('Response');
-      if (respIdx === -1) throw new Error("No 'Response' column found");
+      if (respIdx === -1) throw new Error("No 'Response' column found. Ensure you include the headers in your selection.");
       
       const response = resData.values.slice(1).map(row => row[respIdx]).filter(v => typeof v === 'number') as number[];
       
       if (currentDesign) {
+        if (response.length !== currentDesign.n_runs) {
+           throw new Error(`Expected ${currentDesign.n_runs} responses, but found ${response.length}.`);
+        }
         const res = analyze(currentDesign, response);
         setResult(res);
         setStep(3);
       }
     } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to read or analyze results.");
       console.error(err);
     }
   };
@@ -98,12 +126,19 @@ export const DoeWizard: React.FC = () => {
     ]);
     setCurrentDesign(null);
     setResult(null);
+    setError(null);
   };
 
   return (
     <div className={styles.container}>
       <StepIndicator currentStep={step} steps={STEPS} />
       
+      {error && (
+        <div className={styles.errorText}>
+          <Text>{error}</Text>
+        </div>
+      )}
+
       {step === 1 && (
         <div className={styles.stepContainer}>
           <ExampleLoader type="doe" onLoaded={() => {}} />

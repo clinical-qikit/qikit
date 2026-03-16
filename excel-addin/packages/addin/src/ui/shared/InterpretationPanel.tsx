@@ -42,13 +42,13 @@ export const InterpretationPanel: React.FC<InterpretationPanelProps> = ({ result
       <>
         <div className={styles.header}>
           {hasSignals ? <Warning24Regular className={styles.signal} /> : <Info24Regular />}
-          <Text>{hasSignals ? 'Signals Detected' : 'Process is Stable'}</Text>
+          <Text>{hasSignals ? 'Special-Cause Variation Detected' : 'Process is Stable'}</Text>
         </div>
         <div className={styles.content}>
           <Text>
             {hasSignals 
-              ? `${signalCount} point(s) show signs of special-cause variation. Investigate any unusual events at these times.`
-              : 'No special-cause variation was detected. The process appears to be stable and predictable within the current control limits.'}
+              ? `${signalCount} point(s) show signs of special-cause variation, meaning something outside the normal system is affecting the process. Investigate these points to understand what changed.`
+              : 'No special-cause variation was detected. The process appears to be stable and predictable. Any variation seen is likely due to common causes inherent to the system.'}
           </Text>
         </div>
       </>
@@ -68,8 +68,8 @@ export const InterpretationPanel: React.FC<InterpretationPanelProps> = ({ result
         <div className={styles.content}>
           {topEffect ? (
             <Text>
-              The factor <strong>{topEffect.term}</strong> has the largest impact on your results (effect size: {topEffect.effect.toFixed(2)}). 
-              Overall, your model explains {rSqPct}% of the variation in the data.
+              The factor <strong>{topEffect.term}</strong> has the largest impact on your results, changing the outcome by an average of {topEffect.effect.toFixed(2)} when moving from its low to high setting. 
+              Overall, the factors in this model explain {rSqPct}% of the variation in the data.
             </Text>
           ) : (
             <Text>No significant factors were identified in this experiment.</Text>

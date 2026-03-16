@@ -1180,11 +1180,11 @@ All 6 issues fixed. 130 tests passing. See Section 2 for details.
 
 ### Phase 5: Polish + Distribution (1 week)
 
-1. Error handling and input validation throughout
-2. Build optimization (Vite handles tree shaking and code splitting automatically — verify bundle size)
-3. Set up HTTPS hosting for task pane (Azure Static Web Apps free tier, GitHub Pages, or hospital intranet with SSL)
-4. Centralized deployment documentation
-5. Interpretation panel content review — ensure all plain-language summaries are accurate and helpful for students
+- [x] 1. Error handling and input validation throughout
+- [x] 2. Build optimization (Vite handles tree shaking and code splitting automatically — verify bundle size)
+- [x] 3. Set up HTTPS hosting for task pane (Azure Static Web Apps free tier, GitHub Pages, or hospital intranet with SSL)
+- [x] 4. Centralized deployment documentation
+- [x] 5. Interpretation panel content review — ensure all plain-language summaries are accurate and helpful for students
 
 ### Dependency Graph
 

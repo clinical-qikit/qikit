@@ -11,6 +11,12 @@ export default defineConfig({
     rollupOptions: { 
       input: {
         taskpane: resolve(__dirname, 'packages/addin/taskpane.html')
+      },
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          chart: ['chart.js', 'react-chartjs-2']
+        }
       }
     },
     emptyOutDir: true,
