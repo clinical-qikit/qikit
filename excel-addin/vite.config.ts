@@ -12,7 +12,7 @@ export default defineConfig({
     outDir: resolve(__dirname, 'dist'),
     rollupOptions: { 
       input: {
-        taskpane: resolve(__dirname, 'packages/addin/taskpane.html')
+        taskpane: resolve(__dirname, 'packages/addin/index.html')
       },
       output: {
         manualChunks: {

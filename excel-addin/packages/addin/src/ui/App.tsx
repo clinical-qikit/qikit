@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   TabList, Tab, makeStyles, tokens 
 } from '@fluentui/react-components';
-import { SpcWizard } from './spc/SpcWizard';
+import { SpcPanel } from './spc/SpcPanel';
 import { DoeWizard } from './doe/DoeWizard';
 
 const useStyles = makeStyles({
@@ -31,7 +31,7 @@ export const App: React.FC = () => {
         <Tab value="doe">DOE</Tab>
       </TabList>
       <div className={styles.content}>
-        {selectedTab === 'spc' ? <SpcWizard /> : <DoeWizard />}
+        {selectedTab === 'spc' ? <SpcPanel /> : <DoeWizard />}
       </div>
     </div>
   );

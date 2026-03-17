@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Button, makeStyles, tokens, Text, 
-  Title3, Badge, Card, Field
+import {
+  Button, makeStyles, tokens, Text,
+  Badge, Card,
 } from '@fluentui/react-components';
 import { design, analyze, DOEDesign, DOEResult } from '@qikit/engine';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
 import { FactorEditor, Factor } from './FactorEditor';
 import { ChartViewer } from '../shared/ChartViewer';
-import { InterpretationPanel } from '../shared/InterpretationPanel';
-import { StepIndicator } from '../shared/StepIndicator';
-import { ExampleLoader } from '../shared/ExampleLoader';
 
 import { DesignConfigurator } from './DesignConfigurator';
 
@@ -47,8 +44,6 @@ const useStyles = makeStyles({
   }
 });
 
-const STEPS = ['Define Factors', 'Run Experiment', 'Results'];
-
 export const DoeWizard: React.FC = () => {
   const styles = useStyles();
   const [step, setStep] = useState(1);
@@ -83,17 +78,6 @@ export const DoeWizard: React.FC = () => {
       setError(err instanceof Error ? err.message : "Failed to generate design.");
       console.error(err);
     }
-  };
-
-  const onExampleLoaded = (data: any[][]) => {
-    // Example: ['RunOrder', 'A', 'B', 'Response']
-    const headers = data[0];
-    const factorNames = headers.filter((h: string) => h !== 'RunOrder' && h !== 'Response');
-    setFactors(factorNames.map((name: string) => ({
-      name,
-      low: '-1',
-      high: '1'
-    })));
   };
 
   const onWriteTemplate = async () => {
@@ -163,8 +147,6 @@ export const DoeWizard: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <StepIndicator currentStep={step} steps={STEPS} />
-      
       {error && (
         <div className={styles.errorText}>
           <Text>{error}</Text>
@@ -173,8 +155,6 @@ export const DoeWizard: React.FC = () => {
 
       {step === 1 && (
         <div className={styles.stepContainer}>
-          <ExampleLoader type="doe" onLoaded={onExampleLoaded} />
-          <Text weight="semibold">Step 1: Define Factors</Text>
           <FactorEditor factors={factors} onChange={setFactors} />
           <DesignConfigurator 
             nFactors={factors.length} 
@@ -207,7 +187,6 @@ export const DoeWizard: React.FC = () => {
         <div className={styles.stepContainer}>
           <Text weight="semibold">Step 3: Results</Text>
           <ChartViewer result={result} type="doe" />
-          <InterpretationPanel result={result} type="doe" />
           <div className={styles.actions}>
             <Button appearance="primary" onClick={onWriteResults}>Write to Sheet</Button>
             <Button appearance="secondary" onClick={onReset}>Start New</Button>

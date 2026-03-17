@@ -1,19 +1,19 @@
 # qikit Implementation Plan — SPC Bugs, Python Planned Experimentation, Excel Add-in, Shared Fixtures
 
 > **Purpose**: Complete specification for an implementing agent. Read this fully before writing any code.
-> **Current Status**: Phase 0 (Bug Fixes) is COMPLETE. The next implementing agent should begin execution starting with **Phase 1** (Shared Fixtures + Python Planned Experimentation Core) and/or **Phase 2** (TypeScript SPC Engine).
-> **Date**: 2026-03-15
+> **Current Status**: Phases 0, 1, 2, and 3 are COMPLETE. The project is currently in **Phase 4** (Excel Add-in UI Wiring & Integration).
+> **Date**: 2026-03-16
 > **Codebase**: `/Users/davidvandyke/repos/qikit/` — clinical-qikit v0.1.0a0
 > **Tests**: 130 passing (`uv run pytest tests/ -v`), ruff clean (`uv run ruff check src/`)
 
 ---
 
 ## 🎯 Instructions for Next Implementing Agent
-**Welcome!** Your task is to execute the remaining phases of this plan.
-1. **Read Section 6 (Implementation Phases)** to understand the dependency graph.
-2. Phase 0 is complete.
-3. You should begin work on **Phase 1** and/or **Phase 2**, which can be done in parallel.
-4. Follow the architecture rules strictly, ensuring all verification steps pass before moving to subsequent phases.
+**Welcome!** Your task is to complete the Excel Add-in UI and then move to Phase 5.
+1. **Read Section 6 (Implementation Phases)** to understand the remaining work in Phase 4.
+2. Ensure all **UX Rules** in Section 5 are followed strictly during UI development.
+3. Validate the add-in using the `dev-harness.tsx` and then via sideloading in Excel.
+4. Follow the architecture rules strictly, ensuring all verification steps pass.
 
 ---
 
@@ -1113,91 +1113,83 @@ export default defineConfig({
 
 All 6 issues fixed. 130 tests passing. See Section 2 for details.
 
-### Phase 1: Shared Fixtures + Python Planned Experimentation Core (1-2 weeks)
+### Phase 1: Shared Fixtures + Python Planned Experimentation Core — COMPLETE (2026-03-16)
 
 **1a. SPC Fixtures (no Planned Experimentation dependency):**
-1. Create `fixtures/spc/` directory
-2. Author 23 SPC fixture JSON files (`id`, `reference`, `function`, `input`, `check` — leave `snapshot` empty)
-3. Write `scripts/update_snapshots.py` — populates `snapshot` fields, gated by `check` passing
-4. Write `tests/test_conformance.py` — single parametrized test auto-discovers all fixture files
-5. Run `update_snapshots.py` to populate snapshots
+- [x] 1. Create `fixtures/spc/` directory
+- [x] 2. Author 23 SPC fixture JSON files (`id`, `reference`, `function`, `input`, `check`)
+- [x] 3. Write `scripts/update_snapshots.py` — populates `snapshot` fields
+- [x] 4. Write `tests/test_conformance.py` — parametrized test for all fixtures
+- [x] 5. Run `update_snapshots.py` to populate snapshots
 
 **1b. Python Planned Experimentation Core:**
-6. Implement `src/qikit/planned_experimentation.py`:
-   - `_yates_matrix()`, `_fractional_matrix()` with full generator catalog
-   - `design()` with replication, center points, randomization
-   - `_compute_effects()` with interactions up to 3-way
-   - `analyze()` with R², adj R², residuals
-   - `Planned ExperimentationDesign` and `Planned ExperimentationResult` frozen dataclasses
-7. Create `fixtures/experiment/` directory, author all 19 Planned Experimentation fixture JSON files
-8. Write `tests/test_planned_experimentation.py`
+- [x] 6. Implement `src/qikit/doe.py` (Design Matrix generation & Effects analysis)
+- [x] 7. Create `fixtures/experiment/` directory, author Planned Experimentation fixture JSON files
+- [x] 8. Write `tests/test_doe.py` (validating against fixtures)
 
-### Phase 2: TypeScript SPC Engine (1-2 weeks, parallel with Phase 1)
+### Phase 2: TypeScript SPC Engine — COMPLETE (2026-03-16)
 
-1. Scaffold `excel-addin/` workspace structure: root `package.json` with workspaces, `packages/engine/package.json`, `packages/addin/package.json`, `vite.config.ts`, `tsconfig.json`
-2. Implement `packages/engine/src/constants.ts` (verbatim port)
-3. Implement `packages/engine/src/spc-helpers.ts` (nanmean, nanmedian, movingRanges, screenedMeanMR, binomCoeff)
-4. Implement `packages/engine/src/spc-core.ts` (all 12 ChartSpecs + compute())
-5. Implement `packages/engine/src/signals.ts` (all 4 methods — anhoej, ihi, weco, nelson)
-6. Implement `packages/engine/src/bchart.ts`
-7. Write `packages/engine/tests/spc-core.test.ts` — single parametrized test auto-discovers all SPC fixtures (check + snapshot)
-8. Write `packages/engine/tests/signals.test.ts`
+- [x] 1. Scaffold `excel-addin/` workspace structure
+- [x] 2. Implement `packages/engine/src/constants.ts` (verbatim port)
+- [x] 3. Implement `packages/engine/src/spc-helpers.ts`
+- [x] 4. Implement `packages/engine/src/spc-core.ts` (12 ChartSpecs + compute())
+- [x] 5. Implement `packages/engine/src/signals.ts` (all 4 methods)
+- [x] 6. Implement `packages/engine/src/bchart.ts`
+- [x] 7. Write `packages/engine/tests/conformance.test.ts` (validates against fixtures)
 
-### Phase 3: Python Planned Experimentation Rendering + TypeScript Planned Experimentation (1-2 weeks)
+### Phase 3: Python Planned Experimentation Rendering + TypeScript Planned Experimentation — COMPLETE (2026-03-16)
 
-1. Implement `src/qikit/experiment_render.py` (9 chart types)
-2. Extract `_apply_theme()` from `render.py` for shared use
-3. Update `src/qikit/__init__.py` exports
-4. Implement TypeScript `packages/engine/src/doe-core.ts` + `packages/engine/src/doe-analyze.ts`
-5. Validate TypeScript Planned Experimentation against all 19 Planned Experimentation fixtures
+- [x] 1. Implement `src/qikit/render/doe_plots.py` (9 chart types)
+- [x] 2. Extract `apply_tufte_theme()` in `utils.py` for shared use
+- [x] 3. Update `src/qikit/__init__.py` exports
+- [x] 4. Implement TypeScript `doe-core.ts` + `doe-analyze.ts`
+- [x] 5. Validate TS Planned Experimentation against fixtures (`doe-conformance.test.ts`)
 
-### Phase 4: Excel Add-in UI (2-3 weeks)
+### Phase 4: Excel Add-in UI — IN PROGRESS
 
 > **Key principle:** The target user is a student, not an expert. All UX Rules from Section 5 are mandatory. Do not skip the interpretation panel, data preview, contextual tooltips, or chart-type questionnaire.
 
-1. Set up Office.js project: `manifest.json` (unified JSON format), `taskpane.html`, Vite config
-2. Implement browser dev harness (`packages/addin/src/dev-harness.tsx`) — mock Office.context with in-memory grid so the full UI is testable in a browser without sideloading
-3. Implement `packages/addin/src/excel/excel-io.ts` (range read/write) + `range-utils.ts`
-4. Implement shared components:
-   - `TooltipHelp.tsx` — contextual `?` icon with hover explanations
-   - `InterpretationPanel.tsx` — plain-language results summary, driven by result data
-   - `ExampleLoader.tsx` — "Try an Example" button that loads fixture data into a sheet
-   - `DataPreview.tsx` — inline 5-row preview + data validation warnings
-   - `ChartViewer.tsx` — Chart.js rendering in task pane
-   - `StepIndicator.tsx` — vertical stepper with per-step undo
-5. Implement SPC flow:
-   - `DataRangeInput.tsx` — "Use Current Selection" + `DataPreview` integration
-   - `DataDescriber.tsx` — questionnaire that auto-resolves chart type (NOT a chart-type grid)
-   - `SpcWizard.tsx` — 3-step orchestration
-   - `ResultsPanel.tsx` — chart + `InterpretationPanel` + actions
-6. Implement DOE flow:
-   - `FactorEditor.tsx` — inline-editable factor list
-   - `DesignConfigurator.tsx` — full/fractional toggle with run-count badge (inline, not a separate step)
-   - `DoeWizard.tsx` — 3-step orchestration (NOT 4-step)
-   - `ResultsPanel.tsx` — chart tabs + `InterpretationPanel` + actions
-- [x] 7. Implement `packages/addin/src/excel/chart-builder.ts` (Excel native charts — "Insert Chart to Sheet")
-- [x] 8. End-to-end testing: browser dev harness first, then sideloaded add-in
+- [x] 1. Set up Office.js project: `manifest.json`, `taskpane.html`, Vite config
+- [x] 2. Implement browser dev harness (`dev-harness.tsx`)
+- [x] 3. Implement `excel-io.ts` (range read/write)
+- [x] 4. Implement shared components:
+   - [x] `TooltipHelp.tsx`
+   - [x] `InterpretationPanel.tsx`
+   - [x] `ExampleLoader.tsx`
+   - [x] `DataPreview.tsx`
+   - [x] `ChartViewer.tsx` (Chart.js rendering)
+   - [x] `StepIndicator.tsx`
+- [ ] 5. Implement SPC flow:
+   - [x] `DataDescriber.tsx` (questionnaire-based)
+   - [x] `SpcWizard.tsx` (orchestration)
+   - [ ] Final wiring to engine and data selection
+- [ ] 6. Implement DOE flow:
+   - [x] `FactorEditor.tsx`
+   - [x] `DesignConfigurator.tsx`
+   - [x] `DoeWizard.tsx` (orchestration)
+   - [ ] Final wiring to engine and template generation
+- [x] 7. Implement `chart-builder.ts` (Excel native charts)
+- [ ] 8. End-to-end testing: sideloaded add-in verification
 
-### Phase 5: Polish + Distribution (1 week)
+### Phase 5: Polish + Distribution — PLANNED
 
-- [x] 1. Error handling and input validation throughout
-- [x] 2. Build optimization (Vite handles tree shaking and code splitting automatically — verify bundle size)
-- [x] 3. Set up HTTPS hosting for task pane (Azure Static Web Apps free tier, GitHub Pages, or hospital intranet with SSL)
-- [x] 4. Centralized deployment documentation
-- [x] 5. Interpretation panel content review — ensure all plain-language summaries are accurate and helpful for students
+- [ ] 1. Error handling and input validation throughout
+- [ ] 2. Build optimization
+- [ ] 3. Set up HTTPS hosting
+- [ ] 4. Centralized deployment documentation
+- [ ] 5. Interpretation panel content review
 
 ### Dependency Graph
 
 ```
-Phase 0 (bug fixes) ──→ Phase 1 (fixtures + Python Planned Experimentation) ──┐
-                                                            ├──→ Phase 3 (rendering + TS Planned Experimentation) ──→ Phase 4 (UI) ──→ Phase 5
-                        Phase 2 (TS SPC engine) ───────────┘
+Phase 0 (COMPLETE) ──→ Phase 1 (COMPLETE) ──┐
+                                            ├──→ Phase 3 (COMPLETE) ──→ Phase 4 (IN PROGRESS) ──→ Phase 5 (PLANNED)
+                        Phase 2 (COMPLETE) ─┘
 ```
 
 Phase 0 is complete — all bug fixes verified.
-Phase 1a (SPC fixtures) can start immediately. Phase 1b (Planned Experimentation) is independent of Phase 2.
-Phases 1 and 2 are fully parallel.
-Phase 3 depends on both.
+Phases 1, 2, and 3 are complete and verified via cross-language fixture tests.
+Phase 4 is in progress, with core components built and orchestration wizards drafted.
 Phase 4 depends on Phase 3. **Phase 4 implementer MUST read the UX Rules in Section 5 before writing any UI code.**
 
 ---

@@ -37,7 +37,7 @@
           "id": "TaskPaneRuntime",
           "type": "general",
           "code": {
-            "page": "https://localhost:3000/taskpane.html"
+            "page": "https://localhost:3000/index.html"
           }
         }
       ],
