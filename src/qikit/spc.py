@@ -763,6 +763,7 @@ References
 
 import json
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -987,6 +988,7 @@ _PLOT_OPT_KEYS = frozenset({
     "nrow", "ncol", "scales",
     "part_labels", "part_indices",
     "height", "width",
+    "connect", "x_nticks_all",
 })
 
 
@@ -1006,6 +1008,7 @@ def qic(
     exclude: list[int] | str | None = None,
     target: float | list[float] | str | None = None,
     cl: float | None = None,
+    funnel: bool = False,
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -1035,6 +1038,7 @@ def qic(
     y_neg: bool = True,
     y_percent: bool | None = None,
     y_percent_accuracy: int | None = None,
+    connect: bool | None = None,
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
@@ -1056,7 +1060,18 @@ def qic(
     part   : index (or list) where new phases begin (1-based), or column name
     exclude: list of indices to ghost from baseline (1-based), or column name
     cl     : user-supplied fixed center line
-    multiply : multiply y values by this factor
+    multiply : multiply y values by this factor; note that y_percent=True (default
+               for p/pp charts) already handles percent display — combining both
+               will produce unexpectedly large values and raises a UserWarning
+    funnel : when True, produces a funnel plot from a p/pp/u/up chart:
+               sorts data by denominator (n) ascending, disables runs-signal
+               detection (only sigma signals are meaningful cross-sectionally),
+               and renders markers only with all x-axis labels shown.
+               Valid only for charts with denominators (p, pp, u, up).
+    connect : explicitly control point connectivity. True = lines+markers,
+               False = markers only. When None (default), connectivity is
+               inferred from the x-axis: categorical values that don't look
+               sequential default to markers only.
 
     Returns
     -------
@@ -1067,6 +1082,21 @@ def qic(
     # Default y_percent for proportion charts
     if y_percent is None:
         y_percent = chart in ("p", "pp")
+
+    if y_percent and multiply != 1.0:
+        warnings.warn(
+            "y_percent=True already scales the axis to percent display. "
+            "Setting multiply != 1 will produce unexpected results (e.g., 10% → 1000%). "
+            "For p-charts, omit multiply= unless you intend to scale the raw proportion.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    if funnel and chart not in ("p", "pp", "u", "up"):
+        raise ValueError(
+            f"funnel=True is only valid for attribute charts with denominators "
+            f"(p, pp, u, up). Got chart={chart!r}."
+        )
 
     if chart not in VALID_CHARTS:
         raise ValueError(
@@ -1091,7 +1121,6 @@ def qic(
 
         # Warn if using list indices with facets
         if isinstance(part, (list, np.ndarray)) or isinstance(exclude, (list, np.ndarray)):
-            import warnings
             warnings.warn(
                 "Using integer indices for 'part' or 'exclude' with facets is risky as indices "
                 "often differ per group. Using column names is recommended.",
@@ -1171,6 +1200,17 @@ def qic(
         raise ValueError("y= contains no values.")
 
     # ------------------------------------------------------------------
+    # 2. Funnel sort: order points by denominator ascending
+    # ------------------------------------------------------------------
+    if funnel:
+        if n_vals is None:
+            raise ValueError("funnel=True requires denominators (n=).")
+        sort_order = np.argsort(n_vals, kind="stable")
+        x_vals = [x_vals[i] for i in sort_order]
+        y_arr = y_arr[sort_order]
+        n_vals = n_vals[sort_order]
+
+    # ------------------------------------------------------------------
     # 3. Build baseline mask
     # ------------------------------------------------------------------
     n_pts_orig = len(y_arr)
@@ -1244,8 +1284,8 @@ def qic(
     (
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_summary
     ) = _compute_spc_arrays(
-        chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method, 
-        s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec
+        chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
+        s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel=funnel
     )
 
     # ------------------------------------------------------------------
@@ -1283,6 +1323,9 @@ def qic(
     local_vars = locals()
     plot_opts = {k: local_vars[k] for k in _PLOT_OPT_KEYS if k in local_vars}
     plot_opts["part_indices"] = part_indices
+    if funnel:
+        plot_opts["connect"] = False
+        plot_opts["x_nticks_all"] = True
 
     return SPCResult(
         data=df,
@@ -1415,8 +1458,8 @@ def _agg(series_grouped, agg_fun):
 
 
 def _compute_spc_arrays(
-    chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method, 
-    s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec
+    chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
+    s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel: bool = False
 ):
     n_pts = len(y_calc)
     if part_indices and freeze_idx is None:
@@ -1468,7 +1511,12 @@ def _compute_spc_arrays(
             runs_sig, runs_summary = _runs_signals(y_plot, cl_arr, method=method)
         else:
             sigma_sig, runs_sig, runs_summary = res["sigma_signal"], res["runs_signal"], res["summary"]
-            
+
+    if funnel:
+        # Runs rules assume temporal ordering; suppress them for cross-sectional funnel plots.
+        runs_sig = np.zeros(len(runs_sig), dtype=bool)
+        runs_summary = {**runs_summary, "runs_disabled": True, "note": "runs signals suppressed (funnel mode)"}
+
     return cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_summary
 
 

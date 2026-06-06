@@ -38,7 +38,6 @@ def apply_tufte_theme(fig: go.Figure) -> go.Figure:
         linecolor="#cccccc",
         ticks="outside",
         tickcolor="#cccccc",
-        nticks=5,
     )
 
     fig.update_yaxes(

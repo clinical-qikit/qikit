@@ -60,6 +60,7 @@ def _add_chart_traces(
     col: int | None = None,
     part_indices: list[int] | None = None,
     part_labels: list[str] | None = None,
+    connect: bool | None = None,
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, and notes to fig.
@@ -79,12 +80,15 @@ def _add_chart_traces(
     if row is not None and col is not None:
         add_kwargs = {"row": row, "col": col}
 
-    # Smart connectivity: markers only if categorical and not time-series
-    is_categorical = all(isinstance(val, str) for val in x)
-    sequential_patterns = ["-", "/", "w", "case", "obs", "pt"]
-    looks_sequential = any(any(pat in str(val).lower() for pat in sequential_patterns) for val in x)
-    dots_only = is_categorical and (not looks_sequential)
-    mode = "markers" if dots_only else "lines+markers"
+    # Connectivity: explicit override > auto-detection
+    if connect is not None:
+        mode = "lines+markers" if connect else "markers"
+    else:
+        is_categorical = all(isinstance(val, str) for val in x)
+        sequential_patterns = ["-", "/", "week", "wk", "case", "obs", "pt"]
+        looks_sequential = any(any(pat in str(val).lower() for pat in sequential_patterns) for val in x)
+        dots_only = is_categorical and not looks_sequential
+        mode = "markers" if dots_only else "lines+markers"
 
     # Data trace — zorder=2 keeps it above all reference ink
     text = df["notes"].tolist() if "notes" in df.columns else None
@@ -252,19 +256,27 @@ def _configure_layout(
     x_order: list | str | None = None,
     height: int | None = None,
     width: int | None = None,
+    x_nticks_all: bool = False,
 ) -> None:
     """Shared layout and axis styling for single and faceted plots."""
     apply_tufte_theme(fig)
 
     # Categorical x-axis: explicit type + optional ordering
     x_vals = result.data["x"].tolist()
-    if all(isinstance(v, str) for v in x_vals):
+    is_categorical = all(isinstance(v, str) for v in x_vals)
+    if is_categorical:
         fig.update_xaxes(type="category")
         if x_order is not None:
             if isinstance(x_order, list):
                 fig.update_xaxes(categoryorder="array", categoryarray=x_order)
             else:
                 fig.update_xaxes(categoryorder=x_order)
+
+    # nticks: restrict x ticks only for numeric/time axes; for categorical, show all or limit
+    if x_nticks_all or is_categorical:
+        fig.update_xaxes(nticks=0)  # 0 = Plotly auto, shows all category labels
+    else:
+        fig.update_xaxes(nticks=5)
 
     title_text = result.title
     if hasattr(result, "signals") and result.signals and title_text:
@@ -342,6 +354,8 @@ def _plot_faceted(
     x_order: list | str | None = None,
     height: int | None = None,
     width: int | None = None,
+    connect: bool | None = None,
+    x_nticks_all: bool = False,
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -378,12 +392,13 @@ def _plot_faceted(
             show_95=show_95,
             x_pad=x_pad,
             row=r_row, col=r_col,
+            connect=connect,
         )
 
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
-        height=height, width=width,
+        height=height, width=width, x_nticks_all=x_nticks_all,
     )
 
     return fig
@@ -560,6 +575,8 @@ def plot_result(
     x_order: list | str | None = None,
     height: int | None = None,
     width: int | None = None,
+    connect: bool | None = None,
+    x_nticks_all: bool = False,
     **_kwargs: Any,
 ) -> go.Figure:
     """
@@ -574,6 +591,7 @@ def plot_result(
             y_expand=y_expand, y_neg=y_neg, y_percent=y_percent,
             flip=flip, show_grid=show_grid, x_order=x_order,
             height=height, width=width,
+            connect=connect, x_nticks_all=x_nticks_all,
         )
 
     df = result.data
@@ -588,12 +606,13 @@ def plot_result(
         x_pad=x_pad,
         part_indices=part_indices,
         part_labels=part_labels,
+        connect=connect,
     )
 
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
-        height=height, width=width,
+        height=height, width=width, x_nticks_all=x_nticks_all,
     )
 
     return fig
