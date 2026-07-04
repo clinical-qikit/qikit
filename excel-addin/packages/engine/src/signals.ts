@@ -1,4 +1,4 @@
-import { SignalMethod, SPCInput } from './spc-types';
+import { SignalMethod } from './spc-types';
 import { binomCoeff } from './spc-helpers';
 
 export function longestRunThreshold(n: number): number {

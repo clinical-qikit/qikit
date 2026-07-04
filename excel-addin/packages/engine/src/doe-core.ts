@@ -64,7 +64,7 @@ function fractionalMatrix(k: number, p: number, generators: string[]): number[][
   const matrix: number[][] = base.map(row => [...row]);
   
   for (const gen of generators) {
-    const [target, sources] = gen.replace(/\s/g, '').split('=');
+    const [_target, sources] = gen.replace(/\s/g, '').split('=');
     const sourceIndices = sources.split('').map(s => baseLabels.indexOf(s));
     
     for (let i = 0; i < base.length; i++) {
@@ -75,6 +75,18 @@ function fractionalMatrix(k: number, p: number, generators: string[]): number[][
   }
   
   return matrix;
+}
+
+function lcgShuffle(arr: number[][], seed: number): number[][] {
+  // Fisher-Yates with LCG seeded PRNG
+  let s = seed >>> 0;
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    s = Math.imul(s, 1664525) + 1013904223 >>> 0;
+    const j = s % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 export function design(input: {
@@ -88,8 +100,9 @@ export function design(input: {
   randomize?: 'none' | 'full',
   seed?: number
 }): DOEDesign {
-  const { factors, lows = new Array(factors.length).fill(-1), highs = new Array(factors.length).fill(1), 
-          design_type = 'full_factorial', replicates = 1, center_points = 0 } = input;
+  const { factors, lows = new Array(factors.length).fill(-1), highs = new Array(factors.length).fill(1),
+          design_type = 'full_factorial', replicates = 1, center_points = 0,
+          randomize = 'none', seed = 42 } = input;
   let { generators } = input;
   const k = factors.length;
   let matrix: number[][] = [];
@@ -126,6 +139,11 @@ export function design(input: {
   // Center points
   for (let c = 0; c < center_points; c++) {
     finalMatrix.push(new Array(k).fill(0));
+  }
+
+  // Randomize
+  if (randomize === 'full') {
+    finalMatrix = lcgShuffle(finalMatrix, seed);
   }
 
   const nRuns = finalMatrix.length;

@@ -1,4 +1,4 @@
-import { ChartSpec, ChartType, SPCInput, SPCResult } from './spc-types';
+import { ChartSpec, SPCInput, SPCResult } from './spc-types';
 import { nanmean, nanmedian, nansum, screenedMeanMR } from './spc-helpers';
 import { A3, B3, B4, D2, D4 } from './constants';
 import { detectSignals } from './signals';
@@ -6,12 +6,12 @@ import { detectSignals } from './signals';
 export const CHARTS: Record<string, ChartSpec> = {
   run: {
     center: (yb) => nanmedian(yb),
-    limits: (cl, y) => [new Array(y.length).fill(NaN), new Array(y.length).fill(NaN)],
+    limits: (_cl, y) => [new Array(y.length).fill(NaN), new Array(y.length).fill(NaN)],
     needsN: false, isAttribute: false, floorLcl: false
   },
   i: {
     center: (yb) => nanmean(yb),
-    limits: (cl, y, n, mask) => {
+    limits: (cl, y, _n, mask) => {
       const mrBar = screenedMeanMR(y, mask);
       const sigma = mrBar / D2[2];
       return [new Array(y.length).fill(cl + 3 * sigma), new Array(y.length).fill(cl - 3 * sigma)];
@@ -25,7 +25,7 @@ export const CHARTS: Record<string, ChartSpec> = {
   },
   p: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
-    limits: (cl, y, n) => {
+    limits: (cl, _y, n) => {
       const ucl = n!.map(ni => cl + 3 * Math.sqrt(cl * (1 - cl) / ni));
       const lcl = n!.map(ni => cl - 3 * Math.sqrt(cl * (1 - cl) / ni));
       return [ucl, lcl];
@@ -34,7 +34,7 @@ export const CHARTS: Record<string, ChartSpec> = {
   },
   u: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
-    limits: (cl, y, n) => {
+    limits: (cl, _y, n) => {
       const ucl = n!.map(ni => cl + 3 * Math.sqrt(cl / ni));
       const lcl = n!.map(ni => cl - 3 * Math.sqrt(cl / ni));
       return [ucl, lcl];
@@ -91,7 +91,7 @@ export const CHARTS: Record<string, ChartSpec> = {
   },
   xbar: {
     center: (yb) => nanmean(yb),
-    limits: (cl, y, n, mask, subN, sBar) => {
+    limits: (cl, y, _n, _mask, subN, sBar) => {
       const a3 = subN ? A3[subN] : NaN;
       return [new Array(y.length).fill(cl + a3 * sBar!), new Array(y.length).fill(cl - a3 * sBar!)];
     },
@@ -99,12 +99,21 @@ export const CHARTS: Record<string, ChartSpec> = {
   },
   s: {
     center: (yb) => nanmean(yb),
-    limits: (cl, y, n, mask, subN) => {
+    limits: (cl, y, _n, _mask, subN) => {
       const b4 = subN ? B4[subN] : NaN;
       const b3 = subN ? B3[subN] : NaN;
       return [new Array(y.length).fill(b4 * cl), new Array(y.length).fill(b3 * cl)];
     },
     needsN: false, isAttribute: false, floorLcl: false
+  },
+  ip: {
+    center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
+    limits: (cl, y, _n, mask) => {
+      const mrBar = screenedMeanMR(y, mask);
+      const sigma = mrBar / D2[2];
+      return [new Array(y.length).fill(cl + 3 * sigma), new Array(y.length).fill(cl - 3 * sigma)];
+    },
+    needsN: true, isAttribute: true, floorLcl: false
   }
 };
 
@@ -126,6 +135,10 @@ export function compute(input: SPCInput): SPCResult {
     } else {
       nCalc = new Array(y.length).fill(n);
     }
+  }
+
+  if (spec.needsN && !nCalc) {
+    throw new Error(`Chart type "${chart}" requires a sample size column (N).`);
   }
 
   let mask = new Array(y.length).fill(true);
@@ -189,6 +202,8 @@ export function compute(input: SPCInput): SPCResult {
   const clArr = new Array(nPts).fill(NaN);
   const uclArr = new Array(nPts).fill(NaN);
   const lclArr = new Array(nPts).fill(NaN);
+  const ucl95Arr = new Array(nPts).fill(NaN);
+  const lcl95Arr = new Array(nPts).fill(NaN);
   const sigmaSig = new Array(nPts).fill(false);
   const runsSig = new Array(nPts).fill(false);
   const summaries: any[] = [];
@@ -220,6 +235,10 @@ export function compute(input: SPCInput): SPCResult {
       clArr[s + j] = clVal;
       uclArr[s + j] = uclSeg[j];
       lclArr[s + j] = spec.floorLcl ? Math.max(0, lclSeg[j]) : lclSeg[j];
+      const spread = uclSeg[j] - clVal;
+      ucl95Arr[s + j] = clVal + spread * (2 / 3);
+      const l95 = clVal - spread * (2 / 3);
+      lcl95Arr[s + j] = spec.floorLcl ? Math.max(0, l95) : l95;
     }
 
     // Signals per segment
@@ -234,18 +253,22 @@ export function compute(input: SPCInput): SPCResult {
   // Back-transform for t-chart
   if (chart === 't') {
     for (let i = 0; i < nPts; i++) {
-      clArr[i] = Math.pow(Math.max(0, clArr[i]), 3.6);
-      uclArr[i] = Math.pow(Math.max(0, uclArr[i]), 3.6);
-      lclArr[i] = Math.pow(Math.max(0, lclArr[i]), 3.6);
+      clArr[i]   = Math.pow(Math.max(0, clArr[i]),   3.6);
+      uclArr[i]  = Math.pow(Math.max(0, uclArr[i]),  3.6);
+      lclArr[i]  = Math.pow(Math.max(0, lclArr[i]),  3.6);
+      ucl95Arr[i] = Math.pow(Math.max(0, ucl95Arr[i]), 3.6);
+      lcl95Arr[i] = Math.pow(Math.max(0, lcl95Arr[i]), 3.6);
     }
   }
 
   // Multiply
   if (multiply !== 1.0) {
     for (let i = 0; i < nPts; i++) {
-      clArr[i] *= multiply;
-      uclArr[i] *= multiply;
-      lclArr[i] *= multiply;
+      clArr[i]   *= multiply;
+      uclArr[i]  *= multiply;
+      lclArr[i]  *= multiply;
+      ucl95Arr[i] *= multiply;
+      lcl95Arr[i] *= multiply;
     }
   }
 
@@ -254,6 +277,8 @@ export function compute(input: SPCInput): SPCResult {
     cl: clArr[i],
     ucl: uclArr[i],
     lcl: lclArr[i],
+    ucl_95: ucl95Arr[i],
+    lcl_95: lcl95Arr[i],
     sigma_signal: sigmaSig[i],
     runs_signal: runsSig[i]
   }));
@@ -275,9 +300,11 @@ export function compute(input: SPCInput): SPCResult {
         summary: this.summary,
         data: this.data.map(d => ({
           ...d,
-          cl: isNaN(d.cl) ? null : d.cl,
-          ucl: isNaN(d.ucl) ? null : d.ucl,
-          lcl: isNaN(d.lcl) ? null : d.lcl
+          cl:     isNaN(d.cl)     ? null : d.cl,
+          ucl:    isNaN(d.ucl)    ? null : d.ucl,
+          lcl:    isNaN(d.lcl)    ? null : d.lcl,
+          ucl_95: isNaN(d.ucl_95) ? null : d.ucl_95,
+          lcl_95: isNaN(d.lcl_95) ? null : d.lcl_95,
         }))
       };
     }
