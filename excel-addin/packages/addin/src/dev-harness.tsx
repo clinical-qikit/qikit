@@ -162,7 +162,7 @@ function buildMockContext() {
 
 (window as any).Office = {
   onReady: (callback: (info: any) => void) => {
-    callback({ host: 'Excel', platform: 'PC' });
+    callback({ host: null, platform: 'PC' });
   },
   context: {
     document: {
