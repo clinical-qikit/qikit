@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Table, TableHeader, TableRow, TableHeaderCell, TableBody, TableCell, 
+  Table, TableRow, TableBody, TableCell,
   Text, makeStyles, tokens, Badge
 } from '@fluentui/react-components';
 
@@ -35,7 +35,7 @@ interface DataPreviewProps {
   hasHeaders?: boolean;
 }
 
-export const DataPreview: React.FC<DataPreviewProps> = ({ data, hasHeaders = false }) => {
+export const DataPreview: React.FC<DataPreviewProps> = ({ data, hasHeaders: _hasHeaders = false }) => {
   const styles = useStyles();
 
   if (!data || data.length === 0) {
