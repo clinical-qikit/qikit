@@ -1,70 +1,158 @@
 import React from 'react';
-import { 
-  RadioGroup, Radio, Text, makeStyles, tokens, Badge, Card
+import {
+  RadioGroup, Radio, makeStyles, Badge, Input, Checkbox,
 } from '@fluentui/react-components';
+import { DesignType } from '@qikit/engine';
 
 const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
-    marginTop: '16px',
-    padding: '12px',
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderRadius: tokens.borderRadiusMedium,
+    padding: '14px',
+    backgroundColor: '#f9fafb',
+    borderRadius: '10px',
+    border: '1px solid #f0f1f3',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-  }
+  },
+  label: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#374151',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px',
+  },
+  fieldLabel: {
+    fontSize: '11px',
+    color: '#6b7280',
+    marginBottom: '4px',
+  },
+  hint: {
+    fontSize: '11px',
+    color: '#dc2626',
+    marginTop: '2px',
+  },
+  divider: {
+    height: '1px',
+    backgroundColor: '#e5e7eb',
+  },
 });
 
 interface DesignConfiguratorProps {
   nFactors: number;
-  designType: 'full_factorial' | 'fractional';
-  onDesignTypeChange: (type: 'full_factorial' | 'fractional') => void;
+  designType: DesignType;
+  replicates: number;
+  centerPoints: number;
+  randomize: 'none' | 'full';
+  seed: number;
+  onDesignTypeChange: (type: DesignType) => void;
+  onReplicatesChange: (n: number) => void;
+  onCenterPointsChange: (n: number) => void;
+  onRandomizeChange: (r: 'none' | 'full') => void;
+  onSeedChange: (s: number) => void;
 }
 
-export const DesignConfigurator: React.FC<DesignConfiguratorProps> = ({ 
-  nFactors, designType, onDesignTypeChange 
+function computeRunCount(nFactors: number, designType: DesignType, replicates: number, centerPoints: number): number {
+  let base: number;
+  if (designType === 'full_factorial') base = Math.pow(2, nFactors);
+  else if (designType === 'fractional') base = Math.pow(2, nFactors - 1);
+  else base = nFactors + 1; // one_factor
+  return base * replicates + centerPoints;
+}
+
+export const DesignConfigurator: React.FC<DesignConfiguratorProps> = ({
+  nFactors, designType, replicates, centerPoints, randomize, seed,
+  onDesignTypeChange, onReplicatesChange, onCenterPointsChange, onRandomizeChange, onSeedChange,
 }) => {
   const styles = useStyles();
-
-  const getRunCount = () => {
-    if (designType === 'full_factorial') {
-      return Math.pow(2, nFactors);
-    } else {
-      // Very simplistic: assume resolution IV (half-fraction) for fractional
-      return Math.pow(2, nFactors - 1);
-    }
-  };
-
   const isFractionalPossible = nFactors >= 3;
+  const runCount = computeRunCount(nFactors, designType, replicates, centerPoints);
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <Text weight="semibold">Configure Design</Text>
-        <Badge appearance="tint" color="brand">Runs: {getRunCount()}</Badge>
+        <span className={styles.label}>Design Type</span>
+        <Badge appearance="tint" color="brand" shape="rounded">
+          {runCount} runs
+        </Badge>
       </div>
 
-      <RadioGroup 
-        value={designType} 
-        onChange={(_, data) => onDesignTypeChange(data.value as any)}
+      <RadioGroup
+        value={designType}
+        onChange={(_, data) => onDesignTypeChange(data.value as DesignType)}
       >
-        <Radio value="full_factorial" label="Full Factorial (All combinations)" />
-        <Radio 
-          value="fractional" 
-          label="Fractional Factorial (Fewer runs, lower resolution)" 
+        <Radio value="full_factorial" label="Full Factorial" />
+        <Radio
+          value="fractional"
+          label="Fractional Factorial"
           disabled={!isFractionalPossible}
         />
+        <Radio value="one_factor" label="One Factor at a Time (OFAT)" />
       </RadioGroup>
 
       {!isFractionalPossible && designType === 'fractional' && (
-        <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>
-          Fractional design requires at least 3 factors.
-        </Text>
+        <span className={styles.hint}>Fractional design requires at least 3 factors.</span>
+      )}
+
+      <div className={styles.divider} />
+
+      <div className={styles.grid}>
+        <div>
+          <div className={styles.fieldLabel}>Replicates</div>
+          <Input
+            size="small"
+            type="number"
+            value={String(replicates)}
+            min="1"
+            onChange={(_, d) => {
+              const n = parseInt(d.value);
+              if (!isNaN(n) && n >= 1) onReplicatesChange(n);
+            }}
+          />
+        </div>
+        <div>
+          <div className={styles.fieldLabel}>Center Points</div>
+          <Input
+            size="small"
+            type="number"
+            value={String(centerPoints)}
+            min="0"
+            onChange={(_, d) => {
+              const n = parseInt(d.value);
+              if (!isNaN(n) && n >= 0) onCenterPointsChange(n);
+            }}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Checkbox
+          checked={randomize === 'full'}
+          onChange={(_, d) => onRandomizeChange(d.checked ? 'full' : 'none')}
+          label={<span style={{ fontSize: '12px' }}>Randomize run order</span>}
+        />
+      </div>
+
+      {randomize === 'full' && (
+        <div>
+          <div className={styles.fieldLabel}>Random seed</div>
+          <Input
+            size="small"
+            type="number"
+            value={String(seed)}
+            onChange={(_, d) => {
+              const n = parseInt(d.value);
+              if (!isNaN(n)) onSeedChange(n);
+            }}
+          />
+        </div>
       )}
     </div>
   );
