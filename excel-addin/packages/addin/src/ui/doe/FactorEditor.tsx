@@ -1,21 +1,38 @@
-import React, { useState } from 'react';
-import { 
-  Button, Input, makeStyles, tokens, Text, 
-  Field, Title3, Table, TableHeader, TableRow, TableHeaderCell, TableBody, TableCell
+import React from 'react';
+import {
+  Button, Input, makeStyles,
 } from '@fluentui/react-components';
-import { Add16Regular, Delete16Regular } from '@fluentui/react-icons';
+import { AddRegular, DismissRegular } from '@fluentui/react-icons';
 
 const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '8px',
+  },
+  header: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 64px 64px 32px',
+    gap: '6px',
+    paddingBottom: '4px',
+  },
+  headerCell: {
+    fontSize: '11px',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    color: '#9ca3af',
   },
   row: {
-    display: 'flex',
-    gap: '8px',
-    alignItems: 'flex-end',
-  }
+    display: 'grid',
+    gridTemplateColumns: '1fr 64px 64px 32px',
+    gap: '6px',
+    alignItems: 'center',
+  },
+  addBtn: {
+    alignSelf: 'flex-start',
+    marginTop: '4px',
+  },
 });
 
 export interface Factor {
@@ -49,56 +66,50 @@ export const FactorEditor: React.FC<FactorEditorProps> = ({ factors, onChange })
 
   return (
     <div className={styles.container}>
-      <Text weight="semibold">Factor Definition</Text>
-      <Table size="extra-small">
-        <TableHeader>
-          <TableRow>
-            <TableHeaderCell>Name</TableHeaderCell>
-            <TableHeaderCell>Low</TableHeaderCell>
-            <TableHeaderCell>High</TableHeaderCell>
-            <TableHeaderCell />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {factors.map((f, i) => (
-            <TableRow key={i}>
-              <TableCell>
-                <Input 
-                  size="small" 
-                  value={f.name} 
-                  onChange={(_, d) => updateFactor(i, 'name', d.value)} 
-                  style={{ width: '60px' }}
-                />
-              </TableCell>
-              <TableCell>
-                <Input 
-                  size="small" 
-                  value={f.low} 
-                  onChange={(_, d) => updateFactor(i, 'low', d.value)} 
-                  style={{ width: '60px' }}
-                />
-              </TableCell>
-              <TableCell>
-                <Input 
-                  size="small" 
-                  value={f.high} 
-                  onChange={(_, d) => updateFactor(i, 'high', d.value)} 
-                  style={{ width: '60px' }}
-                />
-              </TableCell>
-              <TableCell>
-                <Button 
-                  icon={<Delete16Regular />} 
-                  appearance="transparent" 
-                  size="small"
-                  onClick={() => removeFactor(i)}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <Button icon={<Add16Regular />} size="small" onClick={addFactor}>Add Factor</Button>
+      <div className={styles.header}>
+        <span className={styles.headerCell}>Factor</span>
+        <span className={styles.headerCell}>Low</span>
+        <span className={styles.headerCell}>High</span>
+        <span />
+      </div>
+      {factors.map((f, i) => (
+        <div key={i} className={styles.row}>
+          <Input
+            size="small"
+            value={f.name}
+            onChange={(_, d) => updateFactor(i, 'name', d.value)}
+          />
+          <Input
+            size="small"
+            value={f.low}
+            onChange={(_, d) => updateFactor(i, 'low', d.value)}
+          />
+          <Input
+            size="small"
+            value={f.high}
+            onChange={(_, d) => updateFactor(i, 'high', d.value)}
+          />
+          <Button
+            icon={<DismissRegular />}
+            appearance="transparent"
+            size="small"
+            onClick={() => removeFactor(i)}
+            disabled={factors.length <= 2}
+            style={{ minWidth: '28px', padding: 0 }}
+          />
+        </div>
+      ))}
+      <div className={styles.addBtn}>
+        <Button
+          icon={<AddRegular />}
+          size="small"
+          appearance="subtle"
+          onClick={addFactor}
+          style={{ borderRadius: '6px' }}
+        >
+          Add Factor
+        </Button>
+      </div>
     </div>
   );
 };
