@@ -1,7 +1,8 @@
 # Excel Add-in Improvement Roadmap
 
 *Status: in progress — 2026-07-04, updated 2026-07-07. Phase 0 landed; CI
-(Phase 3, task 3) is live — see [Phase 3](#phase-3--testing--code-health).*
+(Phase 3, task 3) is live — see [Phase 3](#phase-3--testing--code-health);
+the SpcPanel decomposition (Phase 2, task 2) is done.*
 
 This roadmap covers the next stretch of work on the QI Kit Excel add-in
 (`excel-addin/`). It prioritizes three things, in order: (1) landing the
@@ -76,10 +77,18 @@ drift in existing fixtures; `SPCResult` carries everything Phase 2 needs.
      is p/pp/u/up and the x column looks categorical rather than temporal.
    - y-percent axis option in `shared/ChartViewer.tsx` and in the native Excel
      charts built by `excel/chart-builder.ts`.
-2. **Decompose `SpcPanel.tsx`** (~1,100 LOC) into focused subcomponents:
-   `ColumnSelector`, `DateAggregationOptions`, `LimitOptions` (freeze / target
-   / manual CL), `SignalMethodPicker`. This is a prerequisite for the Phase 3
-   component tests, not just tidiness.
+2. ~~**Decompose `SpcPanel.tsx`**~~ ✅ Done — pulled forward ahead of task 1 so
+   the funnel/y-percent toggles land in small components instead of growing
+   the monolith. `SpcPanel.tsx` is now a ~300-line orchestrator; the roadmap's
+   named subcomponents (`ColumnSelector`, `DateAggregationOptions`,
+   `LimitOptions`, `SignalMethodPicker`) plus `ChartTypePicker`,
+   `AnnotationEditor`, and `SummaryPanel` live alongside it in `ui/spc/`.
+   Pure logic (date bucketing, column parsing, `buildSpcInput`,
+   `buildSheetRows`) moved to `ui/spc/data-prep.ts` with no React imports —
+   that module is the target surface for the Phase 3 component tests.
+   Verified in the dev harness: chart-type switching, settings, annotation
+   round-trip, and summary all behave as before; `tsc --noEmit` and vitest
+   green.
 3. **Sturdier data detection.** Replace the Excel-serial-range date heuristic
    (25569–60000) in the column type detector with Office.js
    `Range.valueTypes` + `numberFormat`, and handle blank/NA cells explicitly
@@ -97,8 +106,9 @@ drift in existing fixtures; `SPCResult` carries everything Phase 2 needs.
    around each panel so one crash doesn't blank the task pane.
 
 **Acceptance:** funnel and y-percent usable end-to-end in the dev harness and
-in sideloaded Excel; SpcPanel file under ~400 LOC with logic pushed into
-subcomponents; settings survive closing and reopening the task pane.
+in sideloaded Excel; ~~SpcPanel file under ~400 LOC with logic pushed into
+subcomponents~~ (met — 297 lines); settings survive closing and reopening the
+task pane.
 
 ---
 
@@ -147,7 +157,7 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 |------|-------|
 | Engine | `excel-addin/packages/engine/src/spc-core.ts`, `signals.ts`, `spc-types.ts` |
 | Fixtures | `fixtures/spc/` (shared Python ⇄ TypeScript contract) |
-| UI | `excel-addin/packages/addin/src/ui/spc/SpcPanel.tsx`, `ui/shared/ChartViewer.tsx` |
+| UI | `excel-addin/packages/addin/src/ui/spc/` (SpcPanel + subcomponents, `data-prep.ts`), `ui/shared/ChartViewer.tsx` |
 | Excel integration | `excel-addin/packages/addin/src/excel/chart-builder.ts`, `excel/excel-io.ts` |
 | Dev | `excel-addin/packages/addin/src/dev-harness.tsx` |
 | Python reference | `src/qikit/spc.py` (funnel + Laney logic), `tests/test_conformance.py` |

@@ -23,9 +23,10 @@ export default defineConfig({
     },
     emptyOutDir: true,
   },
-  server: { 
-    https: !skipMkcert, 
-    port: 3000 
+  server: {
+    https: !skipMkcert,
+    // Manifest sideloading expects 3000; PORT lets dev harnesses pick a free port.
+    port: Number(process.env.PORT) || 3000
   },
   resolve: {
     alias: { '@qikit/engine': resolve(__dirname, 'packages/engine/src') },
