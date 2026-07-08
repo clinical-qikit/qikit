@@ -5,17 +5,17 @@ import pathlib
 import sys
 import numpy as np
 import pandas as pd
-from qikit import qic, paretochart, bchart, experiment
+from qikit import qic, paretochart, bchart, design
 
 def experiment_analyze(factors, response, **kwargs):
-    d = experiment.design(factors=factors, **kwargs)
+    d = design(factors=factors, **kwargs)
     return d.fill(response)
 
 DISPATCH = {
-    "qic": qic, 
-    "paretochart": paretochart, 
+    "qic": qic,
+    "paretochart": paretochart,
     "bchart": bchart,
-    "experiment_design": lambda factors, **kwargs: experiment.design(factors=factors, **kwargs),
+    "experiment_design": lambda factors, **kwargs: design(factors=factors, **kwargs),
     "experiment_analyze": experiment_analyze
 }
 

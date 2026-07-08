@@ -118,7 +118,11 @@ export const CHARTS: Record<string, ChartSpec> = {
 };
 
 export function compute(input: SPCInput): SPCResult {
-  let { y, n, chart, method = 'anhoej', freeze, part, exclude = [], clOverride, multiply = 1.0, sBar, subgroupN } = input;
+  let { y, n, chart, method = 'anhoej', freeze, part, exclude = [], clOverride, multiply = 1.0, sBar, subgroupN, funnel = false } = input;
+
+  // Resolved display hints (mirrors Python qic() semantics)
+  const yPercent = input.yPercent ?? (chart === 'p' || chart === 'pp');
+  const connect = funnel ? false : (input.connect ?? null);
   const spec = CHARTS[chart === 't' ? 'i' : chart];
 
   if (!Array.isArray(y)) {
@@ -139,6 +143,21 @@ export function compute(input: SPCInput): SPCResult {
 
   if (spec.needsN && !nCalc) {
     throw new Error(`Chart type "${chart}" requires a sample size column (N).`);
+  }
+
+  // Funnel mode: cross-sectional comparison — order points by denominator ascending.
+  // Mirrors src/qikit/spc/api.py; proven by fixtures/spc/funnel_*.json on both sides.
+  if (funnel) {
+    if (!['p', 'pp', 'u', 'up'].includes(chart)) {
+      throw new Error(`funnel=true is only valid for attribute charts with denominators (p, pp, u, up). Got chart "${chart}".`);
+    }
+    if (!nCalc) {
+      throw new Error('funnel=true requires denominators (n).');
+    }
+    const order = nCalc.map((_, i) => i).sort((a, b) => nCalc![a] - nCalc![b]);
+    y = order.map(i => (y as number[])[i]);
+    yCalc = order.map(i => yCalc[i]);
+    nCalc = order.map(i => nCalc![i]);
   }
 
   let mask = new Array(y.length).fill(true);
@@ -283,8 +302,19 @@ export function compute(input: SPCInput): SPCResult {
     runs_signal: runsSig[i]
   }));
 
+  // Runs rules assume temporal ordering; suppress them for cross-sectional funnel plots.
+  if (funnel) {
+    runsSig.fill(false);
+    for (const d of data) d.runs_signal = false;
+  }
+
   const signals = sigmaSig.some(s => s) || runsSig.some(s => s);
-  const finalSummary = { ...summaries[summaries.length - 1], signals, n_obs: yCalc.filter(v => !isNaN(v)).length };
+  const finalSummary = {
+    ...summaries[summaries.length - 1],
+    signals,
+    n_obs: yCalc.filter(v => !isNaN(v)).length,
+    ...(funnel ? { runs_disabled: true, note: 'runs signals suppressed (funnel mode)' } : {}),
+  };
 
   return {
     chart_type: chart,
@@ -292,12 +322,16 @@ export function compute(input: SPCInput): SPCResult {
     signals,
     summary: finalSummary,
     data,
+    connect,
+    y_percent: yPercent,
     to_dict() {
       return {
         chart_type: this.chart_type,
         method: this.method,
         signals: this.signals,
         summary: this.summary,
+        connect: this.connect,
+        y_percent: this.y_percent,
         data: this.data.map(d => ({
           ...d,
           cl:     isNaN(d.cl)     ? null : d.cl,
