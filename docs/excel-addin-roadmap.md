@@ -1,6 +1,7 @@
 # Excel Add-in Improvement Roadmap
 
-*Status: proposed — 2026-07-04*
+*Status: in progress — 2026-07-04, updated 2026-07-07. Phase 0 landed; CI
+(Phase 3, task 3) is live — see [Phase 3](#phase-3--testing--code-health).*
 
 This roadmap covers the next stretch of work on the QI Kit Excel add-in
 (`excel-addin/`). It prioritizes three things, in order: (1) landing the
@@ -14,33 +15,25 @@ languages.** New engine behavior lands with a fixture before it lands with a UI.
 
 ---
 
-## Phase 0 — Land the in-flight work (baseline hygiene)
+## Phase 0 — Land the in-flight work (baseline hygiene) ✅ Done
 
-The working tree currently carries a large uncommitted diff: the SpcPanel
-rewrite (~+800 lines), new Pareto and B-chart panels, the expanded
-`chart-builder.ts`, dev-harness mock datasets, engine refinements, and the
-untracked `data/examples/` datasets. Everything after this phase builds on that
-code, so it needs to be verified and committed first.
+The working tree carried a large uncommitted diff (SpcPanel rewrite, new
+Pareto/B-chart panels, expanded `chart-builder.ts`, dev-harness mock datasets,
+`data/examples/` datasets). This has since landed across several commits
+(`1085626` through `b66c616`), `show95` is fully wired into `ChartViewer.tsx`
+(1σ/2σ bands render when the checkbox is on), and `git status` is clean.
 
-**Tasks**
+**Tasks (all complete)**
 
-1. Verify green before committing:
-   - `npm test` in `excel-addin/` (engine + DOE conformance suites, vitest)
-   - `tsc --noEmit` in both packages
-   - `uv run pytest tests/` at the repo root (confirms no shared-fixture drift)
-2. Resolve the `show95` option in `SpcPanel.tsx` — it appears wired into state
-   but unused by the renderer. Finish it (draw 1σ/2σ bands in ChartViewer) or
-   remove it; don't commit dead UI state.
-3. Commit in logical units rather than one blob:
-   - engine changes (`packages/engine/src/spc-core.ts`, `signals.ts`, `doe-core.ts`)
-   - SpcPanel rewrite + `App.tsx` navigation redesign
-   - new `ui/pareto/ParetoPanel.tsx` and `ui/bchart/BChartPanel.tsx` panels
-   - `excel/chart-builder.ts` expansion
-   - `dev-harness.tsx` mock datasets
-   - `data/examples/` sample datasets (plus their READMEs)
+1. ~~Verify green before committing~~ — `npm test`, `tsc --noEmit` (both
+   packages), and `uv run pytest tests/` are all green, and are now enforced
+   automatically by CI (see Phase 3).
+2. ~~Resolve the `show95` option~~ — finished, not removed: `ChartViewer.tsx`
+   draws the bands when `show95` is set.
+3. ~~Commit in logical units~~ — done via the commit history above.
 
-**Acceptance:** clean `git status`, all three test/typecheck commands green,
-no dead options in the SPC panel.
+**Acceptance:** met — clean `git status`, all three test/typecheck commands
+green, no dead options in the SPC panel.
 
 ---
 
@@ -122,12 +115,17 @@ subcomponents; settings survive closing and reopening the task pane.
    than letting the engine emit NaNs: numeric coercion with reporting of
    dropped cells, non-negative counts for the CUSUM b-chart, denominator > 0
    for p/u-family charts. Surface failures as user-facing messages.
-3. **CI.** GitHub Actions workflow running `tsc --noEmit`, engine + addin
-   vitest, and Python pytest on every push, so cross-language fixture drift is
-   caught automatically instead of manually.
+3. ~~**CI.**~~ ✅ Done — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+   runs a `python` job (`uv sync --extra dev` + `uv run pytest tests/`) and a
+   `node` job (`tsc --noEmit` in both `packages/engine` and `packages/addin`,
+   then `npm test`) on every push/PR to `main`. Cross-language fixture drift
+   is now caught automatically instead of manually. Pulled forward ahead of
+   items 1–2 since it was cheap and everything else in this roadmap is safer
+   with it in place.
 
-**Acceptance:** CI green on main; UI test suite exists and runs in CI; invalid
-data produces a readable message in the panel, never a NaN chart.
+**Acceptance:** CI green on main ✅; UI test suite exists and runs in CI
+(pending — items 1–2 above); invalid data produces a readable message in the
+panel, never a NaN chart (pending).
 
 ---
 
@@ -161,5 +159,6 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 - **Phases 2–3:** dev-harness manual checks plus the new component tests;
   sideload into Excel (`npm run sideload`) for a final end-to-end pass per
   phase.
-- **Ongoing:** the Phase 3 CI workflow becomes the standing gate for all
-  subsequent work.
+- **Ongoing:** the Phase 3 CI workflow (`.github/workflows/ci.yml`) is live
+  and is now the standing gate for all subsequent work — Phase 1 and Phase 2
+  PRs get pytest/vitest/tsc verification for free.
