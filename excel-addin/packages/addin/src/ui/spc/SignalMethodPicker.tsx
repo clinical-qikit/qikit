@@ -1,0 +1,24 @@
+import React from 'react';
+import { Select } from '@fluentui/react-components';
+import { useSpcStyles } from './styles';
+import { SpcOptions } from './constants';
+
+interface SignalMethodPickerProps {
+  value: SpcOptions['method'];
+  onChange: (method: SpcOptions['method']) => void;
+}
+
+export const SignalMethodPicker: React.FC<SignalMethodPickerProps> = ({ value, onChange }) => {
+  const styles = useSpcStyles();
+  return (
+    <div className={styles.settingRow}>
+      <span className={styles.settingLabel}>Signal method</span>
+      <Select size="small" value={value} onChange={(_, d) => onChange(d.value as SpcOptions['method'])}>
+        <option value="anhoej">Anhoej</option>
+        <option value="ihi">IHI</option>
+        <option value="weco">WECO</option>
+        <option value="nelson">Nelson</option>
+      </Select>
+    </div>
+  );
+};
