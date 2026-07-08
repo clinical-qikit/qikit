@@ -1,0 +1,166 @@
+{
+  "id": "funnel_u_chart",
+  "reference": "Funnel plot for cross-sectional rates (u chart): CAUTI cases per catheter-day across units. Sorted by denominator ascending; the low-volume unit (9/400 = 0.0225) breaches the funnel UCL; runs signals suppressed.",
+  "function": "qic",
+  "input": {
+    "y": [
+      3,
+      2,
+      6,
+      2,
+      9,
+      4,
+      1,
+      5
+    ],
+    "n": [
+      903,
+      1139,
+      1053,
+      1026,
+      400,
+      980,
+      610,
+      1200
+    ],
+    "chart": "u",
+    "funnel": true
+  },
+  "check": {
+    "cl": [
+      0.004377,
+      1e-06
+    ],
+    "ucl": [
+      0.014301,
+      1e-06
+    ],
+    "signals": true,
+    "runs_disabled": true
+  },
+  "snapshot": {
+    "chart_type": "u",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 8,
+      "n_baseline": 8,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 8,
+      "longest_run": 4,
+      "n_crossings": 3,
+      "run_threshold": 9,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false,
+      "runs_disabled": true,
+      "note": "runs signals suppressed (funnel mode)"
+    },
+    "data": [
+      {
+        "x": 5,
+        "y": 0.0225,
+        "cl": 0.004376966215292026,
+        "ucl": 0.01430076285992711,
+        "lcl": 0.0,
+        "ucl_95": 0.010992830645048749,
+        "lcl_95": 0.0,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 0.001639344262295082,
+        "cl": 0.004376966215292026,
+        "ucl": 0.012413021843626467,
+        "lcl": 0.0,
+        "ucl_95": 0.009734336634181651,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 1,
+        "y": 0.0033222591362126247,
+        "cl": 0.004376966215292026,
+        "ucl": 0.010981831694084442,
+        "lcl": 0.0,
+        "ucl_95": 0.008780209867820302,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 0.004081632653061225,
+        "cl": 0.004376966215292026,
+        "ucl": 0.01071704732737442,
+        "lcl": 0.0,
+        "ucl_95": 0.008603686956680288,
+        "lcl_95": 0.0001502454739037637,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 0.001949317738791423,
+        "cl": 0.004376966215292026,
+        "ucl": 0.010573290971550187,
+        "lcl": 0.0,
+        "ucl_95": 0.008507849386130799,
+        "lcl_95": 0.0002460830444532521,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 0.005698005698005698,
+        "cl": 0.004376966215292026,
+        "ucl": 0.01049333504426797,
+        "lcl": 0.0,
+        "ucl_95": 0.008454545434609322,
+        "lcl_95": 0.00029938699597472935,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 0.001755926251097454,
+        "cl": 0.004376966215292026,
+        "ucl": 0.010257895941890596,
+        "lcl": 0.0,
+        "ucl_95": 0.008297586033024405,
+        "lcl_95": 0.00045634639755964563,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 8,
+        "y": 0.004166666666666667,
+        "cl": 0.004376966215292026,
+        "ucl": 0.010106472879455198,
+        "lcl": 0.0,
+        "ucl_95": 0.00819663732473414,
+        "lcl_95": 0.0005572951058499115,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

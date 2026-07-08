@@ -19,9 +19,10 @@
       0.01
     ],
     "ucl": [
-      0.5384,
-      0.01
-    ]
+      0.53894,
+      0.0001
+    ],
+    "signals": false
   },
   "snapshot": {
     "chart_type": "up",

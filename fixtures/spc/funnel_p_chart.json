@@ -1,0 +1,194 @@
+{
+  "id": "funnel_p_chart",
+  "reference": "Spiegelhalter 2005 \u2014 funnel plot for cross-sectional proportions; points sorted by denominator ascending, runs signals suppressed, sigma signals only. Clinic H (70/310 = 22.6%) breaches the funnel UCL.",
+  "function": "qic",
+  "input": {
+    "y": [
+      8,
+      15,
+      9,
+      33,
+      6,
+      20,
+      12,
+      70,
+      9,
+      22
+    ],
+    "n": [
+      45,
+      120,
+      80,
+      260,
+      55,
+      150,
+      95,
+      310,
+      70,
+      180
+    ],
+    "chart": "p",
+    "funnel": true
+  },
+  "check": {
+    "cl": [
+      0.149451,
+      0.0001
+    ],
+    "ucl": [
+      0.308897,
+      0.0001
+    ],
+    "signals": true,
+    "runs_disabled": true
+  },
+  "snapshot": {
+    "chart_type": "p",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 10,
+      "n_baseline": 10,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 10,
+      "longest_run": 8,
+      "n_crossings": 2,
+      "run_threshold": 6,
+      "crossings_threshold": 1,
+      "run_signal": true,
+      "crossings_signal": false,
+      "runs_disabled": true,
+      "note": "runs signals suppressed (funnel mode)"
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.17777777777777778,
+        "cl": 0.14945054945054945,
+        "ucl": 0.30889651692510073,
+        "lcl": 0.0,
+        "ucl_95": 0.2557478611002503,
+        "lcl_95": 0.04315323780084859,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 5,
+        "y": 0.10909090909090909,
+        "cl": 0.14945054945054945,
+        "ucl": 0.2936748535728124,
+        "lcl": 0.0052262453282865,
+        "ucl_95": 0.2456000855320581,
+        "lcl_95": 0.053301013369040806,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 9,
+        "y": 0.12857142857142856,
+        "cl": 0.14945054945054945,
+        "ucl": 0.27729173130607926,
+        "lcl": 0.021609367595019635,
+        "ucl_95": 0.23467800402090266,
+        "lcl_95": 0.06422309488019624,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 3,
+        "y": 0.1125,
+        "cl": 0.14945054945054945,
+        "ucl": 0.26903502505646293,
+        "lcl": 0.029866073844635993,
+        "ucl_95": 0.2291735331878251,
+        "lcl_95": 0.06972756571327379,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 7,
+        "y": 0.12631578947368421,
+        "cl": 0.14945054945054945,
+        "ucl": 0.25918879037317716,
+        "lcl": 0.039712308527921736,
+        "ucl_95": 0.22260937673230125,
+        "lcl_95": 0.07629172216879765,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 2,
+        "y": 0.125,
+        "cl": 0.14945054945054945,
+        "ucl": 0.24709086491481286,
+        "lcl": 0.051810233986286036,
+        "ucl_95": 0.21454409309339173,
+        "lcl_95": 0.08435700580770718,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 6,
+        "y": 0.13333333333333333,
+        "cl": 0.14945054945054945,
+        "ucl": 0.2367827025395962,
+        "lcl": 0.06211839636150268,
+        "ucl_95": 0.20767198484324728,
+        "lcl_95": 0.09122911405785161,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 10,
+        "y": 0.12222222222222222,
+        "cl": 0.14945054945054945,
+        "ucl": 0.22917353318782507,
+        "lcl": 0.0697275657132738,
+        "ucl_95": 0.20259920527539987,
+        "lcl_95": 0.09630189362569903,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 4,
+        "y": 0.12692307692307692,
+        "cl": 0.14945054945054945,
+        "ucl": 0.21578408153464076,
+        "lcl": 0.08311701736645813,
+        "ucl_95": 0.19367290417327698,
+        "lcl_95": 0.10522819472782191,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "baseline": true
+      },
+      {
+        "x": 8,
+        "y": 0.22580645161290322,
+        "cl": 0.14945054945054945,
+        "ucl": 0.21019952380735824,
+        "lcl": 0.08870157509374067,
+        "ucl_95": 0.18994986568842198,
+        "lcl_95": 0.10895123321267693,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "baseline": true
+      }
+    ]
+  }
+}

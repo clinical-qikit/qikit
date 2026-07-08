@@ -1,8 +1,10 @@
 # Excel Add-in Improvement Roadmap
 
-*Status: in progress — 2026-07-04, updated 2026-07-07. Phase 0 landed; CI
-(Phase 3, task 3) is live — see [Phase 3](#phase-3--testing--code-health);
-the SpcPanel decomposition (Phase 2, task 2) is done.*
+*Status: in progress — 2026-07-04, updated 2026-07-08. Phase 0 and Phase 1
+are complete; CI (Phase 3, task 3) is live — see
+[Phase 3](#phase-3--testing--code-health); the SpcPanel decomposition
+(Phase 2, task 2) is done. Next up: Phase 2 task 1 (expose funnel/y-percent
+in the UI) and Phase 3 tasks 1–2.*
 
 This roadmap covers the next stretch of work on the QI Kit Excel add-in
 (`excel-addin/`). It prioritizes three things, in order: (1) landing the
@@ -38,33 +40,35 @@ green, no dead options in the SPC panel.
 
 ---
 
-## Phase 1 — Engine parity with Python v0.1.1
+## Phase 1 — Engine parity with Python v0.1.1 ✅ Done
 
 The Python package gained several capabilities in v0.1.1 that the TypeScript
-engine lacks or hasn't proven. Math first; UI exposure comes in Phase 2.
+engine lacked or hadn't proven. All three parity items landed 2026-07-08.
 
-**Tasks**
+**Tasks (all complete)**
 
-1. **Funnel plot mode.** Port from `src/qikit/spc.py` into
-   `packages/engine/src/spc-core.ts` for the p/pp/u/up chart types:
-   - sort points by denominator ascending (x becomes the unit label)
-   - suppress runs-based signals (Anhoej/IHI runs rules don't apply to
-     cross-sectional data); sigma signals only
-   - add a shared JSON fixture under `fixtures/spc/` exercised by both
-     `tests/test_conformance.py` and
-     `excel-addin/packages/engine/tests/conformance.test.ts`. The CMS
-     infections sample in `data/examples/` is the natural demo dataset.
-2. **Laney p′/u′ σ_z validation.** The TS pp/up implementations exist but
-   cross-language equality of the σ_z overdispersion calculation has never
-   been fixture-proven. Add (or extend) a fixture with known-good `check`
-   values; fix the TS side if it drifts.
-3. **`connect` and y-percent semantics.** Port the v0.1.1 `connect` parameter
-   (explicit line-connectivity control) and y_percent handling into
-   `SPCInput`/`SPCResult` (`spc-types.ts`) so the UI can consume them without
-   re-deriving.
+1. ~~**Funnel plot mode.**~~ ✅ Ported into `spc-core.ts` (`SPCInput.funnel`):
+   stable sort by denominator ascending, runs signals suppressed
+   (`runs_disabled` in the summary), p/pp/u/up only. Proven by two shared
+   fixtures — `fixtures/spc/funnel_p_chart.json` (clinic readmissions, one
+   UCL breach at large n) and `funnel_u_chart.json` (CAUTI per catheter-day,
+   one breach at small n) — exercised by both conformance suites. Note: the
+   roadmap originally pointed at the CMS sample in `data/examples/` as demo
+   data, but that file turned out to contain a provider directory, not
+   infections data; the fixtures use crafted clinical scenarios instead.
+2. ~~**Laney p′/u′ σ_z validation.**~~ ✅ Audit found this was already proven:
+   both Laney fixtures are genuinely overdispersed (implied σ_z ≈ 3.2 / 3.6 —
+   plain p/u limits would differ by >2×) and the TS snapshot comparison pins
+   every row's UCL/LCL to 5 decimals. Tightened the `check` UCL tolerances
+   from ±0.01 to ±0.0001 so the check block pins σ_z explicitly too.
+3. ~~**`connect` and y-percent semantics.**~~ ✅ `SPCInput.connect`/`yPercent`
+   in, resolved hints out as `SPCResult.connect` (null = infer from x-axis;
+   funnel forces false) and `SPCResult.y_percent` (defaults true for p/pp).
+   Resolution rules pinned by `packages/engine/tests/display-hints.test.ts`.
 
-**Acceptance:** new fixtures pass on both Python and TypeScript; zero snapshot
-drift in existing fixtures; `SPCResult` carries everything Phase 2 needs.
+**Acceptance:** met — new fixtures pass on both Python and TypeScript, zero
+snapshot drift in existing fixtures, `SPCResult` carries everything Phase 2
+needs.
 
 ---
 
