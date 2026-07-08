@@ -382,6 +382,21 @@ class TestDisplayParams:
         fig = r.plot(show_grid=False)
         assert fig.layout.xaxis.showgrid is False
 
+    def test_plot_options_subset_of_qic_signature(self):
+        import inspect
+        from qikit.spc import PlotOptions
+
+        # part_indices and x_nticks_all are derived/injected inside qic(),
+        # not user-facing parameters — everything else must round-trip 1:1.
+        derived = {"part_indices", "x_nticks_all"}
+        fields = set(PlotOptions.__dataclass_fields__) - derived
+        assert fields <= set(inspect.signature(qic).parameters)
+
+    def test_facet_connect_passed_through(self, normal_30):
+        df = pd.DataFrame({"y": normal_30, "grp": ["a"] * 15 + ["b"] * 15})
+        r = qic(data=df, y="y", chart="i", facets="grp", connect=True)
+        assert r._plot_opts["connect"] is True
+
 
 # ---------------------------------------------------------------------------
 # Summary / audit fields
