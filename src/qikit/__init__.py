@@ -28,7 +28,7 @@ from .doe import (
     ExperimentResult
 )
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.1"
 __all__ = [
     "qic", "paretochart", "bchart", "SPCResult", "ParetoResult", "BChartResult",
     "design", "analyze", "ExperimentDesign", "ExperimentResult",

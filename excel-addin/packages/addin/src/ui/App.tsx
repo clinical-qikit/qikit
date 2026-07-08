@@ -105,7 +105,7 @@ const TABS: { key: TabKey; label: string; Icon: React.FC; IconActive: React.FC }
   { key: 'spc',    label: 'SPC',                    Icon: DataBarVerticalRegular, IconActive: DataBarVerticalFilled },
   { key: 'doe',    label: 'Planned Experimentation', Icon: BeakerRegular,          IconActive: BeakerFilled          },
   { key: 'pareto', label: 'Pareto',                  Icon: DataUsageRegular,       IconActive: DataUsageFilled       },
-  { key: 'bchart', label: 'CUSUM',                   Icon: ArrowTrendingRegular,   IconActive: ArrowTrendingFilled   },
+  { key: 'bchart', label: 'Bernoulli CUSUM',         Icon: ArrowTrendingRegular,   IconActive: ArrowTrendingFilled   },
 ];
 
 export const App: React.FC = () => {

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clinical-qikit"
-version = "0.1.1"
+dynamic = ["version"]
 description = "SPC charts and QI tools for healthcare"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -13,6 +13,10 @@ dependencies = ["numpy>=1.24", "pandas>=2.0", "plotly>=5.15"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4", "mypy>=1.8"]
+app = ["streamlit>=1.30.0", "openpyxl>=3.1.0"]
+
+[tool.hatch.version]
+path = "src/qikit/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qikit"]
