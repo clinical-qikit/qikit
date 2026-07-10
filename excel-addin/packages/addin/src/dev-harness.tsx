@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FluentProvider, webLightTheme, makeStyles, Button } from '@fluentui/react-components';
+import { FluentProvider, makeStyles, Button } from '@fluentui/react-components';
+import { qikitLightTheme } from './theme/fluent-theme';
 
 // ─── Mock Datasets ────────────────────────────────────────────────────────────
 
@@ -251,7 +252,7 @@ export const DevHarness: React.FC<DevHarnessProps> = ({ children }) => {
   if (!showHarness) return <>{children}</>;
 
   return (
-    <FluentProvider theme={webLightTheme}>
+    <FluentProvider theme={qikitLightTheme}>
       <div className={styles.harness}>
         <div className={styles.toolbar}>
           <span className={styles.datasetLabel}>Mock data:</span>

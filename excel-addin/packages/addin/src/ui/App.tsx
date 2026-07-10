@@ -10,13 +10,14 @@ import { SpcPanel } from './spc/SpcPanel';
 import { DoeWizard } from './doe/DoeWizard';
 import { ParetoPanel } from './pareto/ParetoPanel';
 import { BChartPanel } from './bchart/BChartPanel';
+import { qikit } from '../theme/tokens';
 
 const useStyles = makeStyles({
   shell: {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    backgroundColor: '#f8f9fb',
+    backgroundColor: qikit.color.shell,
   },
   header: {
     display: 'flex',
@@ -27,12 +28,12 @@ const useStyles = makeStyles({
   logoMark: {
     width: '28px',
     height: '28px',
-    borderRadius: '6px',
-    background: 'linear-gradient(135deg, #107C6C, #0A6B5C)',
+    borderRadius: qikit.radius.md,
+    background: `linear-gradient(135deg, ${qikit.color.brand}, ${qikit.color.brandPressed})`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#fff',
+    color: qikit.color.surface,
     fontWeight: '700',
     fontSize: '13px',
     letterSpacing: '-0.5px',
@@ -41,7 +42,7 @@ const useStyles = makeStyles({
   title: {
     fontSize: '15px',
     fontWeight: '600',
-    color: '#1B1B1F',
+    color: qikit.color.ink,
     letterSpacing: '-0.3px',
   },
   nav: {
@@ -63,18 +64,18 @@ const useStyles = makeStyles({
     fontFamily: 'inherit',
     transition: 'all 0.15s ease',
     position: 'relative',
-    color: '#6b7280',
+    color: qikit.color.text,
     backgroundColor: 'transparent',
     whiteSpace: 'nowrap',
     flexShrink: 0,
     '&:hover': {
-      color: '#107C6C',
+      color: qikit.color.brand,
       backgroundColor: 'rgba(16, 124, 108, 0.04)',
     },
   },
   navItemActive: {
-    color: '#107C6C',
-    backgroundColor: '#ffffff',
+    color: qikit.color.brand,
+    backgroundColor: qikit.color.surface,
     boxShadow: '0 -1px 3px rgba(0,0,0,0.04)',
     '&::after': {
       content: '""',
@@ -83,7 +84,7 @@ const useStyles = makeStyles({
       left: '10px',
       right: '10px',
       height: '2px',
-      backgroundColor: '#107C6C',
+      backgroundColor: qikit.color.brand,
       borderRadius: '2px 2px 0 0',
     },
   },
@@ -94,8 +95,8 @@ const useStyles = makeStyles({
   content: {
     flex: 1,
     overflowY: 'auto',
-    backgroundColor: '#ffffff',
-    borderTop: '1px solid #e8e6e3',
+    backgroundColor: qikit.color.surface,
+    borderTop: `1px solid ${qikit.color.border}`,
   },
 });
 
