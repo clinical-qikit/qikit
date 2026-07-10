@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDownRegular, ChevronRightRegular } from '@fluentui/react-icons';
 import { SPCResult } from '@qikit/engine';
 import { useSpcStyles } from './styles';
+import { qikit } from '../../theme/tokens';
 
 interface SummaryPanelProps {
   result: SPCResult;
@@ -19,12 +20,12 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ result }) => {
         Analysis summary
       </button>
       {summaryOpen && (
-        <div style={{ marginTop: '8px', padding: '10px', backgroundColor: '#f6f6f8', borderRadius: '6px', border: '1px solid #e8e6e3' }}>
+        <div style={{ marginTop: '8px', padding: '10px', backgroundColor: qikit.color.surfaceAlt, borderRadius: '6px', border: `1px solid ${qikit.color.border}` }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '4px',
             fontSize: '12px', fontWeight: '600', marginBottom: '10px',
-            backgroundColor: result.signals ? '#fdf2f2' : '#e8f5f2',
-            color: result.signals ? '#c4314b' : '#107C6C',
+            backgroundColor: result.signals ? qikit.color.dangerBg : qikit.color.brandTint,
+            color: result.signals ? qikit.color.danger : qikit.color.brand,
           }}>
             {result.signals ? '⚠️ Signal detected' : '✓ No signal'}
           </div>

@@ -176,7 +176,7 @@ export const SpcPanel: React.FC = () => {
         <div className={styles.dataSourceEmpty}>
           <div className={styles.dataSourceIcon}><DocumentRegular /></div>
           <Button appearance="primary" size="medium" onClick={handleSelectData}
-            style={{ borderRadius: '6px', minWidth: '180px', backgroundColor: '#107C6C', borderColor: '#0A6B5C' }}>
+            style={{ borderRadius: '6px', minWidth: '180px' }}>
             Use Current Selection
           </Button>
           <span className={styles.dataSourceHint}>Select a data range in Excel, then click above</span>
@@ -284,7 +284,7 @@ export const SpcPanel: React.FC = () => {
             <Checkbox label="Include source data" checked={includeDataTable}
               onChange={(_, d) => setIncludeDataTable(!!d.checked)} />
             <Button appearance="primary" icon={<ArrowDownloadRegular />}
-              onClick={handleWriteToSheet} style={{ borderRadius: '6px', backgroundColor: '#107C6C', borderColor: '#0A6B5C' }}>
+              onClick={handleWriteToSheet} style={{ borderRadius: '6px' }}>
               Write to Sheet
             </Button>
           </div>

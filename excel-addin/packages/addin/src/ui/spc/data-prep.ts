@@ -1,5 +1,6 @@
 import { ChartType, SPCInput, SPCResult } from '@qikit/engine';
 import { GRAIN_CHARTS, NEEDS_N, SpcOptions, DataGrain } from './constants';
+import { colLetter } from '../shared/col-letter';
 
 // ─── Date/aggregation helpers ─────────────────────────────────────────────────
 
@@ -117,15 +118,7 @@ export function aggregateByPeriod(
 
 // ─── Column helpers ───────────────────────────────────────────────────────────
 
-export function colLetter(index: number): string {
-  let result = '';
-  let n = index;
-  do {
-    result = String.fromCharCode(65 + (n % 26)) + result;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return result;
-}
+export { colLetter };
 
 export interface ParsedColumns {
   hasHeaders: boolean;

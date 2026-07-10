@@ -4,6 +4,7 @@ import { ChartType } from '@qikit/engine';
 import { useSpcStyles } from './styles';
 import { NEEDS_N, GRAIN_CHARTS, DataGrain } from './constants';
 import { DateAggregationOptions } from './DateAggregationOptions';
+import { qikit } from '../../theme/tokens';
 
 interface ColumnSelectorProps {
   headers: string[];
@@ -109,7 +110,7 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
 
       {/* Notes column */}
       <div className={styles.colRow} style={{ marginTop: '2px' }}>
-        <span className={styles.colLabel} style={{ fontSize: '11px', color: '#9ca3af', minWidth: supportsGrain ? '62px' : undefined }}>Notes</span>
+        <span className={styles.colLabel} style={{ fontSize: '11px', color: qikit.color.textMuted, minWidth: supportsGrain ? '62px' : undefined }}>Notes</span>
         <Select size="small" value={notesCol !== null ? String(notesCol) : ''}
           onChange={(_, d) => onNotesColChange(d.value !== '' ? parseInt(d.value) : null)}
           style={{ flex: 1 }}>

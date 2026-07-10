@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChartType } from '@qikit/engine';
 import { useSpcStyles } from './styles';
 import { CORE_CHARTS, ADDITIONAL_CHARTS, CHART_LABELS } from './constants';
+import { qikit } from '../../theme/tokens';
 
 interface ChartTypePickerProps {
   chartType: ChartType;
@@ -42,7 +43,7 @@ export const ChartTypePicker: React.FC<ChartTypePickerProps> = ({ chartType, onC
         </div>
       )}
       {CHART_LABELS[chartType] && (
-        <div style={{ fontSize: '11.5px', color: '#8e8e96', marginTop: '8px', fontStyle: 'italic' }}>
+        <div style={{ fontSize: '11.5px', color: qikit.color.textMuted, marginTop: '8px', fontStyle: 'italic' }}>
           {CHART_LABELS[chartType]}
         </div>
       )}

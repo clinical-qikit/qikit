@@ -9,12 +9,14 @@ export const qikit = {
     brandHover: '#0E7062',
     brandPressed: '#0C6154',
     brandTint: '#E8F5F2', // icon chips, success/no-signal backgrounds
+    brandTintBorder: '#BDDDD5', // borders on brand-tinted cards (tealBrand[150])
 
     ink: '#1B1B1F', // titles, values, emphasized text
     text: '#5C5C65', // body text
     textMuted: '#8E8E96', // section labels, hints, placeholders
 
     border: '#E8E6E3',
+    borderStrong: '#D0CECA', // control outlines that need more contrast
     borderSubtle: '#F0F1F3',
     surface: '#FFFFFF',
     surfaceAlt: '#F6F6F8', // address bars, wells, subtle fills
