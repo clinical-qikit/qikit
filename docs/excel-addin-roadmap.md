@@ -56,6 +56,9 @@ engine lacked or hadn't proven. All three parity items landed 2026-07-08.
    roadmap originally pointed at the CMS sample in `data/examples/` as demo
    data, but that file turned out to contain a provider directory, not
    infections data; the fixtures use crafted clinical scenarios instead.
+   (Since fixed: `cms_hospital_infections_sample.csv` now holds real CMS HAI
+   data — CLABSI/CAUTI observed cases + device days for 25 hospitals —
+   suitable as funnel-plot demo data.)
 2. ~~**Laney p′/u′ σ_z validation.**~~ ✅ Audit found this was already proven:
    both Laney fixtures are genuinely overdispersed (implied σ_z ≈ 3.2 / 3.6 —
    plain p/u limits would differ by >2×) and the TS snapshot comparison pins

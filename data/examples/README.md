@@ -5,9 +5,9 @@ This folder contains public domain healthcare datasets ideal for demonstrating S
 ## Available Datasets
 
 ### 1. Hospital-Acquired Infections (`cms_hospital_infections_sample.csv`)
-* **Source:** Centers for Medicare & Medicaid Services (CMS) Provider Data Catalog
-* **URL:** [Healthcare Associated Infections - Hospital](https://data.cms.gov/provider-data/topics/hospitals)
-* **Description:** A sample of CMS data containing observed infections (e.g., CLABSI, CAUTI, MRSA) and eligible days/procedures for Medicare-certified hospitals.
+* **Source:** Centers for Medicare & Medicaid Services (CMS) Provider Data Catalog (public domain)
+* **URL:** [Healthcare Associated Infections - Hospital](https://data.cms.gov/provider-data/topics/hospitals) (dataset `77hc-ibv8`)
+* **Description:** A 100-row sample (25 California hospitals, reporting period 2024-07-01 to 2025-06-30) in the original CMS long format. For each hospital it includes CLABSI and CAUTI observed cases (`HAI_1_NUMERATOR`, `HAI_2_NUMERATOR`) and the matching device-day denominators (`HAI_1_DOPC`, `HAI_2_DOPC`). Pivot numerator/denominator pairs per hospital to demo **funnel plots** (cross-sectional infection rates with varying exposure).
 
 ### 2. Hospital Readmissions (`hospital_readmissions.csv`)
 * **Source:** Synthetic Data (Modeled after standard CMS Readmission Reduction Program metrics)
