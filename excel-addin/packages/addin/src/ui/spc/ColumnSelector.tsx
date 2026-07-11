@@ -4,6 +4,7 @@ import { ChartType } from '@qikit/engine';
 import { useSpcStyles } from './styles';
 import { NEEDS_N, GRAIN_CHARTS, DataGrain } from './constants';
 import { DateAggregationOptions } from './DateAggregationOptions';
+import { qikit } from '../../theme/tokens';
 
 interface ColumnSelectorProps {
   headers: string[];
@@ -55,8 +56,8 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
       {/* Data grain (attribute + count charts) */}
       {supportsGrain && (
         <div className={styles.colRow}>
-          <span className={styles.colLabel} style={{ minWidth: '62px' }}>Each row is</span>
-          <Select size="small" value={dataGrain}
+          <label className={styles.colLabel} style={{ minWidth: '62px' }} htmlFor="spc-col-grain">Each row is</label>
+          <Select size="small" id="spc-col-grain" value={dataGrain}
             onChange={(_, d) => onDataGrainChange(d.value as DataGrain)}
             style={{ flex: 1 }}>
             <option value="summarized">Period summary</option>
@@ -67,8 +68,8 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
 
       {/* X */}
       <div className={styles.colRow}>
-        <span className={styles.colLabel} style={{ minWidth: supportsGrain ? '62px' : undefined }}>X</span>
-        <Select size="small" value={xCol !== null ? String(xCol) : ''}
+        <label className={styles.colLabel} style={{ minWidth: supportsGrain ? '62px' : undefined }} htmlFor="spc-col-x">X</label>
+        <Select size="small" id="spc-col-x" value={xCol !== null ? String(xCol) : ''}
           onChange={(_, d) => onXColChange(d.value !== '' ? parseInt(d.value) : null)}
           style={{ flex: 1 }}>
           <option value="">— index</option>
@@ -80,8 +81,8 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
 
       {/* Y */}
       <div className={styles.colRow}>
-        <span className={styles.colLabel} style={{ minWidth: supportsGrain ? '62px' : undefined }} title={yTooltip}>Y</span>
-        <Select size="small" value={String(yCol)}
+        <label className={styles.colLabel} style={{ minWidth: supportsGrain ? '62px' : undefined }} title={yTooltip} htmlFor="spc-col-y">Y</label>
+        <Select size="small" id="spc-col-y" value={String(yCol)}
           onChange={(_, d) => onYColChange(parseInt(d.value))} style={{ flex: 1 }}>
           {numericCols.map(ci => (
             <option key={ci} value={ci}>{headers[ci]}</option>
@@ -92,8 +93,8 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
       {/* N (attribute charts, summarized mode only) */}
       {needsN && !isIndividual && (
         <div className={styles.colRow}>
-          <span className={styles.colLabel} style={{ minWidth: '62px' }} title={nTooltip}>{nLabel}</span>
-          <Select size="small" value={nCol !== null ? String(nCol) : ''}
+          <label className={styles.colLabel} style={{ minWidth: '62px' }} title={nTooltip} htmlFor="spc-col-n">{nLabel}</label>
+          <Select size="small" id="spc-col-n" value={nCol !== null ? String(nCol) : ''}
             onChange={(_, d) => onNColChange(d.value !== '' ? parseInt(d.value) : null)}
             style={{ flex: 1 }}>
             <option value="">— none</option>
@@ -107,10 +108,11 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
       {/* Date Subgroup (only when X is a date column) */}
       {isDateX && <DateAggregationOptions xPeriod={xPeriod} onChange={onXPeriodChange} />}
 
-      {/* Notes column */}
+      {/* Notes column — unavailable with date aggregation, which discards row identity */}
       <div className={styles.colRow} style={{ marginTop: '2px' }}>
-        <span className={styles.colLabel} style={{ fontSize: '11px', color: '#9ca3af', minWidth: supportsGrain ? '62px' : undefined }}>Notes</span>
-        <Select size="small" value={notesCol !== null ? String(notesCol) : ''}
+        <label className={styles.colLabel} style={{ fontSize: '11px', color: qikit.color.textMuted, minWidth: supportsGrain ? '62px' : undefined }} htmlFor="spc-col-notes">Notes</label>
+        <Select size="small" id="spc-col-notes" value={notesCol !== null ? String(notesCol) : ''}
+          disabled={isDateX}
           onChange={(_, d) => onNotesColChange(d.value !== '' ? parseInt(d.value) : null)}
           style={{ flex: 1 }}>
           <option value="">— none</option>
@@ -119,6 +121,11 @@ export const ColumnSelector: React.FC<ColumnSelectorProps> = ({
           ))}
         </Select>
       </div>
+      {isDateX && (
+        <div style={{ fontSize: '11px', color: qikit.color.textMuted, marginTop: '4px', lineHeight: '1.4' }}>
+          A notes column can’t be mapped when dates are aggregated — click chart points to annotate instead.
+        </div>
+      )}
     </div>
   );
 };

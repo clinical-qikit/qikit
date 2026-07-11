@@ -1,8 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Button, Select, Input, makeStyles } from '@fluentui/react-components';
+import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components';
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { bchart } from '@qikit/engine';
+import { colLetter } from '../shared/col-letter';
+import { qikit } from '../../theme/tokens';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { NumericField } from '../shared/NumericField';
 import {
   Chart as ChartJS, CategoryScale, LinearScale,
   PointElement, LineElement, Tooltip, Legend,
@@ -20,38 +23,38 @@ const useStyles = makeStyles({
   },
   section: {
     padding: '14px 16px',
-    borderBottom: '1px solid #f0f1f3',
+    borderBottom: `1px solid ${qikit.color.border}`,
   },
   sectionLabel: {
     fontSize: '11px',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    color: '#9ca3af',
+    letterSpacing: '0.6px',
+    color: qikit.color.textMuted,
     marginBottom: '10px',
   },
   dataSourceEmpty: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '10px',
-    padding: '20px 16px',
+    gap: '12px',
+    padding: '28px 16px',
     textAlign: 'center',
   },
   dataSourceIcon: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '10px',
-    backgroundColor: '#f3f0ff',
+    width: '42px',
+    height: '42px',
+    borderRadius: qikit.radius.lg,
+    backgroundColor: qikit.color.brandTint,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#7c3aed',
+    color: qikit.color.brand,
     fontSize: '20px',
   },
   dataSourceHint: {
     fontSize: '12px',
-    color: '#9ca3af',
+    color: qikit.color.textMuted,
     lineHeight: '1.4',
   },
   dataSourceBar: {
@@ -61,12 +64,13 @@ const useStyles = makeStyles({
   },
   address: {
     flex: 1,
-    fontSize: '12px',
-    fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-    color: '#6b7280',
-    backgroundColor: '#f9fafb',
+    fontSize: '11.5px',
+    fontFamily: qikit.font.mono,
+    color: qikit.color.text,
+    backgroundColor: qikit.color.surfaceAlt,
     padding: '6px 10px',
-    borderRadius: '6px',
+    borderRadius: qikit.radius.sm,
+    border: `1px solid ${qikit.color.border}`,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -77,9 +81,9 @@ const useStyles = makeStyles({
     alignItems: 'center',
   },
   colLabel: {
-    fontSize: '11px',
+    fontSize: '11.5px',
     fontWeight: '600',
-    color: '#6b7280',
+    color: qikit.color.text,
     minWidth: '50px',
   },
   settingRow: {
@@ -90,7 +94,7 @@ const useStyles = makeStyles({
   },
   settingLabel: {
     fontSize: '12px',
-    color: '#6b7280',
+    color: qikit.color.text,
   },
   chartContainer: {
     height: '240px',
@@ -98,7 +102,7 @@ const useStyles = makeStyles({
   },
   actions: {
     padding: '14px 16px',
-    borderTop: '1px solid #f0f1f3',
+    borderTop: `1px solid ${qikit.color.border}`,
     marginTop: 'auto',
   },
   signalBadge: {
@@ -107,27 +111,21 @@ const useStyles = makeStyles({
     gap: '6px',
     padding: '6px 10px',
     margin: '0 16px 8px',
-    borderRadius: '6px',
+    borderRadius: qikit.radius.sm,
     fontSize: '12px',
     fontWeight: '600',
   },
   error: {
     margin: '0 16px',
     padding: '8px 12px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    border: '1px solid #fecaca',
+    backgroundColor: qikit.color.dangerBg,
+    color: qikit.color.danger,
+    borderRadius: qikit.radius.sm,
+    border: `1px solid ${qikit.color.dangerBorder}`,
     fontSize: '12px',
+    lineHeight: '1.4',
   },
 });
-
-function colLetter(i: number): string {
-  let r = '';
-  let n = i;
-  do { r = String.fromCharCode(65 + (n % 26)) + r; n = Math.floor(n / 26) - 1; } while (n >= 0);
-  return r;
-}
 
 export const BChartPanel: React.FC = () => {
   const styles = useStyles();
@@ -140,6 +138,7 @@ export const BChartPanel: React.FC = () => {
   const [orRatioStr, setOrRatioStr] = useState('2.0');
   const [limitStr, setLimitStr] = useState('3.5');
   const [result, setResult] = useState<ReturnType<typeof bchart> | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSelectData = useCallback(async () => {
@@ -183,6 +182,7 @@ export const BChartPanel: React.FC = () => {
   const handleWriteToSheet = useCallback(async () => {
     if (!result) return;
     setError(null);
+    setIsWriting(true);
     try {
       const sheetData = [
         ['Point', 'Value', 'CUSUM Up', 'CUSUM Down', 'Signal Up', 'Signal Down', 'Limit'],
@@ -193,6 +193,8 @@ export const BChartPanel: React.FC = () => {
       await createBChartChart(result, sheetName, ra);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+    } finally {
+      setIsWriting(false);
     }
   }, [result]);
 
@@ -205,7 +207,7 @@ export const BChartPanel: React.FC = () => {
         <div className={styles.dataSourceEmpty}>
           <div className={styles.dataSourceIcon}><DocumentRegular /></div>
           <Button appearance="primary" size="medium" onClick={handleSelectData}
-            style={{ borderRadius: '8px', minWidth: '180px' }}>
+            style={{ borderRadius: '6px', minWidth: '180px' }}>
             Use Current Selection
           </Button>
           <span className={styles.dataSourceHint}>Select a column of binary (0/1) outcomes</span>
@@ -216,7 +218,8 @@ export const BChartPanel: React.FC = () => {
           <div className={styles.dataSourceBar}>
             <span className={styles.address}>{rangeAddress}</span>
             <Button size="small" icon={<ArrowSyncRegular />} appearance="subtle"
-              onClick={handleSelectData} style={{ borderRadius: '6px' }} />
+              onClick={handleSelectData} title="Re-read selection" aria-label="Re-read selection"
+              style={{ borderRadius: '6px' }} />
           </div>
         </div>
       )}
@@ -226,8 +229,8 @@ export const BChartPanel: React.FC = () => {
           <div className={styles.section}>
             <div className={styles.sectionLabel}>Data Column</div>
             <div className={styles.colRow}>
-              <span className={styles.colLabel}>Column</span>
-              <Select size="small" value={String(xCol)}
+              <label className={styles.colLabel} htmlFor="bchart-col">Column</label>
+              <Select size="small" id="bchart-col" value={String(xCol)}
                 onChange={(_, d) => setXCol(parseInt(d.value))}
                 style={{ flex: 1 }}>
                 {headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
@@ -238,35 +241,45 @@ export const BChartPanel: React.FC = () => {
             <div className={styles.sectionLabel}>Parameters</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Baseline risk</span>
-                <Input size="small" placeholder="auto" value={targetStr}
-                  onChange={(_, d) => setTargetStr(d.value)} />
+                <label className={styles.settingLabel} htmlFor="bchart-target"
+                  title="Expected event rate under acceptable performance (0–1). Leave blank to estimate from the data.">
+                  Baseline risk
+                </label>
+                <NumericField id="bchart-target" placeholder="auto" min={0} max={1}
+                  value={targetStr} onChange={setTargetStr} />
               </div>
               <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Odds ratio</span>
-                <Input size="small" placeholder="2.0" value={orRatioStr}
-                  onChange={(_, d) => setOrRatioStr(d.value)} />
+                <label className={styles.settingLabel} htmlFor="bchart-or"
+                  title="Odds-ratio shift the chart is tuned to detect — 2.0 signals a doubling of the odds of an event.">
+                  Odds ratio
+                </label>
+                <NumericField id="bchart-or" placeholder="2.0" min={0}
+                  value={orRatioStr} onChange={setOrRatioStr} />
               </div>
               <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Decision limit</span>
-                <Input size="small" placeholder="3.5" value={limitStr}
-                  onChange={(_, d) => setLimitStr(d.value)} />
+                <label className={styles.settingLabel} htmlFor="bchart-limit"
+                  title="Decision threshold h — the CUSUM signals when it crosses ±h. Larger values mean fewer false alarms but slower detection.">
+                  Decision limit
+                </label>
+                <NumericField id="bchart-limit" placeholder="3.5" min={0}
+                  value={limitStr} onChange={setLimitStr} />
               </div>
             </div>
           </div>
         </>
       )}
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error}</div>}
 
       {result && (
         <>
           {anySignal !== undefined && (
-            <div className={styles.signalBadge} style={{
-              backgroundColor: anySignal ? '#fef2f2' : '#f0fdf4',
-              color: anySignal ? '#dc2626' : '#059669',
+            <div className={styles.signalBadge} role="status" style={{
+              backgroundColor: anySignal ? qikit.color.dangerBg : qikit.color.brandTint,
+              color: anySignal ? qikit.color.danger : qikit.color.brand,
             }}>
-              {anySignal ? '⚑ Signal detected' : '✓ No signal'}
+              <span aria-hidden="true">{anySignal ? '⚑' : '✓'}</span>
+              {anySignal ? 'Signal detected' : 'No signal'}
             </div>
           )}
           <div className={styles.chartContainer}>
@@ -277,8 +290,8 @@ export const BChartPanel: React.FC = () => {
                   {
                     label: 'CUSUM Up',
                     data: result.data.map((d: any) => d.cusum_up),
-                    borderColor: '#4f46e5',
-                    pointBackgroundColor: result.data.map((d: any) => d.signal_up ? '#ef4444' : '#4f46e5'),
+                    borderColor: qikit.chart.brand,
+                    pointBackgroundColor: result.data.map((d: any) => d.signal_up ? qikit.chart.signal : qikit.chart.brand),
                     pointRadius: result.data.map((d: any) => d.signal_up ? 5 : 2),
                     borderWidth: 1.5,
                     tension: 0,
@@ -286,9 +299,9 @@ export const BChartPanel: React.FC = () => {
                   {
                     label: 'CUSUM Down',
                     data: result.data.map((d: any) => d.cusum_down),
-                    borderColor: '#94a3b8',
+                    borderColor: qikit.chart.limit,
                     borderDash: [5, 3],
-                    pointBackgroundColor: result.data.map((d: any) => d.signal_down ? '#ef4444' : '#94a3b8'),
+                    pointBackgroundColor: result.data.map((d: any) => d.signal_down ? qikit.chart.signal : qikit.chart.limit),
                     pointRadius: result.data.map((d: any) => d.signal_down ? 5 : 2),
                     borderWidth: 1.5,
                     tension: 0,
@@ -296,7 +309,7 @@ export const BChartPanel: React.FC = () => {
                   {
                     label: '+Limit',
                     data: new Array(result.data.length).fill(result.limit),
-                    borderColor: '#f97316',
+                    borderColor: qikit.chart.accent,
                     borderDash: [4, 4],
                     pointRadius: 0,
                     borderWidth: 1,
@@ -304,7 +317,7 @@ export const BChartPanel: React.FC = () => {
                   {
                     label: '\u2212Limit',
                     data: new Array(result.data.length).fill(-result.limit),
-                    borderColor: '#f97316',
+                    borderColor: qikit.chart.accent,
                     borderDash: [4, 4],
                     pointRadius: 0,
                     borderWidth: 1,
@@ -316,19 +329,20 @@ export const BChartPanel: React.FC = () => {
                 maintainAspectRatio: false,
                 plugins: {
                   legend: { display: false },
-                  tooltip: { backgroundColor: '#1a1a2e', cornerRadius: 6, padding: 8 },
+                  tooltip: { backgroundColor: qikit.color.ink, cornerRadius: 6, padding: 8 },
                 },
                 scales: {
-                  x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
-                  y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
+                  x: { grid: { display: false }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
+                  y: { grid: { color: qikit.chart.grid }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
                 },
               }}
             />
           </div>
           <div className={styles.actions}>
-            <Button appearance="primary" icon={<ArrowDownloadRegular />}
-              onClick={handleWriteToSheet} style={{ borderRadius: '8px', width: '100%' }}>
-              Write to Sheet
+            <Button appearance="primary" disabled={isWriting}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+              onClick={handleWriteToSheet} style={{ borderRadius: '6px', width: '100%' }}>
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
         </>

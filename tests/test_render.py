@@ -3,12 +3,11 @@ Tests for qikit.render — Plotly figure generation.
 """
 
 from __future__ import annotations
-import math
 import numpy as np
 import pandas as pd
 import pytest
 import plotly.graph_objects as go
-from qikit import qic, paretochart, bchart
+from qikit import qic
 
 
 
@@ -97,11 +96,11 @@ def test_y_percent_default():
     y = [10] * 10
     n = [100] * 10
     r = qic(y=y, n=n, chart="p")
-    assert r._plot_opts["y_percent"] == True
+    assert r._plot_opts["y_percent"] is True
     
     # i-chart should default to y_percent=False
     r2 = qic(y=y, chart="i")
-    assert r2._plot_opts["y_percent"] == False
+    assert r2._plot_opts["y_percent"] is False
 
 def test_dots_only_connectivity():
     # Categorical x-axis without x_period should imply dots_only in render

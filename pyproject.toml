@@ -25,5 +25,9 @@ packages = ["src/qikit"]
 target-version = "py310"
 line-length = 99
 
+[tool.ruff.lint]
+# Compact one-line guards (`if x: return`) are deliberate house style in the engine.
+ignore = ["E701", "E702"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

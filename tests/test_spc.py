@@ -418,7 +418,6 @@ class TestSummary:
         assert len(d["data"]) == 30
 
     def test_to_json(self, normal_30):
-        import json
         r = _result("i", normal_30)
         j = r.to_json()
         parsed = json.loads(j)
@@ -510,20 +509,18 @@ class TestXbarChart:
         r = qic(data=df, x="grp", y="val", chart="xbar")
 
         grand_mean = np.mean(targets)
-        # s_bar computed from actual SD of subgroups
-        s_bar = r.summary.get("s_bar", None)
+        # s_bar the same way the engine computes it: mean of subgroup SDs (ddof=1)
+        s_bar = df.groupby("grp")["val"].std(ddof=1).mean()
         a3 = _core.A3[4]
 
         # CL should be close to grand mean
         assert math.isclose(r.data["cl"].iloc[0], grand_mean, abs_tol=0.05)
-        # UCL = grand_mean + A3 * s_bar
-        expected_ucl = r.data["cl"].iloc[0] + a3 * r.data["cl"].iloc[0] * 0  # placeholder
-        # Verify UCL and LCL are symmetric around CL
+        # UCL = grand_mean + A3 * s_bar, symmetric with LCL around CL
         cl_val = r.data["cl"].iloc[0]
         ucl_val = r.data["ucl"].iloc[0]
         lcl_val = r.data["lcl"].iloc[0]
-        assert ucl_val > cl_val
-        assert lcl_val < cl_val
+        assert math.isclose(ucl_val, cl_val + a3 * s_bar, abs_tol=1e-10)
+        assert math.isclose(lcl_val, cl_val - a3 * s_bar, abs_tol=1e-10)
         assert math.isclose(ucl_val - cl_val, cl_val - lcl_val, abs_tol=1e-10)
 
     def test_known_limits_exact(self):
@@ -1194,7 +1191,7 @@ class TestIntelligentArguments:
         # (10+10+10+10)/4 = 10
         assert r.data["cl"].iloc[0] == 10
         # The 3rd point should be excluded from baseline
-        assert r.data["baseline"].iloc[2] == False
+        assert not r.data["baseline"].iloc[2]
 
     def test_categorical_part_with_grouping(self):
         # 4 groups, phase changes at group 3
@@ -1293,7 +1290,7 @@ class TestMontgomeryValidation:
         
         assert r.signals
         # Point index 9 (the 50) must be a sigma signal
-        assert r.data["sigma_signal"].iloc[9] == True
+        assert bool(r.data["sigma_signal"].iloc[9])
         assert 1 in r.summary["nelson_rules_triggered"]
 
 class TestUntestedFeatures:

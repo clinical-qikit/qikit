@@ -12,8 +12,11 @@ export const SignalMethodPicker: React.FC<SignalMethodPickerProps> = ({ value, o
   const styles = useSpcStyles();
   return (
     <div className={styles.settingRow}>
-      <span className={styles.settingLabel}>Signal method</span>
-      <Select size="small" value={value} onChange={(_, d) => onChange(d.value as SpcOptions['method'])}>
+      <label className={styles.settingLabel} htmlFor="spc-signal-method"
+        title="Rule set used to flag non-random variation (runs, crossings, sigma violations).">
+        Signal method
+      </label>
+      <Select size="small" id="spc-signal-method" value={value} onChange={(_, d) => onChange(d.value as SpcOptions['method'])}>
         <option value="anhoej">Anhoej</option>
         <option value="ihi">IHI</option>
         <option value="weco">WECO</option>

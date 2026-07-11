@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import {
-  Button, makeStyles, Badge, Select,
+  Button, makeStyles, Badge, Select, Spinner,
 } from '@fluentui/react-components';
 import {
   CheckmarkCircleFilled, CircleRegular,
   ArrowLeftRegular, ArrowDownloadRegular, ArrowResetRegular,
 } from '@fluentui/react-icons';
 import { design, analyze, DOEDesign, DOEResult, DesignType } from '@qikit/engine';
+import { qikit } from '../../theme/tokens';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
 import { FactorEditor, Factor } from './FactorEditor';
 import { ChartViewer } from '../shared/ChartViewer';
@@ -32,14 +33,14 @@ const useStyles = makeStyles({
     alignItems: 'center',
     gap: '6px',
     fontSize: '12px',
-    color: '#9ca3af',
+    color: qikit.color.textMuted,
     fontWeight: '500',
   },
   stepActive: {
-    color: '#4f46e5',
+    color: qikit.color.brand,
   },
   stepDone: {
-    color: '#059669',
+    color: qikit.color.brand,
   },
   stepIcon: {
     fontSize: '18px',
@@ -48,12 +49,12 @@ const useStyles = makeStyles({
   stepLine: {
     flex: 1,
     height: '1px',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: qikit.color.border,
     margin: '0 10px',
     minWidth: '16px',
   },
   stepLineActive: {
-    backgroundColor: '#4f46e5',
+    backgroundColor: qikit.color.brand,
   },
 
   // Content areas
@@ -67,12 +68,12 @@ const useStyles = makeStyles({
   stepTitle: {
     fontSize: '15px',
     fontWeight: '600',
-    color: '#1a1a2e',
+    color: qikit.color.ink,
     letterSpacing: '-0.2px',
   },
   stepDescription: {
     fontSize: '13px',
-    color: '#6b7280',
+    color: qikit.color.text,
     lineHeight: '1.5',
   },
 
@@ -82,14 +83,14 @@ const useStyles = makeStyles({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '14px 16px',
-    backgroundColor: '#f0fdf4',
-    borderRadius: '10px',
-    border: '1px solid #bbf7d0',
+    backgroundColor: qikit.color.brandTint,
+    borderRadius: qikit.radius.lg,
+    border: `1px solid ${qikit.color.brandTintBorder}`,
   },
   designCardLabel: {
     fontSize: '13px',
     fontWeight: '500',
-    color: '#166534',
+    color: qikit.color.brand,
   },
 
   // Chart type selector
@@ -100,7 +101,7 @@ const useStyles = makeStyles({
   },
   chartTypeLabel: {
     fontSize: '12px',
-    color: '#6b7280',
+    color: qikit.color.text,
     flexShrink: 0,
   },
 
@@ -112,19 +113,19 @@ const useStyles = makeStyles({
   statBox: {
     flex: 1,
     padding: '8px 10px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '8px',
-    border: '1px solid #f0f1f3',
+    backgroundColor: qikit.color.surfaceAlt,
+    borderRadius: qikit.radius.md,
+    border: `1px solid ${qikit.color.borderSubtle}`,
     textAlign: 'center' as const,
   },
   statValue: {
     fontSize: '14px',
     fontWeight: '600',
-    color: '#1a1a2e',
+    color: qikit.color.ink,
   },
   statLabel: {
     fontSize: '10px',
-    color: '#9ca3af',
+    color: qikit.color.textMuted,
     marginTop: '2px',
   },
 
@@ -133,7 +134,7 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: '8px',
     padding: '16px',
-    borderTop: '1px solid #f0f1f3',
+    borderTop: `1px solid ${qikit.color.border}`,
     marginTop: 'auto',
   },
 
@@ -144,10 +145,10 @@ const useStyles = makeStyles({
     gap: '8px',
     margin: '0 16px',
     padding: '10px 12px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    border: '1px solid #fecaca',
+    backgroundColor: qikit.color.dangerBg,
+    color: qikit.color.danger,
+    borderRadius: qikit.radius.sm,
+    border: `1px solid ${qikit.color.dangerBorder}`,
     fontSize: '12px',
     lineHeight: '1.4',
   },
@@ -184,6 +185,7 @@ export const DoeWizard: React.FC = () => {
   const [currentDesign, setCurrentDesign] = useState<DOEDesign | null>(null);
   const [result, setResult] = useState<DOEResult | null>(null);
   const [doeChartType, setDoeChartType] = useState<DoeChartType>('effects');
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onGenerate = () => {
@@ -213,12 +215,15 @@ export const DoeWizard: React.FC = () => {
   const onWriteTemplate = async () => {
     setError(null);
     if (!currentDesign) return;
+    setIsWriting(true);
     try {
       const headers = ['RunOrder', ...currentDesign.factors, 'Response'];
       const rows = currentDesign.matrix.map(row => headers.map(h => row[h]));
       await writeToNewSheet(`DOE ${currentDesign.n_factors}F`, [headers, ...rows]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to write template.");
+    } finally {
+      setIsWriting(false);
     }
   };
 
@@ -232,7 +237,11 @@ export const DoeWizard: React.FC = () => {
       const response = resData.values.slice(1).map(row => row[respIdx]).filter(v => typeof v === 'number') as number[];
       if (currentDesign) {
         if (response.length !== currentDesign.n_runs) {
-          throw new Error(`Expected ${currentDesign.n_runs} responses, found ${response.length}.`);
+          throw new Error(
+            `The design has ${currentDesign.n_runs} runs but the selection contains ` +
+            `${response.length} numeric response value${response.length === 1 ? '' : 's'}. ` +
+            `Select the filled-in Response column (with its header) — one value per run.`
+          );
         }
         const res = analyze(currentDesign, response);
         setResult(res);
@@ -247,6 +256,7 @@ export const DoeWizard: React.FC = () => {
   const onWriteResults = async () => {
     if (!result) return;
     setError(null);
+    setIsWriting(true);
     try {
       const sheetData = [
         ['Term', 'Effect', 'SS', '% Contribution'],
@@ -257,6 +267,8 @@ export const DoeWizard: React.FC = () => {
       await createEffectsChart(result, sheetName, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to write results.");
+    } finally {
+      setIsWriting(false);
     }
   };
 
@@ -315,7 +327,7 @@ export const DoeWizard: React.FC = () => {
     <div className={styles.container}>
       {renderStepper()}
 
-      {error && <div className={styles.error} style={{ marginTop: '12px' }}>{error}</div>}
+      {error && <div className={styles.error} role="alert" style={{ marginTop: '12px' }}>{error}</div>}
 
       {step === 1 && (
         <>
@@ -342,7 +354,7 @@ export const DoeWizard: React.FC = () => {
             />
           </div>
           <div className={styles.actions}>
-            <Button appearance="primary" onClick={onGenerate} style={{ flex: 1, borderRadius: '8px' }}>
+            <Button appearance="primary" onClick={onGenerate} style={{ flex: 1, borderRadius: '6px' }}>
               Generate Design
             </Button>
           </div>
@@ -365,23 +377,24 @@ export const DoeWizard: React.FC = () => {
                 {currentDesign.n_replicates > 1 && ` · ${currentDesign.n_replicates}×`}
                 {currentDesign.n_center_points > 0 && ` · ${currentDesign.n_center_points} center`}
               </span>
-              <Badge appearance="tint" color="success" shape="rounded">
+              <Badge appearance="tint" color="brand" shape="rounded">
                 {currentDesign.n_runs} runs
               </Badge>
             </div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button
-                icon={<ArrowDownloadRegular />}
+                icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+                disabled={isWriting}
                 onClick={onWriteTemplate}
-                style={{ flex: 1, borderRadius: '8px' }}
+                style={{ flex: 1, borderRadius: '6px' }}
               >
-                Write Template
+                {isWriting ? 'Writing…' : 'Write Template'}
               </Button>
               <Button
                 appearance="primary"
                 onClick={onReadResults}
-                style={{ flex: 1, borderRadius: '8px' }}
+                style={{ flex: 1, borderRadius: '6px' }}
               >
                 Read Results
               </Button>
@@ -392,7 +405,7 @@ export const DoeWizard: React.FC = () => {
               icon={<ArrowLeftRegular />}
               appearance="subtle"
               onClick={() => setStep(1)}
-              style={{ borderRadius: '8px' }}
+              style={{ borderRadius: '6px' }}
             >
               Back
             </Button>
@@ -423,9 +436,10 @@ export const DoeWizard: React.FC = () => {
             </div>
 
             <div className={styles.chartTypeRow}>
-              <span className={styles.chartTypeLabel}>View:</span>
+              <label className={styles.chartTypeLabel} htmlFor="doe-chart-view">View:</label>
               <Select
                 size="small"
+                id="doe-chart-view"
                 value={doeChartType}
                 onChange={(_, d) => setDoeChartType(d.value as DoeChartType)}
                 style={{ flex: 1 }}
@@ -441,17 +455,18 @@ export const DoeWizard: React.FC = () => {
           <div className={styles.actions}>
             <Button
               appearance="primary"
-              icon={<ArrowDownloadRegular />}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+              disabled={isWriting}
               onClick={onWriteResults}
-              style={{ flex: 1, borderRadius: '8px' }}
+              style={{ flex: 1, borderRadius: '6px' }}
             >
-              Write to Sheet
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
             <Button
               icon={<ArrowResetRegular />}
               appearance="subtle"
               onClick={onReset}
-              style={{ borderRadius: '8px' }}
+              style={{ borderRadius: '6px' }}
             >
               Start Over
             </Button>
@@ -472,8 +487,8 @@ import { Line as LineChart, Scatter as ScatterChart } from 'react-chartjs-2';
 
 ChartJS2.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
-const BRAND = '#4f46e5';
-const GRID_COLOR = '#f1f5f9';
+const BRAND = qikit.chart.brand;
+const GRID_COLOR = qikit.chart.grid;
 
 interface DoeAltChartProps {
   result: DOEResult;
@@ -491,7 +506,7 @@ const DoeAltChart: React.FC<DoeAltChartProps> = ({ result, chartType }) => {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: { backgroundColor: '#1a1a2e', cornerRadius: 6, padding: 8 },
+      tooltip: { backgroundColor: qikit.color.ink, cornerRadius: 6, padding: 8 },
     },
   } as const;
 
@@ -507,8 +522,8 @@ const DoeAltChart: React.FC<DoeAltChartProps> = ({ result, chartType }) => {
     const opts = {
       ...baseOptions,
       scales: {
-        x: { type: 'linear' as const, title: { display: true, text: 'Run Order', font: { size: 11 }, color: '#6b7280' }, grid: { display: false }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
-        y: { title: { display: true, text: 'Response', font: { size: 11 }, color: '#6b7280' }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
+        x: { type: 'linear' as const, title: { display: true, text: 'Run Order', font: { size: 11 }, color: qikit.chart.axisText }, grid: { display: false }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
+        y: { title: { display: true, text: 'Response', font: { size: 11 }, color: qikit.chart.axisText }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
       },
     };
     return <div style={containerStyle}><ScatterChart data={data} options={opts} /></div>;
@@ -532,22 +547,23 @@ const DoeAltChart: React.FC<DoeAltChartProps> = ({ result, chartType }) => {
       ...baseOptions,
       plugins: { ...baseOptions.plugins, legend: { display: false } },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#374151' } },
-        y: { title: { display: true, text: 'Mean Response', font: { size: 11 }, color: '#6b7280' }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: qikit.color.text } },
+        y: { title: { display: true, text: 'Mean Response', font: { size: 11 }, color: qikit.chart.axisText }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
       },
     };
     return (
       <div>
         {factors.length > 1 && (
           <div style={{ padding: '0 12px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', color: '#6b7280' }}>Factor:</span>
-            <select
-              value={selectedFactor}
-              onChange={e => setSelectedFactor(parseInt(e.target.value))}
-              style={{ fontSize: '12px', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '2px 6px', color: '#374151' }}
+            <span style={{ fontSize: '11px', color: qikit.color.text }}>Factor:</span>
+            <Select
+              size="small"
+              value={String(selectedFactor)}
+              onChange={(_, d) => setSelectedFactor(parseInt(d.value))}
+              style={{ flex: 1 }}
             >
               {factors.map((f, i) => <option key={i} value={i}>{f}</option>)}
-            </select>
+            </Select>
           </div>
         )}
         <div style={containerStyle}><LineChart data={data} options={opts} /></div>
@@ -569,7 +585,7 @@ const DoeAltChart: React.FC<DoeAltChartProps> = ({ result, chartType }) => {
       labels: [`${factors[fi]} Low`, `${factors[fi]} High`],
       datasets: [
         { label: `${factors[fj]} Low`, data: [getResp(-1, -1), getResp(1, -1)], borderColor: BRAND, pointBackgroundColor: BRAND, pointRadius: 4, borderWidth: 2, tension: 0 },
-        { label: `${factors[fj]} High`, data: [getResp(-1, 1), getResp(1, 1)], borderColor: '#f97316', pointBackgroundColor: '#f97316', pointRadius: 4, borderWidth: 2, tension: 0, borderDash: [4, 3] },
+        { label: `${factors[fj]} High`, data: [getResp(-1, 1), getResp(1, 1)], borderColor: qikit.chart.accent, pointBackgroundColor: qikit.chart.accent, pointRadius: 4, borderWidth: 2, tension: 0, borderDash: [4, 3] },
       ],
     };
     const pairs: [number, number][] = [];
@@ -578,22 +594,23 @@ const DoeAltChart: React.FC<DoeAltChartProps> = ({ result, chartType }) => {
       ...baseOptions,
       plugins: { ...baseOptions.plugins, legend: { display: true, labels: { font: { size: 10 }, boxWidth: 20 } } },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#374151' } },
-        y: { title: { display: true, text: 'Mean Response', font: { size: 11 }, color: '#6b7280' }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: qikit.color.text } },
+        y: { title: { display: true, text: 'Mean Response', font: { size: 11 }, color: qikit.chart.axisText }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
       },
     };
     return (
       <div>
         {pairs.length > 1 && (
           <div style={{ padding: '0 12px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', color: '#6b7280' }}>Pair:</span>
-            <select
+            <span style={{ fontSize: '11px', color: qikit.color.text }}>Pair:</span>
+            <Select
+              size="small"
               value={`${selectedPair[0]},${selectedPair[1]}`}
-              onChange={e => { const [a, b] = e.target.value.split(',').map(Number); setSelectedPair([a, b]); }}
-              style={{ fontSize: '12px', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '2px 6px', color: '#374151' }}
+              onChange={(_, d) => { const [a, b] = d.value.split(',').map(Number); setSelectedPair([a, b]); }}
+              style={{ flex: 1 }}
             >
               {pairs.map(([a, b]) => <option key={`${a},${b}`} value={`${a},${b}`}>{factors[a]} × {factors[b]}</option>)}
-            </select>
+            </Select>
           </div>
         )}
         <div style={containerStyle}><LineChart data={data} options={opts as any} /></div>
@@ -606,14 +623,14 @@ const DoeAltChart: React.FC<DoeAltChartProps> = ({ result, chartType }) => {
       datasets: [{
         label: 'Response',
         data: result.response.map((y, i) => ({ x: y, y: 0.5 + (i % 3) * 0.1 })),
-        backgroundColor: BRAND + 'aa',
+        backgroundColor: `${BRAND}aa`,
         pointRadius: 5,
       }],
     };
     const opts = {
       ...baseOptions,
       scales: {
-        x: { title: { display: true, text: 'Response', font: { size: 11 }, color: '#6b7280' }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: '#9ca3af' } },
+        x: { title: { display: true, text: 'Response', font: { size: 11 }, color: qikit.chart.axisText }, grid: { color: GRID_COLOR }, ticks: { font: { size: 10 }, color: qikit.chart.axisText } },
         y: { display: false, min: 0, max: 1 },
       },
     };

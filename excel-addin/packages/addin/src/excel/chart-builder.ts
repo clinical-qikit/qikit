@@ -1,8 +1,9 @@
 import { SPCResult, DOEResult } from '@qikit/engine';
+import { qikit } from '../theme/tokens';
 
 /* global Excel */
 
-// Parse "Sheet1!A1:G50" → { sheet, firstRow, lastRow, firstCol, lastCol }
+// Parse "Sheet1!A1:G50" → { sheet, firstRow, lastRow }
 function parseAddress(sheetName: string, rangeAddress: string) {
   // rangeAddress may be "A1:G50" or "'Sheet1'!A1:G50"
   const bare = rangeAddress.includes('!') ? rangeAddress.split('!')[1] : rangeAddress;
@@ -14,7 +15,7 @@ function parseAddress(sheetName: string, rangeAddress: string) {
   };
   const s = parseCell(start);
   const e = parseCell(end ?? start);
-  return { sheet: sheetName, firstRow: s.row, lastRow: e.row, firstCol: s.col, lastRow2: e.row };
+  return { sheet: sheetName, firstRow: s.row, lastRow: e.row };
 }
 
 // ─── SPC Chart ────────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ export async function createSPCChart(result: SPCResult, sheetName: string, range
     const sheet = context.workbook.worksheets.getItem(sheetName);
     const info = parseAddress(sheetName, rangeAddress);
     const firstRow = info.firstRow + 1; // skip header
-    const lastRow = info.lastRow2 ?? (info.firstRow + result.data.length);
+    const lastRow = info.lastRow;
 
     // Create an empty line chart and add series manually
     const emptyRange = sheet.getRange(`A${firstRow}:A${firstRow}`);
@@ -45,26 +46,26 @@ export async function createSPCChart(result: SPCResult, sheetName: string, range
 
     // Series 0: Value (solid dark line)
     const valueSeries = addSeries('Value', 'B');
-    valueSeries.format.line.color = '#1a1a2e';
+    valueSeries.format.line.color = qikit.chart.data;
     valueSeries.markerStyle = Excel.ChartMarkerStyle.circle;
     valueSeries.markerSize = 4;
-    valueSeries.markerForegroundColor = '#1a1a2e';
-    valueSeries.markerBackgroundColor = '#1a1a2e';
+    valueSeries.markerForegroundColor = qikit.chart.data;
+    valueSeries.markerBackgroundColor = qikit.chart.data;
 
     // Series 1: CL (dashed gray)
     const clSeries = addSeries('CL', 'C');
-    clSeries.format.line.color = '#94a3b8';
+    clSeries.format.line.color = qikit.chart.limit;
     (clSeries.format.line as any).dashStyle = (Excel as any).ChartLineDashStyle.dash;
     clSeries.markerStyle = Excel.ChartMarkerStyle.none;
 
     // Series 2: UCL (solid gray)
     const uclSeries = addSeries('UCL', 'D');
-    uclSeries.format.line.color = '#94a3b8';
+    uclSeries.format.line.color = qikit.chart.limit;
     uclSeries.markerStyle = Excel.ChartMarkerStyle.none;
 
     // Series 3: LCL (solid gray)
     const lclSeries = addSeries('LCL', 'E');
-    lclSeries.format.line.color = '#94a3b8';
+    lclSeries.format.line.color = qikit.chart.limit;
     lclSeries.markerStyle = Excel.ChartMarkerStyle.none;
 
     // Chart title
@@ -72,7 +73,7 @@ export async function createSPCChart(result: SPCResult, sheetName: string, range
     chart.title.text = `SPC — ${chartTypeName} Chart`;
     chart.title.format.font.size = 13;
     chart.title.format.font.bold = true;
-    chart.title.format.font.color = '#1a1a2e';
+    chart.title.format.font.color = qikit.chart.data;
 
     // Axis titles
     chart.axes.valueAxis.title.text = 'Value';
@@ -103,7 +104,7 @@ export async function createEffectsChart(result: DOEResult, sheetName: string, r
     const sheet = context.workbook.worksheets.getItem(sheetName);
     const info = parseAddress(sheetName, rangeAddress);
     const firstRow = info.firstRow + 1;
-    const lastRow = info.lastRow2 ?? (info.firstRow + result.effects.length);
+    const lastRow = info.lastRow;
 
     const emptyRange = sheet.getRange(`A${firstRow}:A${firstRow}`);
     const chart = sheet.charts.add(Excel.ChartType.barClustered, emptyRange, Excel.ChartSeriesBy.columns);
@@ -112,12 +113,12 @@ export async function createEffectsChart(result: DOEResult, sheetName: string, r
     const effectSeries = chart.series.add('Effect');
     effectSeries.setValues(sheet.getRange(`B${firstRow}:B${lastRow}`));
     effectSeries.setXAxisValues(sheet.getRange(`A${firstRow}:A${lastRow}`));
-    effectSeries.format.fill.setSolidColor('#4f46e5');
+    effectSeries.format.fill.setSolidColor(qikit.chart.brand);
 
     chart.title.text = `DOE Effects  (R²=${(result.r_squared * 100).toFixed(1)}%)`;
     chart.title.format.font.size = 13;
     chart.title.format.font.bold = true;
-    chart.title.format.font.color = '#1a1a2e';
+    chart.title.format.font.color = qikit.chart.data;
 
     chart.axes.valueAxis.title.text = 'Effect';
     chart.axes.valueAxis.title.format.font.size = 11;
@@ -138,12 +139,12 @@ export async function createEffectsChart(result: DOEResult, sheetName: string, r
 // Sheet layout: Category(A), Count(B), Cumulative Sum(C), Cumulative %(D)
 // Combo: bars for Count (primary y) + line for Cumulative % (secondary y)
 
-export async function createParetoChart(result: any, sheetName: string, rangeAddress: string): Promise<void> {
+export async function createParetoChart(_result: any, sheetName: string, rangeAddress: string): Promise<void> {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getItem(sheetName);
     const info = parseAddress(sheetName, rangeAddress);
     const firstRow = info.firstRow + 1;
-    const lastRow = info.lastRow2 ?? (info.firstRow + result.data.length);
+    const lastRow = info.lastRow;
 
     // Create combo chart: use column chart type as base
     const emptyRange = sheet.getRange(`A${firstRow}:A${firstRow}`);
@@ -154,7 +155,7 @@ export async function createParetoChart(result: any, sheetName: string, rangeAdd
     const countSeries = chart.series.add('Count');
     countSeries.setValues(sheet.getRange(`B${firstRow}:B${lastRow}`));
     countSeries.setXAxisValues(sheet.getRange(`A${firstRow}:A${lastRow}`));
-    countSeries.format.fill.setSolidColor('#4f46e5');
+    countSeries.format.fill.setSolidColor(qikit.chart.brand);
     countSeries.chartType = Excel.ChartType.columnClustered;
 
     // Series 1: Cumulative % line (secondary axis)
@@ -162,7 +163,7 @@ export async function createParetoChart(result: any, sheetName: string, rangeAdd
     cumSeries.setValues(sheet.getRange(`D${firstRow}:D${lastRow}`));
     cumSeries.setXAxisValues(sheet.getRange(`A${firstRow}:A${lastRow}`));
     cumSeries.chartType = Excel.ChartType.line;
-    cumSeries.format.line.color = '#f97316';
+    cumSeries.format.line.color = qikit.chart.accent;
     cumSeries.markerStyle = Excel.ChartMarkerStyle.circle;
     cumSeries.markerSize = 4;
     cumSeries.axisGroup = Excel.ChartAxisGroup.secondary;
@@ -176,7 +177,7 @@ export async function createParetoChart(result: any, sheetName: string, rangeAdd
     chart.title.text = 'Pareto Chart';
     chart.title.format.font.size = 13;
     chart.title.format.font.bold = true;
-    chart.title.format.font.color = '#1a1a2e';
+    chart.title.format.font.color = qikit.chart.data;
 
     chart.legend.visible = true;
     chart.legend.position = Excel.ChartLegendPosition.bottom;
@@ -193,29 +194,29 @@ export async function createParetoChart(result: any, sheetName: string, rangeAdd
 // ─── Bernoulli CUSUM Chart ────────────────────────────────────────────────────
 // Sheet layout: Point(A), Value(B), CUSUM Up(C), CUSUM Down(D), Signal Up(E), Signal Down(F), Limit(G)
 
-export async function createBChartChart(result: any, sheetName: string, rangeAddress: string): Promise<void> {
+export async function createBChartChart(_result: any, sheetName: string, rangeAddress: string): Promise<void> {
   await Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getItem(sheetName);
     const info = parseAddress(sheetName, rangeAddress);
     const firstRow = info.firstRow + 1;
-    const lastRow = info.lastRow2 ?? (info.firstRow + result.data.length);
+    const lastRow = info.lastRow;
 
     const emptyRange = sheet.getRange(`A${firstRow}:A${firstRow}`);
     const chart = sheet.charts.add(Excel.ChartType.line, emptyRange, Excel.ChartSeriesBy.columns);
     chart.series.getItemAt(0).delete();
 
-    // CUSUM Up — solid indigo
+    // CUSUM Up — solid brand teal
     const upSeries = chart.series.add('CUSUM Up');
     upSeries.setValues(sheet.getRange(`C${firstRow}:C${lastRow}`));
     upSeries.setXAxisValues(sheet.getRange(`A${firstRow}:A${lastRow}`));
-    upSeries.format.line.color = '#4f46e5';
+    upSeries.format.line.color = qikit.chart.brand;
     upSeries.markerStyle = Excel.ChartMarkerStyle.none;
 
     // CUSUM Down — dashed slate
     const downSeries = chart.series.add('CUSUM Down');
     downSeries.setValues(sheet.getRange(`D${firstRow}:D${lastRow}`));
     downSeries.setXAxisValues(sheet.getRange(`A${firstRow}:A${lastRow}`));
-    downSeries.format.line.color = '#94a3b8';
+    downSeries.format.line.color = qikit.chart.limit;
     (downSeries.format.line as any).dashStyle = (Excel as any).ChartLineDashStyle.dash;
     downSeries.markerStyle = Excel.ChartMarkerStyle.none;
 
@@ -223,14 +224,14 @@ export async function createBChartChart(result: any, sheetName: string, rangeAdd
     const limitSeries = chart.series.add('+Limit');
     limitSeries.setValues(sheet.getRange(`G${firstRow}:G${lastRow}`));
     limitSeries.setXAxisValues(sheet.getRange(`A${firstRow}:A${lastRow}`));
-    limitSeries.format.line.color = '#f97316';
+    limitSeries.format.line.color = qikit.chart.accent;
     (limitSeries.format.line as any).dashStyle = (Excel as any).ChartLineDashStyle.dot;
     limitSeries.markerStyle = Excel.ChartMarkerStyle.none;
 
     chart.title.text = 'Bernoulli CUSUM';
     chart.title.format.font.size = 13;
     chart.title.format.font.bold = true;
-    chart.title.format.font.color = '#1a1a2e';
+    chart.title.format.font.color = qikit.chart.data;
 
     chart.axes.valueAxis.title.text = 'CUSUM Statistic';
     chart.axes.valueAxis.title.format.font.size = 11;

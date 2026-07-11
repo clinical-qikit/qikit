@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { FluentProvider, webLightTheme, makeStyles, Button } from '@fluentui/react-components';
+import { FluentProvider, makeStyles, Button } from '@fluentui/react-components';
+import { qikitLightTheme } from './theme/fluent-theme';
+import { qikit } from './theme/tokens';
 
 // ─── Mock Datasets ────────────────────────────────────────────────────────────
 
@@ -182,35 +184,35 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     height: '100vh',
-    backgroundColor: '#e8eaed',
+    backgroundColor: qikit.color.shell,
   },
   toolbar: {
     padding: '6px 16px',
-    backgroundColor: '#ffffff',
-    borderBottom: '1px solid #e0e3e8',
+    backgroundColor: qikit.color.surface,
+    borderBottom: `1px solid ${qikit.color.border}`,
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
   },
   datasetSelect: {
     fontSize: '12px',
-    border: '1px solid #e5e7eb',
-    borderRadius: '6px',
+    border: `1px solid ${qikit.color.border}`,
+    borderRadius: qikit.radius.md,
     padding: '4px 8px',
-    color: '#374151',
-    backgroundColor: '#f9fafb',
+    color: qikit.color.text,
+    backgroundColor: qikit.color.surfaceAlt,
     cursor: 'pointer',
   },
   datasetLabel: {
     fontSize: '11px',
-    color: '#6b7280',
+    color: qikit.color.text,
   },
   toolbarLabel: {
     flex: 1,
     textAlign: 'right',
     fontSize: '11px',
     fontWeight: '500',
-    color: '#9ca3af',
+    color: qikit.color.textMuted,
     letterSpacing: '0.3px',
     textTransform: 'uppercase',
   },
@@ -224,8 +226,8 @@ const useStyles = makeStyles({
   taskPaneEmulator: {
     width: '370px',
     height: '100%',
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
+    backgroundColor: qikit.color.surface,
+    borderRadius: qikit.radius.lg,
     boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04)',
     overflow: 'hidden',
     position: 'relative',
@@ -251,7 +253,7 @@ export const DevHarness: React.FC<DevHarnessProps> = ({ children }) => {
   if (!showHarness) return <>{children}</>;
 
   return (
-    <FluentProvider theme={webLightTheme}>
+    <FluentProvider theme={qikitLightTheme}>
       <div className={styles.harness}>
         <div className={styles.toolbar}>
           <span className={styles.datasetLabel}>Mock data:</span>
