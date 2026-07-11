@@ -96,6 +96,7 @@ export const FactorEditor: React.FC<FactorEditorProps> = ({ factors, onChange })
             size="small"
             onClick={() => removeFactor(i)}
             disabled={factors.length <= 2}
+            aria-label={`Remove factor ${f.name || i + 1}`}
             style={{ minWidth: '28px', padding: 0 }}
           />
         </div>

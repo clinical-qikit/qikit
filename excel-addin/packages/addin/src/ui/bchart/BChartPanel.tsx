@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Button, Select, Input, makeStyles } from '@fluentui/react-components';
+import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components';
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { bchart } from '@qikit/engine';
 import { colLetter } from '../shared/col-letter';
 import { qikit } from '../../theme/tokens';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { NumericField } from '../shared/NumericField';
 import {
   Chart as ChartJS, CategoryScale, LinearScale,
   PointElement, LineElement, Tooltip, Legend,
@@ -137,6 +138,7 @@ export const BChartPanel: React.FC = () => {
   const [orRatioStr, setOrRatioStr] = useState('2.0');
   const [limitStr, setLimitStr] = useState('3.5');
   const [result, setResult] = useState<ReturnType<typeof bchart> | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSelectData = useCallback(async () => {
@@ -180,6 +182,7 @@ export const BChartPanel: React.FC = () => {
   const handleWriteToSheet = useCallback(async () => {
     if (!result) return;
     setError(null);
+    setIsWriting(true);
     try {
       const sheetData = [
         ['Point', 'Value', 'CUSUM Up', 'CUSUM Down', 'Signal Up', 'Signal Down', 'Limit'],
@@ -190,6 +193,8 @@ export const BChartPanel: React.FC = () => {
       await createBChartChart(result, sheetName, ra);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+    } finally {
+      setIsWriting(false);
     }
   }, [result]);
 
@@ -213,7 +218,8 @@ export const BChartPanel: React.FC = () => {
           <div className={styles.dataSourceBar}>
             <span className={styles.address}>{rangeAddress}</span>
             <Button size="small" icon={<ArrowSyncRegular />} appearance="subtle"
-              onClick={handleSelectData} style={{ borderRadius: '6px' }} />
+              onClick={handleSelectData} title="Re-read selection" aria-label="Re-read selection"
+              style={{ borderRadius: '6px' }} />
           </div>
         </div>
       )}
@@ -223,8 +229,8 @@ export const BChartPanel: React.FC = () => {
           <div className={styles.section}>
             <div className={styles.sectionLabel}>Data Column</div>
             <div className={styles.colRow}>
-              <span className={styles.colLabel}>Column</span>
-              <Select size="small" value={String(xCol)}
+              <label className={styles.colLabel} htmlFor="bchart-col">Column</label>
+              <Select size="small" id="bchart-col" value={String(xCol)}
                 onChange={(_, d) => setXCol(parseInt(d.value))}
                 style={{ flex: 1 }}>
                 {headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
@@ -235,35 +241,45 @@ export const BChartPanel: React.FC = () => {
             <div className={styles.sectionLabel}>Parameters</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Baseline risk</span>
-                <Input size="small" placeholder="auto" value={targetStr}
-                  onChange={(_, d) => setTargetStr(d.value)} />
+                <label className={styles.settingLabel} htmlFor="bchart-target"
+                  title="Expected event rate under acceptable performance (0–1). Leave blank to estimate from the data.">
+                  Baseline risk
+                </label>
+                <NumericField id="bchart-target" placeholder="auto" min={0} max={1}
+                  value={targetStr} onChange={setTargetStr} />
               </div>
               <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Odds ratio</span>
-                <Input size="small" placeholder="2.0" value={orRatioStr}
-                  onChange={(_, d) => setOrRatioStr(d.value)} />
+                <label className={styles.settingLabel} htmlFor="bchart-or"
+                  title="Odds-ratio shift the chart is tuned to detect — 2.0 signals a doubling of the odds of an event.">
+                  Odds ratio
+                </label>
+                <NumericField id="bchart-or" placeholder="2.0" min={0}
+                  value={orRatioStr} onChange={setOrRatioStr} />
               </div>
               <div className={styles.settingRow}>
-                <span className={styles.settingLabel}>Decision limit</span>
-                <Input size="small" placeholder="3.5" value={limitStr}
-                  onChange={(_, d) => setLimitStr(d.value)} />
+                <label className={styles.settingLabel} htmlFor="bchart-limit"
+                  title="Decision threshold h — the CUSUM signals when it crosses ±h. Larger values mean fewer false alarms but slower detection.">
+                  Decision limit
+                </label>
+                <NumericField id="bchart-limit" placeholder="3.5" min={0}
+                  value={limitStr} onChange={setLimitStr} />
               </div>
             </div>
           </div>
         </>
       )}
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error}</div>}
 
       {result && (
         <>
           {anySignal !== undefined && (
-            <div className={styles.signalBadge} style={{
+            <div className={styles.signalBadge} role="status" style={{
               backgroundColor: anySignal ? qikit.color.dangerBg : qikit.color.brandTint,
               color: anySignal ? qikit.color.danger : qikit.color.brand,
             }}>
-              {anySignal ? '⚑ Signal detected' : '✓ No signal'}
+              <span aria-hidden="true">{anySignal ? '⚑' : '✓'}</span>
+              {anySignal ? 'Signal detected' : 'No signal'}
             </div>
           )}
           <div className={styles.chartContainer}>
@@ -323,9 +339,10 @@ export const BChartPanel: React.FC = () => {
             />
           </div>
           <div className={styles.actions}>
-            <Button appearance="primary" icon={<ArrowDownloadRegular />}
+            <Button appearance="primary" disabled={isWriting}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
               onClick={handleWriteToSheet} style={{ borderRadius: '6px', width: '100%' }}>
-              Write to Sheet
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
         </>

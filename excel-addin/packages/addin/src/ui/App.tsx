@@ -119,21 +119,25 @@ export const App: React.FC = () => {
         <div className={styles.logoMark}>QI</div>
         <span className={styles.title}>QI Kit</span>
       </div>
-      <nav className={styles.nav}>
+      <nav className={styles.nav} role="tablist" aria-label="QI Kit tools">
         {TABS.map(({ key, label, Icon, IconActive }) => (
           <button
             key={key}
+            role="tab"
+            id={`tab-${key}`}
+            aria-selected={tab === key}
+            aria-controls="qikit-tabpanel"
             className={`${styles.navItem} ${tab === key ? styles.navItemActive : ''}`}
             onClick={() => setTab(key)}
           >
-            <span className={styles.navIcon}>
+            <span className={styles.navIcon} aria-hidden="true">
               {tab === key ? <IconActive /> : <Icon />}
             </span>
             {label}
           </button>
         ))}
       </nav>
-      <div className={styles.content}>
+      <div className={styles.content} role="tabpanel" id="qikit-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'spc'    && <SpcPanel />}
         {tab === 'doe'    && <DoeWizard />}
         {tab === 'pareto' && <ParetoPanel />}

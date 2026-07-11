@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Button, makeStyles, Badge, Select,
+  Button, makeStyles, Badge, Select, Spinner,
 } from '@fluentui/react-components';
 import {
   CheckmarkCircleFilled, CircleRegular,
@@ -185,6 +185,7 @@ export const DoeWizard: React.FC = () => {
   const [currentDesign, setCurrentDesign] = useState<DOEDesign | null>(null);
   const [result, setResult] = useState<DOEResult | null>(null);
   const [doeChartType, setDoeChartType] = useState<DoeChartType>('effects');
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onGenerate = () => {
@@ -214,12 +215,15 @@ export const DoeWizard: React.FC = () => {
   const onWriteTemplate = async () => {
     setError(null);
     if (!currentDesign) return;
+    setIsWriting(true);
     try {
       const headers = ['RunOrder', ...currentDesign.factors, 'Response'];
       const rows = currentDesign.matrix.map(row => headers.map(h => row[h]));
       await writeToNewSheet(`DOE ${currentDesign.n_factors}F`, [headers, ...rows]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to write template.");
+    } finally {
+      setIsWriting(false);
     }
   };
 
@@ -233,7 +237,11 @@ export const DoeWizard: React.FC = () => {
       const response = resData.values.slice(1).map(row => row[respIdx]).filter(v => typeof v === 'number') as number[];
       if (currentDesign) {
         if (response.length !== currentDesign.n_runs) {
-          throw new Error(`Expected ${currentDesign.n_runs} responses, found ${response.length}.`);
+          throw new Error(
+            `The design has ${currentDesign.n_runs} runs but the selection contains ` +
+            `${response.length} numeric response value${response.length === 1 ? '' : 's'}. ` +
+            `Select the filled-in Response column (with its header) — one value per run.`
+          );
         }
         const res = analyze(currentDesign, response);
         setResult(res);
@@ -248,6 +256,7 @@ export const DoeWizard: React.FC = () => {
   const onWriteResults = async () => {
     if (!result) return;
     setError(null);
+    setIsWriting(true);
     try {
       const sheetData = [
         ['Term', 'Effect', 'SS', '% Contribution'],
@@ -258,6 +267,8 @@ export const DoeWizard: React.FC = () => {
       await createEffectsChart(result, sheetName, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to write results.");
+    } finally {
+      setIsWriting(false);
     }
   };
 
@@ -316,7 +327,7 @@ export const DoeWizard: React.FC = () => {
     <div className={styles.container}>
       {renderStepper()}
 
-      {error && <div className={styles.error} style={{ marginTop: '12px' }}>{error}</div>}
+      {error && <div className={styles.error} role="alert" style={{ marginTop: '12px' }}>{error}</div>}
 
       {step === 1 && (
         <>
@@ -373,11 +384,12 @@ export const DoeWizard: React.FC = () => {
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button
-                icon={<ArrowDownloadRegular />}
+                icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+                disabled={isWriting}
                 onClick={onWriteTemplate}
                 style={{ flex: 1, borderRadius: '6px' }}
               >
-                Write Template
+                {isWriting ? 'Writing…' : 'Write Template'}
               </Button>
               <Button
                 appearance="primary"
@@ -424,9 +436,10 @@ export const DoeWizard: React.FC = () => {
             </div>
 
             <div className={styles.chartTypeRow}>
-              <span className={styles.chartTypeLabel}>View:</span>
+              <label className={styles.chartTypeLabel} htmlFor="doe-chart-view">View:</label>
               <Select
                 size="small"
+                id="doe-chart-view"
                 value={doeChartType}
                 onChange={(_, d) => setDoeChartType(d.value as DoeChartType)}
                 style={{ flex: 1 }}
@@ -442,11 +455,12 @@ export const DoeWizard: React.FC = () => {
           <div className={styles.actions}>
             <Button
               appearance="primary"
-              icon={<ArrowDownloadRegular />}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+              disabled={isWriting}
               onClick={onWriteResults}
               style={{ flex: 1, borderRadius: '6px' }}
             >
-              Write to Sheet
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
             <Button
               icon={<ArrowResetRegular />}

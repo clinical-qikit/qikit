@@ -23,7 +23,8 @@ export const AnnotationBar: React.FC<AnnotationBarProps> = ({ pointIdx, initialT
         onKeyDown={e => { if (e.key === 'Enter') onSave(pointIdx, text); if (e.key === 'Escape') onCancel(); }}
         autoFocus />
       <Button size="small" appearance="primary" onClick={() => onSave(pointIdx, text)} style={{ borderRadius: '6px' }}>Save</Button>
-      <Button size="small" appearance="subtle" onClick={onCancel} style={{ borderRadius: '6px' }}>✕</Button>
+      <Button size="small" appearance="subtle" onClick={onCancel} style={{ borderRadius: '6px' }}
+        aria-label="Cancel note"><span aria-hidden="true">✕</span></Button>
     </div>
   );
 };
@@ -44,7 +45,8 @@ export const AnnotationList: React.FC<AnnotationListProps> = ({ annotations, onR
           <span style={{ fontWeight: '600', color: qikit.color.note, fontSize: '11px' }}>{parseInt(idx) + 1}</span>
           <span className={styles.annotItemText}>{text}</span>
           <Button size="small" appearance="transparent" onClick={() => onRemove(parseInt(idx))}
-            style={{ minWidth: '24px', padding: '2px' }}>✕</Button>
+            style={{ minWidth: '24px', padding: '2px' }}
+            aria-label={`Remove note on point ${parseInt(idx) + 1}`}><span aria-hidden="true">✕</span></Button>
         </div>
       ))}
     </div>

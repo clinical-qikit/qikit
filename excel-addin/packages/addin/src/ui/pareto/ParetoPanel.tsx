@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Button, Select, makeStyles } from '@fluentui/react-components';
+import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components';
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { paretochart } from '@qikit/engine';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
@@ -114,6 +114,7 @@ export const ParetoPanel: React.FC = () => {
   const [hasHeaders, setHasHeaders] = useState(false);
   const [xCol, setXCol] = useState<number>(0);
   const [result, setResult] = useState<ReturnType<typeof paretochart> | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSelectData = useCallback(async () => {
@@ -154,6 +155,7 @@ export const ParetoPanel: React.FC = () => {
   const handleWriteToSheet = useCallback(async () => {
     if (!result) return;
     setError(null);
+    setIsWriting(true);
     try {
       const sheetData = [
         ['Category', 'Count', 'Cumulative Sum', 'Cumulative %'],
@@ -164,6 +166,8 @@ export const ParetoPanel: React.FC = () => {
       await createParetoChart(result, sheetName, ra);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+    } finally {
+      setIsWriting(false);
     }
   }, [result]);
 
@@ -186,7 +190,8 @@ export const ParetoPanel: React.FC = () => {
           <div className={styles.dataSourceBar}>
             <span className={styles.address}>{rangeAddress}</span>
             <Button size="small" icon={<ArrowSyncRegular />} appearance="subtle"
-              onClick={handleSelectData} style={{ borderRadius: '6px' }} />
+              onClick={handleSelectData} title="Re-read selection" aria-label="Re-read selection"
+              style={{ borderRadius: '6px' }} />
           </div>
         </div>
       )}
@@ -195,8 +200,8 @@ export const ParetoPanel: React.FC = () => {
         <div className={styles.section}>
           <div className={styles.sectionLabel}>Category Column</div>
           <div className={styles.colRow}>
-            <span className={styles.colLabel}>Column</span>
-            <Select size="small" value={String(xCol)}
+            <label className={styles.colLabel} htmlFor="pareto-col">Column</label>
+            <Select size="small" id="pareto-col" value={String(xCol)}
               onChange={(_, d) => setXCol(parseInt(d.value))}
               style={{ flex: 1 }}>
               {headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
@@ -205,7 +210,7 @@ export const ParetoPanel: React.FC = () => {
         </div>
       )}
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error}</div>}
 
       {result && (
         <>
@@ -273,9 +278,10 @@ export const ParetoPanel: React.FC = () => {
             />
           </div>
           <div className={styles.actions}>
-            <Button appearance="primary" icon={<ArrowDownloadRegular />}
+            <Button appearance="primary" disabled={isWriting}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
               onClick={handleWriteToSheet} style={{ borderRadius: '6px', width: '100%' }}>
-              Write to Sheet
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
         </>

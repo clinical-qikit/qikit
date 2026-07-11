@@ -15,19 +15,21 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ result }) => {
 
   return (
     <div style={{ padding: '0 16px', marginTop: '8px' }}>
-      <button className={styles.settingsToggle} onClick={() => setSummaryOpen(o => !o)}>
+      <button className={styles.settingsToggle} onClick={() => setSummaryOpen(o => !o)}
+        aria-expanded={summaryOpen} aria-controls="spc-analysis-summary">
         {summaryOpen ? <ChevronDownRegular style={{ fontSize: '12px' }} /> : <ChevronRightRegular style={{ fontSize: '12px' }} />}
         Analysis summary
       </button>
       {summaryOpen && (
-        <div style={{ marginTop: '8px', padding: '10px', backgroundColor: qikit.color.surfaceAlt, borderRadius: '6px', border: `1px solid ${qikit.color.border}` }}>
-          <div style={{
+        <div id="spc-analysis-summary" style={{ marginTop: '8px', padding: '10px', backgroundColor: qikit.color.surfaceAlt, borderRadius: '6px', border: `1px solid ${qikit.color.border}` }}>
+          <div role="status" style={{
             display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '4px',
             fontSize: '12px', fontWeight: '600', marginBottom: '10px',
             backgroundColor: result.signals ? qikit.color.dangerBg : qikit.color.brandTint,
             color: result.signals ? qikit.color.danger : qikit.color.brand,
           }}>
-            {result.signals ? '⚠️ Signal detected' : '✓ No signal'}
+            <span aria-hidden="true">{result.signals ? '⚠️ ' : '✓ '}</span>
+            {result.signals ? 'Signal detected' : 'No signal'}
           </div>
           <div className={styles.summaryTable}>
             <div className={styles.summaryItem}>
