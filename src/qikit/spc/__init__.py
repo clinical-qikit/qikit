@@ -20,13 +20,11 @@ References
 
 from __future__ import annotations
 
-from .api import _print_summary, bchart, paretochart, qic
-from .compute import compute
-from .constants import A3, B3, B4, D2, D4
-from .limits import CHARTS, ChartSpec, VALID_CHARTS
+from .api import bchart, paretochart, qic
+from .constants import A3, B4  # noqa: F401 — exposed for the test suite
 from .options import PlotOptions
 from .results import BChartResult, ParetoResult, SPCResult
-from .signals import _crossings_threshold, _longest_run_threshold, _runs_signals, _sigma_signals
+from .signals import _crossings_threshold, _longest_run_threshold  # noqa: F401 — exposed for the test suite
 
 __all__ = [
     "qic",

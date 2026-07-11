@@ -16,7 +16,7 @@ pip install clinical-qikit
 from qikit import qic
 
 result = qic(y=values, chart="i")
-result.plot()
+result.plot()   # returns a Plotly figure
 ```
 
 `qic()` mirrors R's [qicharts2](https://github.com/anhoej/qicharts2), the package most
@@ -56,9 +56,31 @@ Beyond `qic()`, the package also provides:
 ## Excel add-in
 
 A Microsoft Excel task-pane add-in built on the same charting engine (ported to
-TypeScript) lives in [`excel-addin/`](excel-addin/). See
-[docs/excel-addin-roadmap.md](docs/excel-addin-roadmap.md) for its architecture and
-setup notes.
+TypeScript) lives in [`excel-addin/`](excel-addin/) — see its
+[README](excel-addin/README.md) for dev-harness and sideload instructions, and
+[docs/excel-addin-roadmap.md](docs/excel-addin-roadmap.md) for the roadmap.
+
+## Web app
+
+`app.py` is a Streamlit front end over the same engine:
+
+```bash
+pip install -e .[app]
+streamlit run app.py
+```
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run ruff check .        # lint (CI-enforced)
+uv run pytest tests/       # 176 tests incl. cross-language fixture conformance
+```
+
+The Python engine is authoritative; the TypeScript port in
+`excel-addin/packages/engine` conforms to it via the shared JSON fixtures in
+[`fixtures/`](fixtures/). After intentional engine changes, regenerate the
+fixture snapshots with `uv run python scripts/update_snapshots.py`.
 
 ## References
 

@@ -1,10 +1,9 @@
 """
-render_shared.py — Shared Plotly utilities and Tufte theme for qikit.
+utils.py — Shared Plotly utilities and Tufte theme for qikit.
 """
 
 from __future__ import annotations
 
-from typing import Any
 import plotly.graph_objects as go
 
 # Colors

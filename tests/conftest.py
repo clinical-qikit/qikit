@@ -3,7 +3,6 @@ Shared fixtures for qikit tests.
 """
 
 import numpy as np
-import pandas as pd
 import pytest
 
 

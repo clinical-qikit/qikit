@@ -1,10 +1,13 @@
 # Excel Add-in Improvement Roadmap
 
-*Status: in progress — 2026-07-04, updated 2026-07-08. Phase 0 and Phase 1
+*Status: in progress — 2026-07-04, updated 2026-07-10. Phase 0 and Phase 1
 are complete; CI (Phase 3, task 3) is live — see
 [Phase 3](#phase-3--testing--code-health); the SpcPanel decomposition
-(Phase 2, task 2) is done. Next up: Phase 2 task 1 (expose funnel/y-percent
-in the UI) and Phase 3 tasks 1–2.*
+(Phase 2, task 2) and consistent styling (Phase 2, task 5 — design tokens,
+teal Fluent theme, matching native Excel charts, a11y pass) are done;
+Phase 3 tasks 1–2 are partially done (data-prep unit tests, inline numeric
+validation). Next up: Phase 2 task 1 (expose funnel/y-percent in the UI) and
+the remaining halves of Phase 3 tasks 1–2.*
 
 This roadmap covers the next stretch of work on the QI Kit Excel add-in
 (`excel-addin/`). It prioritizes three things, in order: (1) landing the
@@ -103,9 +106,19 @@ needs.
 4. **State persistence.** Persist last-used chart type, signal method, and
    options via `Office.context.document.settings` (workbook-scoped), with a
    localStorage fallback so the dev harness behaves the same.
-5. **Consistent styling.** Extract shared design tokens; today SPC uses teal
-   `#107C6C` while Pareto/B-chart use purple `#7c3aed`. One palette, one
-   spacing scale, applied across all four panels.
+5. ~~**Consistent styling.**~~ ✅ Done — `src/theme/` now holds a teal
+   `BrandVariants` ramp (Fluent controls pick up the brand natively), a
+   `qikit` token module (one palette, one gray ramp, one error palette,
+   radius/spacing scales, Segoe UI everywhere — Inter/Google Fonts removed),
+   and every panel, `ChartViewer`, the dev harness, and
+   `excel/chart-builder.ts` import from it, so the native Excel charts match
+   the task-pane preview. Manifest `accentColor` aligned to `#107C6C` and the
+   previously missing icon PNGs generated (`assets/icon.svg` +
+   `scripts/make-icons.mjs`). An accessibility pass (tablist roles, label
+   association, `aria-expanded`, named icon buttons) and micro-UX fixes
+   (busy states on writes, inline numeric validation via
+   `ui/shared/NumericField.tsx`, tooltips on cryptic fields, notes/date
+   aggregation limitation surfaced) landed alongside.
 6. **Chart export.** PNG export of the Chart.js preview (canvas `toBlob` →
    download) alongside the existing write-to-sheet output.
 7. **Error recovery.** Graceful message when the bound range has been deleted
@@ -123,15 +136,17 @@ task pane.
 
 **Tasks**
 
-1. **UI component tests.** Add `@testing-library/react` + jsdom environment to
-   `packages/addin`'s vitest config. Cover: column auto-detection against the
-   dev-harness mock datasets, option changes propagating to `compute()` input,
-   and error states — for the SpcPanel subcomponents, `ParetoPanel`, and
-   `BChartPanel`. The dev-harness datasets double as test data.
-2. **Input validation layer.** Validate at the panel→engine boundary rather
-   than letting the engine emit NaNs: numeric coercion with reporting of
-   dropped cells, non-negative counts for the CUSUM b-chart, denominator > 0
-   for p/u-family charts. Surface failures as user-facing messages.
+1. **UI component tests.** *(partially done)* The pure logic layer is now
+   covered: `tests/data-prep.test.ts` exercises `parseColumns`,
+   `aggregateByPeriod`, `buildSpcInput`, `buildNoteMap`, and `buildSheetRows`
+   against the dev-harness dataset shapes (19 tests, no jsdom needed).
+   Still open: `@testing-library/react` + jsdom for the components themselves
+   (SpcPanel subcomponents, `ParetoPanel`, `BChartPanel`).
+2. **Input validation layer.** *(partially done)* `ui/shared/NumericField.tsx`
+   now validates numeric option inputs inline (freeze, target, subgroup 2–25,
+   CL override, multiply, CUSUM baseline/odds-ratio/limit) instead of silent
+   `parseInt`/`parseFloat` coercion. Still open: reporting dropped non-numeric
+   cells and denominator > 0 checks at the panel→engine boundary.
 3. ~~**CI.**~~ ✅ Done — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
    runs a `python` job (`uv sync --extra dev` + `uv run pytest tests/`) and a
    `node` job (`tsc --noEmit` in both `packages/engine` and `packages/addin`,
@@ -167,7 +182,7 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 | UI | `excel-addin/packages/addin/src/ui/spc/` (SpcPanel + subcomponents, `data-prep.ts`), `ui/shared/ChartViewer.tsx` |
 | Excel integration | `excel-addin/packages/addin/src/excel/chart-builder.ts`, `excel/excel-io.ts` |
 | Dev | `excel-addin/packages/addin/src/dev-harness.tsx` |
-| Python reference | `src/qikit/spc.py` (funnel + Laney logic), `tests/test_conformance.py` |
+| Python reference | `src/qikit/spc/` (funnel + Laney logic), `tests/test_conformance.py` |
 
 ## Verification strategy
 

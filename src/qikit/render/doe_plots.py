@@ -6,14 +6,10 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-import numpy as np
-import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from ..doe import ExperimentResult
-from .utils import apply_tufte_theme, NORMAL, CL, SIGMA
+from .utils import apply_tufte_theme, NORMAL, SIGMA
 
 ChartType = Literal[
     "effects", "interaction", "cube", "run_order", 

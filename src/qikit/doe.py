@@ -1,5 +1,5 @@
 """
-planned_experimentation.py — Planned Experimentation (Experimental Design) engine for qikit.
+doe.py — Planned Experimentation (Experimental Design) engine for qikit.
 
 Implements 2-level full and fractional factorial designs with Yates ordering,
 orthogonal design matrices, and effect analysis including interactions.
@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import itertools
 import json
-import math
 from dataclasses import dataclass, field
 from typing import Any, Literal, Sequence
 
@@ -322,7 +321,6 @@ def _fractional_matrix(k: int, p: int, generators: list[str]) -> np.ndarray:
     generated_cols = []
     for gen in generators:
         parts = gen.replace(" ", "").split("=")
-        target = parts[0]
         source_factors = list(parts[1])
         
         col = np.ones(len(base), dtype=int)
