@@ -253,12 +253,14 @@ def qic(
     # ------------------------------------------------------------------
     n_pts_orig = len(y_arr)
     mask = np.ones(n_pts_orig, dtype=bool)
+    exclude_mask = np.zeros(n_pts_orig, dtype=bool)
 
     if exclude:
         for idx in exclude:
             i = idx - 1
             if 0 <= i < n_pts_orig:
                 mask[i] = False
+                exclude_mask[i] = True
 
     if freeze is not None and part is not None:
         raise ValueError("Cannot use both freeze= and part= simultaneously.")
@@ -284,6 +286,7 @@ def qic(
         y_arr = np.abs(np.diff(y_arr))
         x_vals = x_vals[1:]
         mask = mask[1:] & mask[:-1]
+        exclude_mask = exclude_mask[1:] | exclude_mask[:-1]
         if part_indices:
             part_indices = [max(1, p - 1) for p in part_indices]
         n_vals = None
@@ -323,7 +326,8 @@ def qic(
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_summary
     ) = _compute_spc_arrays(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
-        s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel=funnel
+        s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel=funnel,
+        exclude_mask=exclude_mask,
     )
 
     # ------------------------------------------------------------------
@@ -331,7 +335,8 @@ def qic(
     # ------------------------------------------------------------------
     df = _assemble_final_df(
         x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
-        sigma_sig, runs_sig, mask, notes, target, multiply, chart, part_indices, part_labels
+        sigma_sig, runs_sig, mask, notes, target, multiply, chart, part_indices, part_labels,
+        exclude_mask=exclude_mask,
     )
 
     # ------------------------------------------------------------------
@@ -495,9 +500,17 @@ def _agg(series_grouped, agg_fun):
 
 def _compute_spc_arrays(
     chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
-    s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel: bool = False
+    s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel: bool = False,
+    exclude_mask=None,
 ):
     n_pts = len(y_calc)
+    if exclude_mask is None:
+        exclude_mask = np.zeros(n_pts, dtype=bool)
+    # t chart recomputes signals on the untransformed scale below; ghost the
+    # same excluded points there rather than the baseline `mask` (which also
+    # carries freeze/part boundaries that must still be signal-checked).
+    y_plot_signal = np.where(exclude_mask, np.nan, y_plot)
+
     if part_indices and freeze_idx is None:
         boundaries = [0] + [p - 1 for p in part_indices] + [n_pts]
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [np.empty(n_pts) for _ in range(5)]
@@ -509,6 +522,7 @@ def _compute_spc_arrays(
             seg_raw = compute(
                 chart=chart_for_compute, y=y_calc[start:end], n=n_vals[start:end] if n_vals is not None else None,
                 mask=seg_mask, cl_override=cl, method=method, s_bar=s_bar_val, subgroup_n=subgroup_n_val,
+                exclude_mask=exclude_mask[start:end],
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
             s3 = seg_raw["ucl"] - seg_raw["cl"]
@@ -524,15 +538,18 @@ def _compute_spc_arrays(
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
                 for a in [cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr]
             ]
-            sigma_sig = _sigma_signals(y_plot, ucl_arr, lcl_arr)
+            sigma_sig = _sigma_signals(y_plot_signal, ucl_arr, lcl_arr)
             new_summaries = []
             for seg_i in range(len(boundaries) - 1):
                 s, e = boundaries[seg_i], boundaries[seg_i + 1]
-                sig, summ = _runs_signals(y_plot[s:e], cl_arr[s:e], method=method)
+                sig, summ = _runs_signals(y_plot_signal[s:e], cl_arr[s:e], method=method)
                 runs_sig[s:e], new_summaries.append({"part": seg_i + 1, **summ})
             runs_summary = {**new_summaries[-1], "parts": new_summaries}
     else:
-        res = compute(chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val)
+        res = compute(
+            chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
+            exclude_mask=exclude_mask,
+        )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         s3 = ucl_arr - cl_arr
         ucl_95_arr = cl_arr + s3 * (2/3)
@@ -543,8 +560,8 @@ def _compute_spc_arrays(
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
                 for a in [cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr]
             ]
-            sigma_sig = _sigma_signals(y_plot, ucl_arr, lcl_arr)
-            runs_sig, runs_summary = _runs_signals(y_plot, cl_arr, method=method)
+            sigma_sig = _sigma_signals(y_plot_signal, ucl_arr, lcl_arr)
+            runs_sig, runs_summary = _runs_signals(y_plot_signal, cl_arr, method=method)
         else:
             sigma_sig, runs_sig, runs_summary = res["sigma_signal"], res["runs_signal"], res["summary"]
 
@@ -558,17 +575,22 @@ def _compute_spc_arrays(
 
 def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
-    sigma_sig, runs_sig, mask, notes, target, multiply, chart, part_indices, part_labels
+    sigma_sig, runs_sig, mask, notes, target, multiply, chart, part_indices, part_labels,
+    exclude_mask=None,
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
             a * multiply for a in [y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr]
         ]
 
+    if exclude_mask is None:
+        exclude_mask = np.zeros(len(y_plot), dtype=bool)
+
     df_dict = {
         "x": x_vals, "y": y_plot, "cl": cl_arr, "ucl": ucl_arr, "lcl": lcl_arr,
         "ucl_95": ucl_95_arr, "lcl_95": lcl_95_arr,
         "sigma_signal": sigma_sig, "runs_signal": runs_sig, "baseline": mask,
+        "excluded": exclude_mask,
     }
 
     if notes is not None:

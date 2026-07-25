@@ -10,6 +10,7 @@ import { SpcPanel } from './spc/SpcPanel';
 import { DoeWizard } from './doe/DoeWizard';
 import { ParetoPanel } from './pareto/ParetoPanel';
 import { BChartPanel } from './bchart/BChartPanel';
+import { PanelErrorBoundary } from './shared/PanelErrorBoundary';
 import { qikit } from '../theme/tokens';
 
 const useStyles = makeStyles({
@@ -138,10 +139,12 @@ export const App: React.FC = () => {
         ))}
       </nav>
       <div className={styles.content} role="tabpanel" id="qikit-tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'spc'    && <SpcPanel />}
-        {tab === 'doe'    && <DoeWizard />}
-        {tab === 'pareto' && <ParetoPanel />}
-        {tab === 'bchart' && <BChartPanel />}
+        <PanelErrorBoundary key={tab}>
+          {tab === 'spc'    && <SpcPanel />}
+          {tab === 'doe'    && <DoeWizard />}
+          {tab === 'pareto' && <ParetoPanel />}
+          {tab === 'bchart' && <BChartPanel />}
+        </PanelErrorBoundary>
       </div>
     </div>
   );

@@ -65,6 +65,11 @@ def _add_chart_traces(
     colors = _point_colors(sigma_sig, runs_sig)
     symbols = _point_symbols(sigma_sig, runs_sig)
 
+    # Ghost points excluded via exclude=: faded and not counted toward
+    # limits or signals (handled upstream in qikit.spc.compute/api).
+    excluded = df["excluded"].to_numpy() if "excluded" in df.columns else np.zeros(len(x), dtype=bool)
+    opacities = [0.35 if ex else 1.0 for ex in excluded]
+
     add_kwargs: dict[str, Any] = {}
     if row is not None and col is not None:
         add_kwargs = {"row": row, "col": col}
@@ -81,18 +86,21 @@ def _add_chart_traces(
 
     # Data trace — zorder=2 keeps it above all reference ink
     text = df["notes"].tolist() if "notes" in df.columns else None
+    ghost_note = ["excluded" if ex else "" for ex in excluded]
     hovertemplate = "%{x}: %{y}"
     if text:
         hovertemplate += "<br>%{text}"
-    hovertemplate += "<extra></extra>"
+    hovertemplate += "%{customdata}<extra></extra>"
+    customdata = [f" ({n})" if n else "" for n in ghost_note]
 
     fig.add_trace(go.Scatter(
         x=x, y=y,
         mode=mode,
         line=dict(color=NORMAL, width=1),
-        marker=dict(color=colors, symbol=symbols, size=point_size * 4, line=dict(width=0)),
+        marker=dict(color=colors, symbol=symbols, size=point_size * 4, line=dict(width=0), opacity=opacities),
         name="data",
         text=text,
+        customdata=customdata,
         hovertemplate=hovertemplate,
         connectgaps=False,
         cliponaxis=False,

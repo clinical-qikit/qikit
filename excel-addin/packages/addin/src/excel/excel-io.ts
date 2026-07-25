@@ -22,6 +22,38 @@ export async function getSelectedRangeValues(): Promise<{ values: any[][], addre
   }
 }
 
+/** Overwrites an existing sheet's output table at A1, clearing rows left over from a previous, longer write. */
+export async function writeToSheetRange(
+  sheetName: string,
+  data: any[][],
+  previousRowCount: number,
+): Promise<{ rangeAddress: string }> {
+  try {
+    if (!data || data.length === 0 || !data[0] || data[0].length === 0) {
+      throw new Error("No data provided to write to the sheet.");
+    }
+
+    return await Excel.run(async (context) => {
+      const sheet = context.workbook.worksheets.getItem(sheetName);
+      const range = sheet.getRangeByIndexes(0, 0, data.length, data[0].length);
+      range.values = data;
+
+      if (previousRowCount > data.length) {
+        const staleRange = sheet.getRangeByIndexes(data.length, 0, previousRowCount - data.length, data[0].length);
+        staleRange.clear(Excel.ClearApplyTo.contents);
+      }
+
+      range.load("address");
+      await context.sync();
+
+      return { rangeAddress: range.address };
+    });
+  } catch (error) {
+    console.error("Error writing to sheet range:", error);
+    throw new Error(`Failed to write data to Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 export async function writeToNewSheet(sheetName: string, data: any[][]): Promise<{ sheetName: string, rangeAddress: string }> {
   try {
     if (!data || data.length === 0 || !data[0] || data[0].length === 0) {

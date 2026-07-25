@@ -355,7 +355,7 @@ class TestEdgeCases:
 
     def test_consistent_schema(self, normal_30):
         """All chart types produce the same DataFrame columns."""
-        expected_cols = {"x", "y", "cl", "ucl", "lcl", "ucl_95", "lcl_95", "sigma_signal", "runs_signal", "baseline"}
+        expected_cols = {"x", "y", "cl", "ucl", "lcl", "ucl_95", "lcl_95", "sigma_signal", "runs_signal", "baseline", "excluded"}
         for chart in ["run", "i", "c"]:
             r = _result(chart, normal_30)
             assert set(r.data.columns) == expected_cols

@@ -50,6 +50,30 @@ import the same `qikit.chart` colors, which is what keeps the written
 workbook chart matching the task-pane preview. Icons are generated from
 `assets/icon.svg` by `node scripts/make-icons.mjs` (PNGs are committed).
 
+## Live updates
+
+Clicking "Write to Sheet" also registers an Office.js binding
+(`packages/addin/src/excel/live-update.ts`) over the *source* range you
+selected. Editing that data re-runs the engine (`excel/recompute.ts`) and
+rewrites the output table, so the native chart — bound to those cells —
+updates on its own. A few things follow from how bindings work:
+
+- **Session-scoped recompute.** Bindings persist in the workbook, but the
+  add-in has to be running to re-run the math and rewrite the sheet. Closing
+  the task pane pauses live updates; reopening it calls `reattachLiveUpdates()`
+  and picks back up.
+- **Fixed range.** The binding covers exactly the range selected at write
+  time. Rows added *below* it aren't picked up automatically (Office
+  bindings don't grow) — re-select and click "Write to Sheet" again to
+  refresh the link.
+- **Graceful recovery.** If the bound range (or the output sheet) is deleted
+  or moved, the panel shows a message instead of a raw Office.js error, and
+  the stale binding is cleaned up.
+- **Try it in the dev harness** without Excel: write a chart to sheet, then
+  use the toolbar's "Edit source data" (mutates the active mock dataset and
+  fires the binding) or "Simulate source deleted" (exercises the recovery
+  path) buttons.
+
 ## Engine parity
 
 The engine math is the contract: Python (`src/qikit/`) is authoritative, the

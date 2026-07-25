@@ -1,10 +1,11 @@
 # Excel Add-in Improvement Roadmap
 
-*Status: in progress — 2026-07-04, updated 2026-07-10. Phase 0 and Phase 1
+*Status: in progress — 2026-07-04, updated 2026-07-12. Phase 0 and Phase 1
 are complete; CI (Phase 3, task 3) is live — see
 [Phase 3](#phase-3--testing--code-health); the SpcPanel decomposition
-(Phase 2, task 2) and consistent styling (Phase 2, task 5 — design tokens,
-teal Fluent theme, matching native Excel charts, a11y pass) are done;
+(Phase 2, task 2), consistent styling (Phase 2, task 5 — design tokens,
+teal Fluent theme, matching native Excel charts, a11y pass), and error
+recovery + live chart updates (Phase 2, task 7) are done;
 Phase 3 tasks 1–2 are partially done (data-prep unit tests, inline numeric
 validation). Next up: Phase 2 task 1 (expose funnel/y-percent in the UI) and
 the remaining halves of Phase 3 tasks 1–2.*
@@ -121,9 +122,20 @@ needs.
    aggregation limitation surfaced) landed alongside.
 6. **Chart export.** PNG export of the Chart.js preview (canvas `toBlob` →
    download) alongside the existing write-to-sheet output.
-7. **Error recovery.** Graceful message when the bound range has been deleted
-   or moved (instead of a raw Office.js error), and a React error boundary
-   around each panel so one crash doesn't blank the task pane.
+7. ~~**Error recovery.**~~ ✅ Done — landed alongside **live chart updates**:
+   when a panel writes to a sheet it now also registers an Office.js workbook
+   binding over the *source* range (`excel/live-update.ts`) with a debounced
+   `onDataChanged` handler. Editing the source data re-runs the matching
+   `@qikit/engine` function (`excel/recompute.ts`) and rewrites the output
+   table in place, so the native chart (bound to those cells) updates itself
+   without the user re-clicking "Write to Sheet." Handlers persist via
+   `Office.context.document.settings` and re-attach on add-in load
+   (`reattachLiveUpdates()`); a binding whose range was deleted or moved is
+   pruned gracefully with a task-pane message instead of a raw Office.js
+   error, and each panel is wrapped in `ui/shared/PanelErrorBoundary.tsx` so
+   one crash doesn't blank the pane. Recompute only runs while the task pane
+   is open — a `=QIKIT.*` custom-functions approach is the possible
+   always-on follow-on, not attempted here.
 
 **Acceptance:** funnel and y-percent usable end-to-end in the dev harness and
 in sideloaded Excel; ~~SpcPanel file under ~400 LOC with logic pushed into
