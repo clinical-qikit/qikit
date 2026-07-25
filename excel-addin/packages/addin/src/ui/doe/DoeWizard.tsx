@@ -9,8 +9,11 @@ import {
 import { design, analyze, DOEDesign, DOEResult, DesignType } from '@qikit/engine';
 import { qikit } from '../../theme/tokens';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { registerLiveUpdate } from '../../excel/live-update';
+import { extractResponse, buildEffectsSheetRows } from './data-prep';
 import { FactorEditor, Factor } from './FactorEditor';
 import { ChartViewer } from '../shared/ChartViewer';
+import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
 import { DesignConfigurator } from './DesignConfigurator';
 
 const useStyles = makeStyles({
@@ -183,10 +186,12 @@ export const DoeWizard: React.FC = () => {
   const [randomize, setRandomize] = useState<'none' | 'full'>('none');
   const [seed, setSeed] = useState(42);
   const [currentDesign, setCurrentDesign] = useState<DOEDesign | null>(null);
+  const [resultsRangeAddress, setResultsRangeAddress] = useState<string | null>(null);
   const [result, setResult] = useState<DOEResult | null>(null);
   const [doeChartType, setDoeChartType] = useState<DoeChartType>('effects');
   const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveUpdate = useLiveUpdateStatus();
 
   const onGenerate = () => {
     setError(null);
@@ -231,20 +236,11 @@ export const DoeWizard: React.FC = () => {
     setError(null);
     try {
       const resData = await getSelectedRangeValues();
-      const headers = resData.values[0];
-      const respIdx = headers.indexOf('Response');
-      if (respIdx === -1) throw new Error("No 'Response' column found. Include headers in your selection.");
-      const response = resData.values.slice(1).map(row => row[respIdx]).filter(v => typeof v === 'number') as number[];
       if (currentDesign) {
-        if (response.length !== currentDesign.n_runs) {
-          throw new Error(
-            `The design has ${currentDesign.n_runs} runs but the selection contains ` +
-            `${response.length} numeric response value${response.length === 1 ? '' : 's'}. ` +
-            `Select the filled-in Response column (with its header) — one value per run.`
-          );
-        }
+        const response = extractResponse(resData.values, currentDesign);
         const res = analyze(currentDesign, response);
         setResult(res);
+        setResultsRangeAddress(resData.address);
         setDoeChartType('effects');
         setStep(3);
       }
@@ -254,17 +250,22 @@ export const DoeWizard: React.FC = () => {
   };
 
   const onWriteResults = async () => {
-    if (!result) return;
+    if (!result || !currentDesign || !resultsRangeAddress) return;
     setError(null);
     setIsWriting(true);
     try {
-      const sheetData = [
-        ['Term', 'Effect', 'SS', '% Contribution'],
-        ...result.effects.map(e => [e.term, e.effect, e.ss, e.pct_contribution]),
-      ];
+      const sheetData = buildEffectsSheetRows(result);
       const { sheetName, rangeAddress } = await writeToNewSheet(`DOE Effects`, sheetData);
       const { createEffectsChart } = await import('../../excel/chart-builder');
       await createEffectsChart(result, sheetName, rangeAddress);
+      const bindingId = await registerLiveUpdate({
+        panel: 'doe',
+        sourceAddress: resultsRangeAddress,
+        outputSheet: sheetName,
+        outputRowCount: sheetData.length,
+        config: { design: currentDesign },
+      });
+      liveUpdate.activate(bindingId, resultsRangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to write results.");
     } finally {
@@ -285,6 +286,7 @@ export const DoeWizard: React.FC = () => {
     setSeed(42);
     setCurrentDesign(null);
     setResult(null);
+    setResultsRangeAddress(null);
     setError(null);
   };
 
@@ -471,6 +473,7 @@ export const DoeWizard: React.FC = () => {
               Start Over
             </Button>
           </div>
+          <LiveUpdateStatus {...liveUpdate} />
         </>
       )}
     </div>

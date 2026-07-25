@@ -7,8 +7,10 @@ import {
 } from '@fluentui/react-icons';
 import { ChartType, compute, SPCResult } from '@qikit/engine';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { registerLiveUpdate } from '../../excel/live-update';
 import { ChartViewer } from '../shared/ChartViewer';
 import { DataPreview } from '../shared/DataPreview';
+import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
 import { useSpcStyles } from './styles';
 import { NEEDS_SUBGROUP, SpcOptions, DEFAULT_OPTIONS, DataGrain } from './constants';
 import { parseColumns, buildSpcInput, buildNoteMap, buildSheetRows, SpcDataSelection } from './data-prep';
@@ -52,6 +54,7 @@ export const SpcPanel: React.FC = () => {
   const [includeDataTable, setIncludeDataTable] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveUpdate = useLiveUpdateStatus();
 
   // Options
   const [options, setOptions] = useState<SpcOptions>(DEFAULT_OPTIONS);
@@ -147,23 +150,38 @@ export const SpcPanel: React.FC = () => {
   }, []);
 
   const handleWriteToSheet = useCallback(async () => {
-    if (!result) return;
+    if (!result || !rangeAddress) return;
     setError(null);
     setIsWriting(true);
     try {
       const { finalCols, rows } = buildSheetRows(
         result, annotations, rawData, hasHeaders, headers, includeDataTable,
       );
+      const sheetData = [finalCols, ...rows];
       const sheetLabel = `SPC ${result.chart_type.toUpperCase()}`;
-      const { sheetName, rangeAddress: ra } = await writeToNewSheet(sheetLabel, [finalCols, ...rows]);
+      const { sheetName, rangeAddress: ra } = await writeToNewSheet(sheetLabel, sheetData);
       const { createSPCChart } = await import('../../excel/chart-builder');
       await createSPCChart(result, sheetName, ra);
+      const bindingId = await registerLiveUpdate({
+        panel: 'spc',
+        sourceAddress: rangeAddress,
+        outputSheet: sheetName,
+        outputRowCount: sheetData.length,
+        config: {
+          xCol, yCol, nCol, notesCol, chartType, dataGrain, xPeriod, options,
+          includeDataTable, annotations,
+        },
+      });
+      liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
     } finally {
       setIsWriting(false);
     }
-  }, [result, annotations, rawData, hasHeaders, headers, includeDataTable]);
+  }, [
+    result, rangeAddress, annotations, rawData, hasHeaders, headers, includeDataTable,
+    xCol, yCol, nCol, notesCol, chartType, dataGrain, xPeriod, options, liveUpdate.activate,
+  ]);
 
   const needsSubgroup = NEEDS_SUBGROUP.includes(chartType);
   const hasData = rawData.length > 1;
@@ -296,6 +314,7 @@ export const SpcPanel: React.FC = () => {
               {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
+          <LiveUpdateStatus {...liveUpdate} />
         </>
       ) : hasData ? (
         <div className={styles.emptyChart}>Computing chart…</div>

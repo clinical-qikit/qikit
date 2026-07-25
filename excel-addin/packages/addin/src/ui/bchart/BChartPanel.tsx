@@ -2,9 +2,12 @@ import React, { useState, useCallback } from 'react';
 import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components';
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { bchart } from '@qikit/engine';
-import { colLetter } from '../shared/col-letter';
+import { detectHeaderRow } from '../shared/detect-headers';
+import { buildBChartValues, buildBChartSheetRows } from './data-prep';
 import { qikit } from '../../theme/tokens';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { registerLiveUpdate } from '../../excel/live-update';
+import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
 import { NumericField } from '../shared/NumericField';
 import {
   Chart as ChartJS, CategoryScale, LinearScale,
@@ -140,16 +143,16 @@ export const BChartPanel: React.FC = () => {
   const [result, setResult] = useState<ReturnType<typeof bchart> | null>(null);
   const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveUpdate = useLiveUpdateStatus();
 
   const handleSelectData = useCallback(async () => {
     setError(null);
     try {
       const res = await getSelectedRangeValues();
       const data = res.values;
-      const firstRow = data[0];
-      const hdr = firstRow.some(v => typeof v === 'string' && String(v).trim() !== '');
+      const { hasHeaders: hdr, headers: hdrs } = detectHeaderRow(data);
       setHasHeaders(hdr);
-      setHeaders(hdr ? firstRow.map((h: any, i: number) => String(h || colLetter(i))) : firstRow.map((_: any, i: number) => colLetter(i)));
+      setHeaders(hdrs);
       setRawData(data);
       setRangeAddress(res.address);
       setXCol(0);
@@ -162,9 +165,7 @@ export const BChartPanel: React.FC = () => {
   const handleCompute = useCallback(() => {
     setError(null);
     try {
-      const rows = hasHeaders ? rawData.slice(1) : rawData;
-      const values = rows.map(row => Number(row[xCol])).filter(v => !isNaN(v));
-      if (values.length === 0) throw new Error('No numeric values found in selected column.');
+      const values = buildBChartValues(rawData, hasHeaders, xCol);
       const target = targetStr ? parseFloat(targetStr) : undefined;
       const or_ratio = parseFloat(orRatioStr) || 2.0;
       const limit = parseFloat(limitStr) || 3.5;
@@ -180,23 +181,28 @@ export const BChartPanel: React.FC = () => {
   }, [xCol, rawData, targetStr, orRatioStr, limitStr]);
 
   const handleWriteToSheet = useCallback(async () => {
-    if (!result) return;
+    if (!result || !rangeAddress) return;
     setError(null);
     setIsWriting(true);
     try {
-      const sheetData = [
-        ['Point', 'Value', 'CUSUM Up', 'CUSUM Down', 'Signal Up', 'Signal Down', 'Limit'],
-        ...result.data.map((d: any) => [d.x, d.y, d.cusum_up, d.cusum_down, d.signal_up ? 1 : 0, d.signal_down ? 1 : 0, d.limit]),
-      ];
+      const sheetData = buildBChartSheetRows(result);
       const { sheetName, rangeAddress: ra } = await writeToNewSheet('CUSUM', sheetData);
       const { createBChartChart } = await import('../../excel/chart-builder');
       await createBChartChart(result, sheetName, ra);
+      const bindingId = await registerLiveUpdate({
+        panel: 'bchart',
+        sourceAddress: rangeAddress,
+        outputSheet: sheetName,
+        outputRowCount: sheetData.length,
+        config: { xCol, target: targetStr ? parseFloat(targetStr) : undefined, orRatio: parseFloat(orRatioStr) || 2.0, limit: parseFloat(limitStr) || 3.5 },
+      });
+      liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
     } finally {
       setIsWriting(false);
     }
-  }, [result]);
+  }, [result, rangeAddress, xCol, targetStr, orRatioStr, limitStr, liveUpdate.activate]);
 
   const hasData = rawData.length > 1;
   const anySignal = result?.data.some((d: any) => d.signal_up || d.signal_down);
@@ -345,6 +351,7 @@ export const BChartPanel: React.FC = () => {
               {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
+          <LiveUpdateStatus {...liveUpdate} />
         </>
       )}
     </div>

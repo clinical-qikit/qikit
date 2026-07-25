@@ -3,7 +3,10 @@ import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components'
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { paretochart } from '@qikit/engine';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
-import { colLetter } from '../shared/col-letter';
+import { detectHeaderRow } from '../shared/detect-headers';
+import { buildParetoValues, buildParetoSheetRows } from './data-prep';
+import { registerLiveUpdate } from '../../excel/live-update';
+import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
 import { qikit } from '../../theme/tokens';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
@@ -116,16 +119,16 @@ export const ParetoPanel: React.FC = () => {
   const [result, setResult] = useState<ReturnType<typeof paretochart> | null>(null);
   const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveUpdate = useLiveUpdateStatus();
 
   const handleSelectData = useCallback(async () => {
     setError(null);
     try {
       const res = await getSelectedRangeValues();
       const data = res.values;
-      const firstRow = data[0];
-      const hdr = firstRow.some(v => typeof v === 'string' && String(v).trim() !== '');
+      const { hasHeaders: hdr, headers: hdrs } = detectHeaderRow(data);
       setHasHeaders(hdr);
-      setHeaders(hdr ? firstRow.map((h: any, i: number) => String(h || colLetter(i))) : firstRow.map((_: any, i: number) => colLetter(i)));
+      setHeaders(hdrs);
       setRawData(data);
       setRangeAddress(res.address);
       setXCol(0);
@@ -138,9 +141,7 @@ export const ParetoPanel: React.FC = () => {
   const handleCompute = useCallback(() => {
     setError(null);
     try {
-      const rows = hasHeaders ? rawData.slice(1) : rawData;
-      const values = rows.map(row => String(row[xCol] ?? '')).filter(v => v !== '' && v !== 'null');
-      if (values.length === 0) throw new Error('No values found in selected column.');
+      const values = buildParetoValues(rawData, hasHeaders, xCol);
       setResult(paretochart({ x: values }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Computation failed.');
@@ -153,23 +154,28 @@ export const ParetoPanel: React.FC = () => {
   }, [xCol, rawData]);
 
   const handleWriteToSheet = useCallback(async () => {
-    if (!result) return;
+    if (!result || !rangeAddress) return;
     setError(null);
     setIsWriting(true);
     try {
-      const sheetData = [
-        ['Category', 'Count', 'Cumulative Sum', 'Cumulative %'],
-        ...result.data.map((d: any) => [d.category, d.count, d.cum_sum, d.cum_percent]),
-      ];
+      const sheetData = buildParetoSheetRows(result);
       const { sheetName, rangeAddress: ra } = await writeToNewSheet('Pareto', sheetData);
       const { createParetoChart } = await import('../../excel/chart-builder');
       await createParetoChart(result, sheetName, ra);
+      const bindingId = await registerLiveUpdate({
+        panel: 'pareto',
+        sourceAddress: rangeAddress,
+        outputSheet: sheetName,
+        outputRowCount: sheetData.length,
+        config: { xCol },
+      });
+      liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
     } finally {
       setIsWriting(false);
     }
-  }, [result]);
+  }, [result, rangeAddress, xCol, liveUpdate.activate]);
 
   const hasData = rawData.length > 1;
 
@@ -284,6 +290,7 @@ export const ParetoPanel: React.FC = () => {
               {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
+          <LiveUpdateStatus {...liveUpdate} />
         </>
       )}
     </div>
