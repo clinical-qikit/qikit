@@ -21,7 +21,7 @@ class SPCResult:
     Fields
     ------
     data       : DataFrame with columns x, y, cl, ucl, lcl, sigma_signal,
-                 runs_signal, baseline
+                 runs_signal, baseline, excluded
     chart_type : "run", "i", "mr", "p", "u", "c", etc.
     method     : run-signal detection method ("anhoej", "ihi", "weco", "nelson")
     summary    : audit dict — n_obs, longest_run, n_crossings, thresholds, etc.
