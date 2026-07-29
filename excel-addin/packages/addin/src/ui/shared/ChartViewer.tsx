@@ -273,7 +273,8 @@ export const ChartViewer: React.FC<ChartViewerProps> = ({
       });
     }
 
-    // Compute representative limit values from last non-null point
+    // Right-edge labels take the last non-null point, which is where the label sits —
+    // correct for a stepped line (p/u with variable n, S chart CL) as well as a flat one.
     const lastPoint = [...res.data].reverse().find((d: any) => !isNaN(d.cl));
     const limitVals = lastPoint
       ? { cl: lastPoint.cl, ucl: lastPoint.ucl, lcl: lastPoint.lcl < 0 ? undefined : lastPoint.lcl }

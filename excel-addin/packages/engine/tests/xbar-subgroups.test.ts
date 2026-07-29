@@ -97,6 +97,59 @@ describe('xbar/s limits vary per subgroup', () => {
   });
 });
 
+describe('s chart center line varies with subgroup size', () => {
+  // Mirrors TestSChartVaryingCenterLine in tests/test_spc.py. On the pooled-σ̂ path
+  // the S chart center line is c4(nᵢ)·σ̂, not a flat S̄ — E[sᵢ] rises with n, and the
+  // CL is what the runs detector tests each point against.
+  const sigmaHat = 4;
+
+  test('cl tracks c4(n) and equal sizes share a value', () => {
+    const r = compute({ chart: 's', y: [4, 4, 4, 4], n: [4, 4, 30, 30], sigmaHat });
+    const cl = r.data.map((row: any) => row.cl);
+
+    expect(cl[0]).toBeCloseTo(sigmaHat * c4(4), 10);
+    expect(cl[2]).toBeCloseTo(sigmaHat * c4(30), 10);
+    expect(cl[0]).toBeCloseTo(cl[1], 10);
+    expect(cl[0]).toBeLessThan(cl[2]);
+  });
+
+  test('limits are symmetric about the per-point cl', () => {
+    const r = compute({ chart: 's', y: [4, 4, 4], n: [8, 15, 30], sigmaHat });
+    for (const row of r.data as any[]) {
+      expect(row.lcl).toBeGreaterThan(0);          // not floored, so symmetry is testable
+      expect(row.ucl - row.cl).toBeCloseTo(row.cl - row.lcl, 10);
+    }
+  });
+
+  test('warning bands follow the varying cl', () => {
+    const r = compute({ chart: 's', y: [4, 4, 4], n: [8, 15, 30], sigmaHat });
+    for (const row of r.data as any[]) {
+      expect(row.ucl_95).toBeCloseTo(row.cl + (row.ucl - row.cl) * (2 / 3), 10);
+    }
+  });
+
+  test('clOverride outranks the per-point cl', () => {
+    const r = compute({ chart: 's', y: [4, 4, 4, 4], n: [4, 4, 30, 30], sigmaHat, clOverride: 1.5 });
+    for (const row of r.data as any[]) expect(row.cl).toBe(1.5);
+  });
+
+  test('size-1 subgroup leaves a gap in the cl too', () => {
+    const r = compute({ chart: 's', y: [4, 4, 4], n: [6, 1, 20], sigmaHat });
+    expect(r.data[1].cl).toBeNaN();
+    expect(Number.isFinite(r.data[0].cl)).toBe(true);
+    expect(Number.isFinite(r.data[2].cl)).toBe(true);
+  });
+
+  test('equal n keeps the classical flat S-bar', () => {
+    // No sigmaHat -> B3/B4 path -> scalar center, unchanged from before.
+    const r = compute({ chart: 's', y: [2, 3, 4], n: [5, 5, 5] });
+    const cl = r.data.map((row: any) => row.cl);
+    expect(cl[0]).toBeCloseTo(3, 10);             // mean of [2, 3, 4]
+    expect(cl[0]).toBe(cl[1]);
+    expect(cl[1]).toBe(cl[2]);
+  });
+});
+
 describe('fixed-size chunking', () => {
   // 22 values, subgroupN 6 -> chunks of 6, 6, 6, 4. The trailing chunk is genuinely
   // smaller and must not borrow the full-subgroupN constant.

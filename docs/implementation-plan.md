@@ -175,7 +175,7 @@ Three categories of data provenance. Each fixture's `reference` field must recor
 | `mr_chart_d4` | Montgomery 2019, §6.3 — D4 constant formula | UCL = 3.267 × MR̄ |
 | `c_chart_ucl` | Montgomery 2019, §7.3 — c-chart formula | UCL = c̄ + 3√c̄ |
 | `anhoej_thresholds` | Anhoej 2014 — run/crossing threshold formula | n=10→6, n=20→7, n=25→7, n=100→9 |
-| `constants` | Montgomery 2019, Appendix VI — control chart constants | D2/D4/B3/B4/A3 for n=2..25; spot-check B4[25]=1.435 |
+| `constants` | Montgomery 2019, Appendix VI — control chart constants | D2/D4/B3/B4/A3 tables for n=2..25; spot-check B4[25]=1.435. Above 25, `c4/a3/b3/b4` derive them analytically from c₄(n) ≈ 1 − 1/(4n) − 7/(32n²) |
 
 **Category B — Hand-calculated** (synthetic inputs chosen so the math is clean; check values computed by hand using published formulas, verifiable with a calculator):
 
@@ -1253,9 +1253,16 @@ Complete formulas for implementing agent. All from Montgomery (2019) and Anhoej 
 | Chart | Formula |
 |-------|---------|
 | run | CL = median(y_baseline) |
-| i, mr, c, s, xbar | CL = mean(y_baseline) |
+| i, mr, c, s | CL = mean(y_baseline) |
+| xbar | CL = sum(n_baseline × x̄_baseline) / sum(n_baseline) — volume-weighted grand mean |
 | p, u, pp, up, ip | CL = sum(y_baseline × n_baseline) / sum(n_baseline) |
 | g | CL = median(y_baseline) |
+
+Center lines are scalar with one exception: the **s** chart with unequal subgroup sizes,
+where CL = c₄(nᵢ)·σ̂ varies per point. E[sᵢ] = c₄(nᵢ)·σ̂ climbs with n (0.798σ̂ at n=2,
+0.991σ̂ at n=30), so a flat CL would sort subgroups by denominator rather than by spread —
+and the CL is what the runs detector tests each point against. `ChartSpec.limits` returns
+it as an optional third element; an explicit `cl=` override still wins.
 
 ### Control Limits
 | Chart | UCL | LCL | Notes |
@@ -1268,8 +1275,10 @@ Complete formulas for implementing agent. All from Montgomery (2019) and Anhoej 
 | u | CL + 3√(CL/nᵢ) | max(0, CL - 3√(CL/nᵢ)) | Variable limits per point |
 | c | CL + 3√CL | max(0, CL - 3√CL) | Constant limits |
 | g | CL + 3√(CL(CL+1)) | max(0, CL - 3√(CL(CL+1))) | Constant limits |
-| s | B4[n] × CL | B3[n] × CL | n = subgroup size |
-| xbar | CL + A3[n] × S̄ | CL - A3[n] × S̄ | S̄ = mean of subgroup SDs |
+| s (equal n) | B4(nᵢ) × CL | B3(nᵢ) × CL | CL = S̄, per-subgroup constants |
+| s (unequal n) | CL + 3σ̂√(1−c₄(nᵢ)²) | max(0, CL − 3σ̂√(1−c₄(nᵢ)²)) | CL = c₄(nᵢ)·σ̂, varies per point |
+| xbar (equal n) | CL + A3(nᵢ) × S̄ | CL − A3(nᵢ) × S̄ | S̄ = mean of subgroup SDs |
+| xbar (unequal n) | CL + 3σ̂/√nᵢ | CL − 3σ̂/√nᵢ | σ̂ pooled; A3 would double-correct |
 | pp | CL + 3σ_base × σ_z | max(0, CL - 3σ_base × σ_z) | Laney: σ_z = MR̄(z)/1.128 |
 | up | CL + 3σ_base × σ_z | max(0, CL - 3σ_base × σ_z) | Laney: σ_z = MR̄(z)/1.128 |
 | t | Back-transform i limits | Back-transform i limits | y' = y^(1/3.6), compute as i, CL'³·⁶ |

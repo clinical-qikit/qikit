@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 from qikit import SPCResult, qic, paretochart, bchart
 import qikit.spc as _core
 import qikit.spc.constants as _constants
+import qikit.spc.signals as _signals
 
 
 
@@ -1201,6 +1202,88 @@ class TestLargeSubgroups:
         df = self._frame([1, 1, 1])
         with pytest.raises(ValueError, match="2 or more observations"):
             qic(data=df, x="month", y="los", chart="xbar")
+
+
+class TestSChartVaryingCenterLine:
+    """
+    S chart with unequal n: CL = c4(nᵢ)·σ̂ per subgroup, not a flat S̄.
+
+    E[sᵢ] = c4(nᵢ)·σ̂ rises with subgroup size (0.798σ̂ at n=2, 0.991σ̂ at n=30), so a
+    flat center line sorts subgroups by their denominator rather than by their spread.
+    """
+
+    def _frame(self, sizes, seed=0):
+        rng = np.random.default_rng(seed)
+        return pd.DataFrame({
+            "month": np.repeat(np.arange(len(sizes)), sizes),
+            "los": rng.normal(4.2, 1.8, int(np.sum(sizes))),
+        })
+
+    def test_cl_varies_with_subgroup_size(self):
+        sizes = [4, 4, 30, 30]
+        r = qic(data=self._frame(sizes), x="month", y="los", chart="s")
+        cl = r.data["cl"].to_numpy()
+
+        assert cl[0] == pytest.approx(cl[1])            # equal n → equal CL
+        assert cl[2] == pytest.approx(cl[3])
+        assert cl[0] < cl[2]                            # c4 rises with n
+
+        # cl / c4(nᵢ) recovers the one pooled σ̂ behind every point.
+        sigma_hat = cl / np.array([_constants.c4(k) for k in sizes])
+        assert sigma_hat == pytest.approx(sigma_hat[0])
+
+    def test_limits_are_symmetric_about_the_varying_cl(self):
+        """The σ̂ path anchors UCL and LCL to the per-point CL, not to a flat S̄."""
+        r = qic(data=self._frame([8, 15, 30, 12]), x="month", y="los", chart="s")
+        d = r.data
+        assert (d["lcl"] > 0).all(), "pick sizes where LCL is not floored"
+        assert (d["ucl"] - d["cl"]).to_numpy() == pytest.approx((d["cl"] - d["lcl"]).to_numpy())
+
+    def test_warning_bands_sit_two_thirds_out(self):
+        """s3 = ucl - cl is only meaningful once both share the σ̂ anchor."""
+        d = qic(data=self._frame([8, 15, 30, 12]), x="month", y="los", chart="s").data
+        two_thirds = d["cl"] + (d["ucl"] - d["cl"]) * (2 / 3)
+        assert d["ucl_95"].to_numpy() == pytest.approx(two_thirds.to_numpy())
+
+    def test_step_change_in_n_no_longer_manufactures_a_run(self):
+        """
+        The payoff. Subgroup size jumps 2 → 50 halfway through a series drawn from one
+        normal. Against a flat CL every large subgroup lands on the far side of the line
+        and the runs detector reports a shift that exists only in the denominators.
+        Measured false-positive rate for this design: 59% flat vs 13% per-point, against
+        an Anhoej nominal of ~10%.
+        """
+        sizes = [2] * 12 + [50] * 13
+        r = qic(data=self._frame(sizes, seed=0), x="month", y="los", chart="s")
+        y = r.data["y"].to_numpy()
+
+        flat = np.full(len(y), np.nanmean(y))           # the old center line
+        flat_signal, _, flat_summary = _signals._runs_signals(y, flat, method="anhoej")
+
+        assert flat_signal.any(), "design should trip the old flat CL"
+        assert flat_summary["longest_run"] == 13        # exactly the 13 large subgroups
+        assert not r.data["runs_signal"].any()
+
+    def test_cl_override_stays_flat(self):
+        """An explicit cl= is the user's line and outranks the per-point one."""
+        r = qic(data=self._frame([4, 4, 30, 30]), x="month", y="los", chart="s", cl=1.5)
+        assert (r.data["cl"] == 1.5).all()
+
+    def test_size_one_subgroup_gives_nan_cl(self):
+        """A subgroup with no defined SD is a gap in the CL too, not a stale value."""
+        d = qic(data=self._frame([6, 1, 20]), x="month", y="los", chart="s").data
+        assert math.isnan(d["cl"].iloc[1])
+        assert math.isnan(d["y"].iloc[1])               # nothing to plot against it
+        assert np.isfinite(d["cl"].iloc[0]) and np.isfinite(d["cl"].iloc[2])
+        assert not d["runs_signal"].any()               # NaN is skipped, not a side
+
+    def test_equal_n_keeps_the_classical_flat_s_bar(self):
+        """Equal sizes stay on the B3/B4 path: CL = S̄ = mean of subgroup SDs."""
+        df = self._frame([5] * 6)
+        d = qic(data=df, x="month", y="los", chart="s").data
+        s_bar = df.groupby("month")["los"].std(ddof=1).mean()
+        assert d["cl"].nunique() == 1
+        assert d["cl"].iloc[0] == pytest.approx(s_bar)
 
 
 class TestEqualNUnchanged:

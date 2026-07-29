@@ -189,22 +189,27 @@ def _s_limits(
     mask: np.ndarray, subgroup_n: int | None = None, sigma_hat: float | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    S chart: UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄. Montgomery (2019), §6.4.
+    S chart: UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄, CL = S̄. Montgomery (2019), §6.4.
 
-    With unequal subgroup sizes the caller supplies a pooled σ̂ instead, and limits
-    become σ̂·(c4(nᵢ) ± 3√(1 − c4(nᵢ)²)) — the same quantity, expressed against an
-    unbiased σ̂ rather than against a c4-biased S̄.
+    With unequal subgroup sizes the caller supplies a pooled σ̂ instead, and the whole
+    chart is expressed against that unbiased σ̂ rather than against a c4-biased S̄:
 
-    Known approximation: strictly the center line is c4(nᵢ)·σ̂ and varies per
-    subgroup too, but ChartSpec center lines are scalar (see compute.py cl_arr), so
-    the CL stays flat while the limits breathe.
+        CL  = c4(nᵢ)·σ̂                       (returned as the third element)
+        U/L = CL ± 3σ̂·√(1 − c4(nᵢ)²)
+
+    The center line has to vary too. E[sᵢ] = c4(nᵢ)·σ̂ climbs from 0.798σ̂ at n=2 to
+    0.991σ̂ at n=30, so a flat CL would park every small subgroup below the line and
+    every large one above it — and compute() feeds the CL to the runs detector, which
+    is a pure side-of-CL test. Any series whose subgroup size drifts with time would
+    manufacture a long run out of nothing but its denominators.
     """
     sizes = _subgroup_sizes(n, subgroup_n, len(y), "S chart")
 
     if sigma_hat is not None:
         c = _get_constants(sizes, c4)
-        spread = 3.0 * np.sqrt(np.maximum(0.0, 1.0 - c * c))
-        return sigma_hat * (c + spread), np.maximum(0.0, sigma_hat * (c - spread))
+        cl_i = sigma_hat * c
+        half = 3.0 * sigma_hat * np.sqrt(np.maximum(0.0, 1.0 - c * c))
+        return cl_i + half, np.maximum(0.0, cl_i - half), cl_i
 
     return _get_constants(sizes, b4) * cl, _get_constants(sizes, b3) * cl
 
@@ -284,7 +289,9 @@ def _xbar_limits(
 class ChartSpec:
     """Everything needed to compute one chart type."""
     center: Callable    # (y_base, n_base) → float
-    limits: Callable    # (cl, y, n, mask, subgroup_n, **_) → (ucl_arr, lcl_arr)
+    limits: Callable    # (cl, y, n, mask, subgroup_n, **_) → (ucl_arr, lcl_arr[, cl_arr])
+                        # An optional third element overrides the scalar center line
+                        # per point — see _s_limits and compute().
     needs_n: bool = False
     is_attribute: bool = False
     floor_lcl: bool = False
@@ -295,7 +302,7 @@ CHARTS: dict[str, ChartSpec] = {
     "i":    ChartSpec(_cl_mean,   _i_limits),
     "ip":   ChartSpec(_cl_weighted, _i_limits, needs_n=True, is_attribute=True),
     "mr":   ChartSpec(_cl_mean,   _mr_limits),
-    "s":    ChartSpec(_cl_mean,   _s_limits),
+    "s":    ChartSpec(_cl_mean,   _s_limits,  floor_lcl=True),
     "p":    ChartSpec(_cl_weighted, _p_limits,  needs_n=True, is_attribute=True, floor_lcl=True),
     "u":    ChartSpec(_cl_weighted, _u_limits,  needs_n=True, is_attribute=True, floor_lcl=True),
     "c":    ChartSpec(_cl_mean,   _c_limits,  floor_lcl=True),

@@ -86,8 +86,15 @@ def compute(
 
     cl_arr = np.full(len(y), cl_val, dtype=float)
 
-    # Limits
-    ucl_arr, lcl_arr = spec.limits(cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat)
+    # Limits. A chart whose center line varies per point (S chart with unequal
+    # subgroup sizes, where CL = c4(nᵢ)·σ̂) returns it as an optional third element
+    # rather than through spec.center, which is scalar by contract. An explicit
+    # cl_override always wins — the user asked for a fixed line.
+    ucl_arr, lcl_arr, *cl_var = spec.limits(
+        cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat
+    )
+    if cl_override is None and cl_var and cl_var[0] is not None:
+        cl_arr = np.asarray(cl_var[0], dtype=float)
 
     if spec.floor_lcl:
         lcl_arr = np.where(lcl_arr < 0, 0.0, lcl_arr)

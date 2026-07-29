@@ -132,23 +132,26 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: false, isAttribute: false, floorLcl: false
   },
   s: {
-    // UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄. Montgomery (2019), §6.4.
-    // Unequal sizes use the pooled σ̂ form σ̂·(c4(nᵢ) ± 3√(1 − c4(nᵢ)²)).
-    // Known approximation: strictly the center line is c4(nᵢ)·σ̂ and varies per
-    // subgroup too, but ChartSpec center lines are scalar, so the CL stays flat.
+    // UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄, CL = S̄. Montgomery (2019), §6.4.
+    // Unequal sizes express the whole chart against a pooled σ̂ instead:
+    //   CL = c4(nᵢ)·σ̂ (the third return element), U/L = CL ± 3σ̂·√(1 − c4(nᵢ)²).
+    // The center line has to vary too — E[sᵢ] = c4(nᵢ)·σ̂ climbs with n, and the CL
+    // feeds the runs detector, which is a pure side-of-CL test.
     center: (yb) => nanmean(yb),
     limits: (cl, y, n, _mask, subN, _sBar, sigmaHat) => {
       const sizes = subgroupSizes(n, subN, y.length);
       if (sigmaHat !== undefined) {
-        const spread = sizes.map(ni => 3 * Math.sqrt(Math.max(0, 1 - c4(ni) * c4(ni))));
+        const clI = sizes.map(ni => sigmaHat * c4(ni));
+        const half = sizes.map(ni => 3 * sigmaHat * Math.sqrt(Math.max(0, 1 - c4(ni) * c4(ni))));
         return [
-          sizes.map((ni, i) => sigmaHat * (c4(ni) + spread[i])),
-          sizes.map((ni, i) => Math.max(0, sigmaHat * (c4(ni) - spread[i]))),
+          clI.map((c, i) => c + half[i]),
+          clI.map((c, i) => Math.max(0, c - half[i])),
+          clI,
         ];
       }
       return [sizes.map(ni => b4(ni) * cl), sizes.map(ni => b3(ni) * cl)];
     },
-    needsN: false, isAttribute: false, floorLcl: false
+    needsN: false, isAttribute: false, floorLcl: true
   },
   ip: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
@@ -322,15 +325,18 @@ export function compute(input: SPCInput): SPCResult {
     
     // Limits
     // Important: for t-chart, we need to pass clVal which is in transformed space
-    const [uclSeg, lclSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat);
-    
+    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat);
+
     for (let j = 0; j < e - s; j++) {
-      clArr[s + j] = clVal;
+      // clSeg is present only for charts whose center line varies per point; an
+      // explicit clOverride is the user's line and outranks it.
+      const clHere = (clOverride === undefined && clSeg) ? clSeg[j] : clVal;
+      clArr[s + j] = clHere;
       uclArr[s + j] = uclSeg[j];
       lclArr[s + j] = spec.floorLcl ? Math.max(0, lclSeg[j]) : lclSeg[j];
-      const spread = uclSeg[j] - clVal;
-      ucl95Arr[s + j] = clVal + spread * (2 / 3);
-      const l95 = clVal - spread * (2 / 3);
+      const spread = uclSeg[j] - clHere;
+      ucl95Arr[s + j] = clHere + spread * (2 / 3);
+      const l95 = clHere - spread * (2 / 3);
       lcl95Arr[s + j] = spec.floorLcl ? Math.max(0, l95) : l95;
     }
 

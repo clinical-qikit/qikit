@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseColumns, buildSpcInput, buildNoteMap, buildSheetRows,
-  colLetter, aggregateByPeriod, periodKey, toDate,
+  colLetter, aggregateByPeriod, periodKey, toDate, formatLimit,
   SpcDataSelection,
 } from '../src/ui/spc/data-prep';
 import { DEFAULT_OPTIONS } from '../src/ui/spc/constants';
@@ -217,5 +217,31 @@ describe('buildSheetRows', () => {
     } as any;
     const { rows } = buildSheetRows(runResult, {}, [], false, [], false);
     expect(rows[0]).toEqual([1, 10, 11, null, null, null]);
+  });
+});
+
+describe('formatLimit', () => {
+  const rows = (vals: number[]) => vals.map(v => ({ cl: v }));
+
+  it('prints a single value when the line is flat', () => {
+    expect(formatLimit(rows([2.5, 2.5, 2.5]), 'cl')).toBe('2.500');
+  });
+
+  it('prints a range when the line varies', () => {
+    // An S chart CL of c4(nᵢ)·σ̂ — row 0 alone would misreport it.
+    expect(formatLimit(rows([1.514, 1.638, 1.682]), 'cl')).toBe('1.514–1.682');
+  });
+
+  it('collapses variation below the displayed precision', () => {
+    expect(formatLimit(rows([2.5000, 2.50001]), 'cl')).toBe('2.500');
+  });
+
+  it('ignores NaN gaps but keeps the surrounding values', () => {
+    expect(formatLimit(rows([1.2, NaN, 3.4]), 'cl')).toBe('1.200–3.400');
+  });
+
+  it('returns an em dash when nothing is defined', () => {
+    expect(formatLimit(rows([NaN, NaN]), 'cl')).toBe('—');
+    expect(formatLimit([], 'cl')).toBe('—');
   });
 });

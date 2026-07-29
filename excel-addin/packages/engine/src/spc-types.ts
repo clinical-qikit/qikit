@@ -46,9 +46,14 @@ export interface SPCResult {
 
 export interface ChartSpec {
   center: (yBase: number[], nBase?: number[]) => number;
+  /**
+   * Returns [ucl, lcl] — or [ucl, lcl, cl] for a chart whose center line varies per
+   * point (S chart with unequal subgroup sizes, CL = c4(nᵢ)·σ̂). The optional third
+   * element overrides the scalar `center` above; an explicit clOverride still wins.
+   */
   limits: (cl: number, y: number[], n: number[] | undefined,
            mask: boolean[], subgroupN?: number, sBar?: number,
-           sigmaHat?: number) => [number[], number[]];
+           sigmaHat?: number) => [number[], number[]] | [number[], number[], number[]];
   needsN: boolean;
   isAttribute: boolean;
   floorLcl: boolean;
