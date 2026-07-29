@@ -305,7 +305,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 2,
@@ -318,7 +319,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 3,
@@ -331,7 +333,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 4,
@@ -344,7 +347,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       }
     ]
   }
