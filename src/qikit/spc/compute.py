@@ -21,20 +21,26 @@ def compute(
     subgroup_n: int | None = None,
     method: str = "anhoej",
     s_bar: float | None = None,
+    exclude_mask: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
 
     Parameters
     ----------
-    chart       : chart type key (must be in CHARTS)
-    y           : numeric values, may contain NaN
-    n           : denominators for p/u/pp/up charts
-    mask        : True = include in baseline; None = all included
-    cl_override : user-specified fixed center line
-    subgroup_n  : subgroup size for s/xbar charts
-    method      : run-signal method ("anhoej", "ihi", "weco", "nelson")
-    s_bar       : mean of subgroup SDs for xbar chart
+    chart        : chart type key (must be in CHARTS)
+    y            : numeric values, may contain NaN
+    n            : denominators for p/u/pp/up charts
+    mask         : True = include in baseline; None = all included. Also
+                   covers freeze/part boundaries, so points outside the
+                   baseline window still get checked against its limits.
+    cl_override  : user-specified fixed center line
+    subgroup_n   : subgroup size for s/xbar charts
+    method       : run-signal method ("anhoej", "ihi", "weco", "nelson")
+    s_bar        : mean of subgroup SDs for xbar chart
+    exclude_mask : True = ghost this point out of signal detection entirely
+                   (exclude=); None = no ghosting. Unlike `mask`, this does
+                   not include freeze/part boundaries.
 
     Returns
     -------
@@ -81,9 +87,15 @@ def compute(
     if spec.floor_lcl:
         lcl_arr = np.where(lcl_arr < 0, 0.0, lcl_arr)
 
-    # Signals
-    sigma_sig = _sigma_signals(y, ucl_arr, lcl_arr)
-    runs_sig, runs_loc, runs_summary = _runs_signals(y, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
+    # Signals — ghosted (exclude=) points are hidden from detection entirely.
+    # Note this uses exclude_mask, not the baseline `mask`: freeze/part boundary
+    # points are outside the baseline but must still be checked against it.
+    if exclude_mask is None:
+        y_signal = y
+    else:
+        y_signal = np.where(np.asarray(exclude_mask, dtype=bool), np.nan, y)
+    sigma_sig = _sigma_signals(y_signal, ucl_arr, lcl_arr)
+    runs_sig, runs_loc, runs_summary = _runs_signals(y_signal, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
 
     return {
         "y": y,

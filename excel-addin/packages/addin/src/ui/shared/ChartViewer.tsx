@@ -6,6 +6,7 @@ import {
 import { Line, Bar } from 'react-chartjs-2';
 import { makeStyles } from '@fluentui/react-components';
 import { SPCResult, DOEResult, ChartType } from '@qikit/engine';
+import { qikit } from '../../theme/tokens';
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement, BarElement,
@@ -31,11 +32,11 @@ const annotationLabelPlugin: Plugin<'line'> = {
       ctx.beginPath();
       ctx.moveTo(x, point.y - 5);
       ctx.lineTo(x, y - 2);
-      ctx.strokeStyle = '#f59e0b';
+      ctx.strokeStyle = qikit.chart.annotation;
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = '#92400e';
-      ctx.font = `500 10px Inter, sans-serif`;
+      ctx.fillStyle = qikit.color.note;
+      ctx.font = `500 10px ${qikit.font.base}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillText(text.length > 12 ? text.slice(0, 11) + '\u2026' : text, x, y);
@@ -68,8 +69,8 @@ const partBoundaryPlugin: Plugin<'line'> = {
       ctx.setLineDash([]);
       const label = labels[i];
       if (label) {
-        ctx.fillStyle = '#107C6C';
-        ctx.font = `500 9px 'Segoe UI', sans-serif`;
+        ctx.fillStyle = qikit.color.brand;
+        ctx.font = `500 9px ${qikit.font.base}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(label, xPx + 3, chartArea.top + 2);
@@ -90,13 +91,13 @@ const limitLabelsPlugin: Plugin<'line'> = {
     if (!chartArea) return;
     const rightX = chartArea.right + 4;
     ctx.save();
-    ctx.font = `500 9px Inter, sans-serif`;
+    ctx.font = `500 9px ${qikit.font.base}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     const entries: { label: string; value: number; color: string }[] = [];
-    if (limitVals.ucl !== undefined && !isNaN(limitVals.ucl)) entries.push({ label: 'UCL', value: limitVals.ucl, color: '#94a3b8' });
-    if (limitVals.cl  !== undefined && !isNaN(limitVals.cl))  entries.push({ label: 'CL',  value: limitVals.cl,  color: '#94a3b8' });
-    if (limitVals.lcl !== undefined && !isNaN(limitVals.lcl)) entries.push({ label: 'LCL', value: limitVals.lcl, color: '#94a3b8' });
+    if (limitVals.ucl !== undefined && !isNaN(limitVals.ucl)) entries.push({ label: 'UCL', value: limitVals.ucl, color: qikit.chart.limit });
+    if (limitVals.cl  !== undefined && !isNaN(limitVals.cl))  entries.push({ label: 'CL',  value: limitVals.cl,  color: qikit.chart.limit });
+    if (limitVals.lcl !== undefined && !isNaN(limitVals.lcl)) entries.push({ label: 'LCL', value: limitVals.lcl, color: qikit.chart.limit });
     // Prevent overlap: sort by y-pixel, then nudge
     const positioned = entries.map(e => ({ ...e, yPx: scales.y.getPixelForValue(e.value) }));
     positioned.sort((a, b) => a.yPx - b.yPx);
@@ -125,9 +126,9 @@ const useStyles = makeStyles({
     height: '220px',
     width: '100%',
     padding: '12px 44px 12px 12px',   // right padding for CL/UCL/LCL labels
-    backgroundColor: '#ffffff',
-    borderRadius: '10px',
-    border: '1px solid #f0f1f3',
+    backgroundColor: qikit.color.surface,
+    borderRadius: qikit.radius.md,
+    border: `1px solid ${qikit.color.borderSubtle}`,
     boxSizing: 'border-box',
   },
 });
@@ -160,15 +161,15 @@ interface ChartViewerProps {
 // ─── Color palette ──────────────────────────────────────────────────────────
 
 const COLORS = {
-  data: '#1a1a2e',
-  signal: '#ef4444',
-  runsSignal: '#f97316',
-  annotation: '#f59e0b',
-  cl: '#94a3b8',
-  target: '#10b981',
-  brand: '#107C6C',
-  grid: '#f1f5f9',
-  warn95: '#f59e0b',
+  data: qikit.chart.data,
+  signal: qikit.chart.signal,
+  runsSignal: qikit.chart.runsSignal,
+  annotation: qikit.chart.annotation,
+  cl: qikit.chart.limit,
+  target: qikit.chart.target,
+  brand: qikit.chart.brand,
+  grid: qikit.chart.grid,
+  warn95: qikit.chart.warn95,
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -293,9 +294,9 @@ export const ChartViewer: React.FC<ChartViewerProps> = ({
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1a2e',
-          titleFont: { family: 'Inter, sans-serif', size: 12 },
-          bodyFont: { family: 'Inter, sans-serif', size: 11 },
+          backgroundColor: qikit.color.ink,
+          titleFont: { family: qikit.font.base, size: 12 },
+          bodyFont: { family: qikit.font.base, size: 11 },
           cornerRadius: 6,
           padding: 8,
           callbacks: {
@@ -311,21 +312,21 @@ export const ChartViewer: React.FC<ChartViewerProps> = ({
         x: {
           display: true,
           grid: { display: false },
-          ticks: { font: { family: 'Inter, sans-serif', size: 10 }, color: '#9ca3af' },
+          ticks: { font: { family: qikit.font.base, size: 10 }, color: qikit.chart.axisText },
         },
         y: {
           display: true,
           grid: { color: COLORS.grid },
           ticks: {
-            font: { family: 'Inter, sans-serif', size: 10 },
-            color: '#9ca3af',
+            font: { family: qikit.font.base, size: 10 },
+            color: qikit.chart.axisText,
             ...(isPercent ? { callback: (v: any) => `${(v * 100).toFixed(1)}%` } : {}),
           },
           title: {
             display: true,
             text: yAxisLabel,
-            font: { family: 'Inter, sans-serif', size: 10 },
-            color: '#9ca3af',
+            font: { family: qikit.font.base, size: 10 },
+            color: qikit.chart.axisText,
           },
         },
       },
@@ -365,9 +366,9 @@ export const ChartViewer: React.FC<ChartViewerProps> = ({
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1a2e',
-          titleFont: { family: 'Inter, sans-serif', size: 12 },
-          bodyFont: { family: 'Inter, sans-serif', size: 11 },
+          backgroundColor: qikit.color.ink,
+          titleFont: { family: qikit.font.base, size: 12 },
+          bodyFont: { family: qikit.font.base, size: 11 },
           cornerRadius: 6,
           padding: 8,
         },
@@ -378,15 +379,15 @@ export const ChartViewer: React.FC<ChartViewerProps> = ({
           title: {
             display: true,
             text: 'Absolute Effect',
-            font: { family: 'Inter, sans-serif', size: 11, weight: 500 },
-            color: '#6b7280',
+            font: { family: qikit.font.base, size: 11, weight: 500 },
+            color: qikit.chart.axisText,
           },
           grid: { color: COLORS.grid },
-          ticks: { font: { family: 'Inter, sans-serif', size: 10 }, color: '#9ca3af' },
+          ticks: { font: { family: qikit.font.base, size: 10 }, color: qikit.chart.axisText },
         },
         y: {
           display: true,
-          ticks: { font: { family: 'Inter, sans-serif', size: 11, weight: 500 }, color: '#374151' },
+          ticks: { font: { family: qikit.font.base, size: 11, weight: 500 }, color: qikit.color.ink },
         },
       },
     };

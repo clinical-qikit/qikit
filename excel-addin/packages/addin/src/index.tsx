@@ -1,10 +1,12 @@
 import { createRoot } from 'react-dom/client';
-import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import { FluentProvider } from '@fluentui/react-components';
 import { App } from './ui/App';
 import { DevHarness } from './dev-harness';
+import { qikitLightTheme } from './theme/fluent-theme';
+import { reattachLiveUpdates } from './excel/live-update';
 
 const Root = () => (
-  <FluentProvider theme={webLightTheme}>
+  <FluentProvider theme={qikitLightTheme}>
     <App />
   </FluentProvider>
 );
@@ -25,6 +27,7 @@ Office.onReady((info) => {
       root.render(<Root />);
     }
   }
+  void reattachLiveUpdates();
 });
 
 // For development in browser where Office.onReady might not fire as expected

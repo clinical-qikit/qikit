@@ -1,5 +1,5 @@
 """
-render.py — Plotly rendering for SPCResult.
+spc_plots.py — Plotly rendering for SPCResult.
 
 Design principles (Tufte, Visual Display of Quantitative Information):
 - Maximize data-ink ratio; every pixel earns its place
@@ -12,7 +12,7 @@ Design principles (Tufte, Visual Display of Quantitative Information):
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import plotly.graph_objects as go
@@ -21,17 +21,6 @@ from plotly.subplots import make_subplots
 from qikit.spc.options import VALID_RUNS_HIGHLIGHT
 
 from .utils import apply_tufte_theme, NORMAL, CL, SIGMA, RUNS, GRID, WARN
-
-if TYPE_CHECKING:
-    pass
-
-# Colors used locally (aliases for shared)
-_NORMAL = NORMAL
-_CL = CL
-_SIGMA = SIGMA
-_RUNS = RUNS
-_GRID = GRID
-_WARN = WARN
 
 
 def _resolve_runs_signal(df: Any, runs_highlight: str) -> np.ndarray:
@@ -52,7 +41,7 @@ def _resolve_runs_signal(df: Any, runs_highlight: str) -> np.ndarray:
 def _point_colors(sigma_sig: np.ndarray, runs_sig: np.ndarray) -> list[str]:
     """Per-point colors: red (sigma) > orange (runs) > gray (normal)."""
     return [
-        _SIGMA if s else _RUNS if r else _NORMAL
+        SIGMA if s else RUNS if r else NORMAL
         for s, r in zip(sigma_sig, runs_sig)
     ]
 
@@ -94,6 +83,11 @@ def _add_chart_traces(
     colors = _point_colors(sigma_sig, runs_sig)
     symbols = _point_symbols(sigma_sig, runs_sig)
 
+    # Ghost points excluded via exclude=: faded and not counted toward
+    # limits or signals (handled upstream in qikit.spc.compute/api).
+    excluded = df["excluded"].to_numpy() if "excluded" in df.columns else np.zeros(len(x), dtype=bool)
+    opacities = [0.35 if ex else 1.0 for ex in excluded]
+
     add_kwargs: dict[str, Any] = {}
     if row is not None and col is not None:
         add_kwargs = {"row": row, "col": col}
@@ -110,18 +104,21 @@ def _add_chart_traces(
 
     # Data trace — zorder=2 keeps it above all reference ink
     text = df["notes"].tolist() if "notes" in df.columns else None
+    ghost_note = ["excluded" if ex else "" for ex in excluded]
     hovertemplate = "%{x}: %{y}"
     if text:
         hovertemplate += "<br>%{text}"
-    hovertemplate += "<extra></extra>"
+    hovertemplate += "%{customdata}<extra></extra>"
+    customdata = [f" ({n})" if n else "" for n in ghost_note]
 
     fig.add_trace(go.Scatter(
         x=x, y=y,
         mode=mode,
-        line=dict(color=_NORMAL, width=1),
-        marker=dict(color=colors, symbol=symbols, size=point_size * 4, line=dict(width=0)),
+        line=dict(color=NORMAL, width=1),
+        marker=dict(color=colors, symbol=symbols, size=point_size * 4, line=dict(width=0), opacity=opacities),
         name="data",
         text=text,
+        customdata=customdata,
         hovertemplate=hovertemplate,
         connectgaps=False,
         cliponaxis=False,
@@ -146,7 +143,7 @@ def _add_chart_traces(
     fig.add_trace(go.Scatter(
         x=x, y=cl,
         mode="lines",
-        line=dict(color=_CL, width=1),
+        line=dict(color=CL, width=1),
         name="CL",
         hoverinfo="skip",
         zorder=1,
@@ -159,7 +156,7 @@ def _add_chart_traces(
         fig.add_trace(go.Scatter(
             x=x, y=lcl,
             mode="lines",
-            line=dict(color=_CL, width=1, dash="dash"),
+            line=dict(color=CL, width=1, dash="dash"),
             name="LCL",
             hoverinfo="skip",
             zorder=1,
@@ -167,7 +164,7 @@ def _add_chart_traces(
         fig.add_trace(go.Scatter(
             x=x, y=ucl,
             mode="lines",
-            line=dict(color=_CL, width=1, dash="dash"),
+            line=dict(color=CL, width=1, dash="dash"),
             fill="tonexty",
             fillcolor="rgba(51,51,51,0.04)",
             name="UCL",
@@ -180,7 +177,7 @@ def _add_chart_traces(
                 fig.add_trace(go.Scatter(
                     x=x, y=arr,
                     mode="lines",
-                    line=dict(color=_CL, width=1, dash="dash"),
+                    line=dict(color=CL, width=1, dash="dash"),
                     name=name,
                     hoverinfo="skip",
                     zorder=1,
@@ -198,7 +195,7 @@ def _add_chart_traces(
             fig.add_trace(go.Scatter(
                 x=x, y=warn_y,
                 mode="lines",
-                line=dict(color=_WARN, width=1, dash="dot"),
+                line=dict(color=WARN, width=1, dash="dot"),
                 name=name,
                 hoverinfo="skip",
                 zorder=1,
@@ -220,7 +217,7 @@ def _add_chart_traces(
                 text=f"{label}={val:.{decimals}f}",
                 xshift=8 + x_pad * 4,
                 showarrow=False, xanchor="left",
-                font=dict(size=10, color=_CL),
+                font=dict(size=10, color=CL),
                 **ann_kwargs,
             )
 
@@ -326,7 +323,7 @@ def _configure_layout(
             font=dict(size=10, color="#777"), xanchor="left",
         )
 
-    grid_color = _GRID if show_grid else "rgba(0,0,0,0)"
+    grid_color = GRID if show_grid else "rgba(0,0,0,0)"
     fig.update_xaxes(showgrid=show_grid, gridcolor=grid_color)
     fig.update_yaxes(showgrid=show_grid, gridcolor=grid_color)
 
@@ -436,7 +433,7 @@ def plot_pareto(result: Any, x_angle: int | None = None, **_kwargs: Any) -> go.F
             x=df["category"], 
             y=df["count"], 
             name=result.ylab,
-            marker_color=_NORMAL,
+            marker_color=NORMAL,
             hovertemplate="%{x}: %{y}<extra></extra>"
         ),
         secondary_y=False,
@@ -449,7 +446,7 @@ def plot_pareto(result: Any, x_angle: int | None = None, **_kwargs: Any) -> go.F
             y=df["cum_percent"], 
             name="Cumulative %",
             mode="lines+markers",
-            line=dict(color=_SIGMA, width=2),
+            line=dict(color=SIGMA, width=2),
             marker=dict(size=6),
             hovertemplate="%{x}: %{y:.1f}%<extra></extra>"
         ),
@@ -487,7 +484,7 @@ def plot_pareto(result: Any, x_angle: int | None = None, **_kwargs: Any) -> go.F
         fig.update_xaxes(tickangle=x_angle)
         
     fig.update_xaxes(showline=True, linecolor="#cccccc")
-    fig.update_yaxes(showgrid=True, gridcolor=_GRID, secondary_y=False)
+    fig.update_yaxes(showgrid=True, gridcolor=GRID, secondary_y=False)
     
     return fig
 
@@ -504,7 +501,7 @@ def plot_bchart(result: Any, **_kwargs: Any) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=df["x"], y=df["cusum_up"],
         mode="lines",
-        line=dict(color=_NORMAL, width=1.5),
+        line=dict(color=NORMAL, width=1.5),
         name="CUSUM Up",
         hovertemplate="Case %{x}<br>CUSUM Up: %{y:.2f}<extra></extra>"
     ))
@@ -513,7 +510,7 @@ def plot_bchart(result: Any, **_kwargs: Any) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=df["x"], y=df["cusum_down"],
         mode="lines",
-        line=dict(color=_NORMAL, width=1.5, dash="dot"),
+        line=dict(color=NORMAL, width=1.5, dash="dot"),
         name="CUSUM Down",
         hovertemplate="Case %{x}<br>CUSUM Down: %{y:.2f}<extra></extra>"
     ))
@@ -524,7 +521,7 @@ def plot_bchart(result: Any, **_kwargs: Any) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=sig_up["x"], y=[limit] * len(sig_up),
             mode="markers",
-            marker=dict(color=_SIGMA, size=10, symbol="triangle-up"),
+            marker=dict(color=SIGMA, size=10, symbol="triangle-up"),
             name="Signal Up",
             hoverinfo="skip"
         ))
@@ -534,15 +531,15 @@ def plot_bchart(result: Any, **_kwargs: Any) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=sig_down["x"], y=[limit2] * len(sig_down),
             mode="markers",
-            marker=dict(color=_SIGMA, size=10, symbol="triangle-down"),
+            marker=dict(color=SIGMA, size=10, symbol="triangle-down"),
             name="Signal Down",
             hoverinfo="skip"
         ))
 
     # Threshold lines
-    fig.add_hline(y=limit, line=dict(color=_CL, width=1, dash="dash"))
-    fig.add_hline(y=limit2, line=dict(color=_CL, width=1, dash="dash"))
-    fig.add_hline(y=0, line=dict(color=_CL, width=1))
+    fig.add_hline(y=limit, line=dict(color=CL, width=1, dash="dash"))
+    fig.add_hline(y=limit2, line=dict(color=CL, width=1, dash="dash"))
+    fig.add_hline(y=0, line=dict(color=CL, width=1))
     
     # Build title with subtitle if present
     full_title = result.title
@@ -568,7 +565,7 @@ def plot_bchart(result: Any, **_kwargs: Any) -> go.Figure:
         )
     
     fig.update_xaxes(showline=True, linecolor="#cccccc")
-    fig.update_yaxes(showgrid=True, gridcolor=_GRID, zeroline=False)
+    fig.update_yaxes(showgrid=True, gridcolor=GRID, zeroline=False)
     
     return fig
 

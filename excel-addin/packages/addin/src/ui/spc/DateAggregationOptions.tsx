@@ -12,8 +12,8 @@ export const DateAggregationOptions: React.FC<DateAggregationOptionsProps> = ({ 
   const styles = useSpcStyles();
   return (
     <div className={styles.colRow}>
-      <span className={styles.colLabel} style={{ minWidth: '62px' }}>Period</span>
-      <Select size="small" value={xPeriod} onChange={(_, d) => onChange(d.value)} style={{ flex: 1 }}>
+      <label className={styles.colLabel} style={{ minWidth: '62px' }} htmlFor="spc-col-period">Period</label>
+      <Select size="small" id="spc-col-period" value={xPeriod} onChange={(_, d) => onChange(d.value)} style={{ flex: 1 }}>
         <option value="day">Day</option>
         <option value="week">Week</option>
         <option value="month">Month</option>

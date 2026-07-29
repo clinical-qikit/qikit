@@ -1,8 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { Button, Select, makeStyles } from '@fluentui/react-components';
+import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components';
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { paretochart } from '@qikit/engine';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { detectHeaderRow } from '../shared/detect-headers';
+import { buildParetoValues, buildParetoSheetRows } from './data-prep';
+import { registerLiveUpdate } from '../../excel/live-update';
+import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
+import { qikit } from '../../theme/tokens';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
   PointElement, LineElement, Title, Tooltip, Legend,
@@ -20,38 +25,38 @@ const useStyles = makeStyles({
   },
   section: {
     padding: '14px 16px',
-    borderBottom: '1px solid #f0f1f3',
+    borderBottom: `1px solid ${qikit.color.border}`,
   },
   sectionLabel: {
     fontSize: '11px',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    color: '#9ca3af',
+    letterSpacing: '0.6px',
+    color: qikit.color.textMuted,
     marginBottom: '10px',
   },
   dataSourceEmpty: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '10px',
-    padding: '20px 16px',
+    gap: '12px',
+    padding: '28px 16px',
     textAlign: 'center',
   },
   dataSourceIcon: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '10px',
-    backgroundColor: '#f3f0ff',
+    width: '42px',
+    height: '42px',
+    borderRadius: qikit.radius.lg,
+    backgroundColor: qikit.color.brandTint,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#7c3aed',
+    color: qikit.color.brand,
     fontSize: '20px',
   },
   dataSourceHint: {
     fontSize: '12px',
-    color: '#9ca3af',
+    color: qikit.color.textMuted,
     lineHeight: '1.4',
   },
   dataSourceBar: {
@@ -61,12 +66,13 @@ const useStyles = makeStyles({
   },
   address: {
     flex: 1,
-    fontSize: '12px',
-    fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
-    color: '#6b7280',
-    backgroundColor: '#f9fafb',
+    fontSize: '11.5px',
+    fontFamily: qikit.font.mono,
+    color: qikit.color.text,
+    backgroundColor: qikit.color.surfaceAlt,
     padding: '6px 10px',
-    borderRadius: '6px',
+    borderRadius: qikit.radius.sm,
+    border: `1px solid ${qikit.color.border}`,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -77,9 +83,9 @@ const useStyles = makeStyles({
     alignItems: 'center',
   },
   colLabel: {
-    fontSize: '11px',
+    fontSize: '11.5px',
     fontWeight: '600',
-    color: '#6b7280',
+    color: qikit.color.text,
     minWidth: '50px',
   },
   chartContainer: {
@@ -88,26 +94,20 @@ const useStyles = makeStyles({
   },
   actions: {
     padding: '14px 16px',
-    borderTop: '1px solid #f0f1f3',
+    borderTop: `1px solid ${qikit.color.border}`,
     marginTop: 'auto',
   },
   error: {
     margin: '0 16px',
     padding: '8px 12px',
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
-    borderRadius: '8px',
-    border: '1px solid #fecaca',
+    backgroundColor: qikit.color.dangerBg,
+    color: qikit.color.danger,
+    borderRadius: qikit.radius.sm,
+    border: `1px solid ${qikit.color.dangerBorder}`,
     fontSize: '12px',
+    lineHeight: '1.4',
   },
 });
-
-function colLetter(i: number): string {
-  let r = '';
-  let n = i;
-  do { r = String.fromCharCode(65 + (n % 26)) + r; n = Math.floor(n / 26) - 1; } while (n >= 0);
-  return r;
-}
 
 export const ParetoPanel: React.FC = () => {
   const styles = useStyles();
@@ -117,17 +117,18 @@ export const ParetoPanel: React.FC = () => {
   const [hasHeaders, setHasHeaders] = useState(false);
   const [xCol, setXCol] = useState<number>(0);
   const [result, setResult] = useState<ReturnType<typeof paretochart> | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveUpdate = useLiveUpdateStatus();
 
   const handleSelectData = useCallback(async () => {
     setError(null);
     try {
       const res = await getSelectedRangeValues();
       const data = res.values;
-      const firstRow = data[0];
-      const hdr = firstRow.some(v => typeof v === 'string' && String(v).trim() !== '');
+      const { hasHeaders: hdr, headers: hdrs } = detectHeaderRow(data);
       setHasHeaders(hdr);
-      setHeaders(hdr ? firstRow.map((h: any, i: number) => String(h || colLetter(i))) : firstRow.map((_: any, i: number) => colLetter(i)));
+      setHeaders(hdrs);
       setRawData(data);
       setRangeAddress(res.address);
       setXCol(0);
@@ -140,9 +141,7 @@ export const ParetoPanel: React.FC = () => {
   const handleCompute = useCallback(() => {
     setError(null);
     try {
-      const rows = hasHeaders ? rawData.slice(1) : rawData;
-      const values = rows.map(row => String(row[xCol] ?? '')).filter(v => v !== '' && v !== 'null');
-      if (values.length === 0) throw new Error('No values found in selected column.');
+      const values = buildParetoValues(rawData, hasHeaders, xCol);
       setResult(paretochart({ x: values }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Computation failed.');
@@ -155,20 +154,28 @@ export const ParetoPanel: React.FC = () => {
   }, [xCol, rawData]);
 
   const handleWriteToSheet = useCallback(async () => {
-    if (!result) return;
+    if (!result || !rangeAddress) return;
     setError(null);
+    setIsWriting(true);
     try {
-      const sheetData = [
-        ['Category', 'Count', 'Cumulative Sum', 'Cumulative %'],
-        ...result.data.map((d: any) => [d.category, d.count, d.cum_sum, d.cum_percent]),
-      ];
+      const sheetData = buildParetoSheetRows(result);
       const { sheetName, rangeAddress: ra } = await writeToNewSheet('Pareto', sheetData);
       const { createParetoChart } = await import('../../excel/chart-builder');
       await createParetoChart(result, sheetName, ra);
+      const bindingId = await registerLiveUpdate({
+        panel: 'pareto',
+        sourceAddress: rangeAddress,
+        outputSheet: sheetName,
+        outputRowCount: sheetData.length,
+        config: { xCol },
+      });
+      liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+    } finally {
+      setIsWriting(false);
     }
-  }, [result]);
+  }, [result, rangeAddress, xCol, liveUpdate.activate]);
 
   const hasData = rawData.length > 1;
 
@@ -178,7 +185,7 @@ export const ParetoPanel: React.FC = () => {
         <div className={styles.dataSourceEmpty}>
           <div className={styles.dataSourceIcon}><DocumentRegular /></div>
           <Button appearance="primary" size="medium" onClick={handleSelectData}
-            style={{ borderRadius: '8px', minWidth: '180px' }}>
+            style={{ borderRadius: '6px', minWidth: '180px' }}>
             Use Current Selection
           </Button>
           <span className={styles.dataSourceHint}>Select a column of categories in Excel</span>
@@ -189,7 +196,8 @@ export const ParetoPanel: React.FC = () => {
           <div className={styles.dataSourceBar}>
             <span className={styles.address}>{rangeAddress}</span>
             <Button size="small" icon={<ArrowSyncRegular />} appearance="subtle"
-              onClick={handleSelectData} style={{ borderRadius: '6px' }} />
+              onClick={handleSelectData} title="Re-read selection" aria-label="Re-read selection"
+              style={{ borderRadius: '6px' }} />
           </div>
         </div>
       )}
@@ -198,8 +206,8 @@ export const ParetoPanel: React.FC = () => {
         <div className={styles.section}>
           <div className={styles.sectionLabel}>Category Column</div>
           <div className={styles.colRow}>
-            <span className={styles.colLabel}>Column</span>
-            <Select size="small" value={String(xCol)}
+            <label className={styles.colLabel} htmlFor="pareto-col">Column</label>
+            <Select size="small" id="pareto-col" value={String(xCol)}
               onChange={(_, d) => setXCol(parseInt(d.value))}
               style={{ flex: 1 }}>
               {headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
@@ -208,7 +216,7 @@ export const ParetoPanel: React.FC = () => {
         </div>
       )}
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error}</div>}
 
       {result && (
         <>
@@ -222,7 +230,7 @@ export const ParetoPanel: React.FC = () => {
                     type: 'bar' as const,
                     label: 'Count',
                     data: result.data.map((d: any) => d.count),
-                    backgroundColor: '#4f46e5',
+                    backgroundColor: qikit.chart.brand,
                     borderRadius: 3,
                     yAxisID: 'y',
                     order: 2,
@@ -231,8 +239,8 @@ export const ParetoPanel: React.FC = () => {
                     type: 'line' as const,
                     label: 'Cumulative %',
                     data: result.data.map((d: any) => d.cum_percent),
-                    borderColor: '#f97316',
-                    pointBackgroundColor: '#f97316',
+                    borderColor: qikit.chart.accent,
+                    pointBackgroundColor: qikit.chart.accent,
                     pointRadius: 3,
                     borderWidth: 2,
                     tension: 0,
@@ -246,41 +254,43 @@ export const ParetoPanel: React.FC = () => {
                 maintainAspectRatio: false,
                 plugins: {
                   legend: { display: false },
-                  tooltip: { backgroundColor: '#1a1a2e', cornerRadius: 6, padding: 8 },
+                  tooltip: { backgroundColor: qikit.color.ink, cornerRadius: 6, padding: 8 },
                 },
                 scales: {
                   y: {
                     display: true,
-                    title: { display: true, text: 'Frequency', font: { size: 11 }, color: '#6b7280' },
-                    grid: { color: '#f1f5f9' },
-                    ticks: { font: { size: 10 }, color: '#9ca3af' },
+                    title: { display: true, text: 'Frequency', font: { size: 11 }, color: qikit.chart.axisText },
+                    grid: { color: qikit.chart.grid },
+                    ticks: { font: { size: 10 }, color: qikit.chart.axisText },
                   },
                   y2: {
                     display: true,
                     position: 'right' as const,
                     min: 0,
                     max: 105,
-                    title: { display: true, text: 'Cumulative %', font: { size: 11 }, color: '#f97316' },
+                    title: { display: true, text: 'Cumulative %', font: { size: 11 }, color: qikit.chart.accent },
                     grid: { display: false },
                     ticks: {
-                      font: { size: 10 }, color: '#f97316',
+                      font: { size: 10 }, color: qikit.chart.accent,
                       callback: (v: any) => `${v}%`,
                     },
                   },
                   x: {
                     grid: { display: false },
-                    ticks: { font: { size: 10 }, color: '#9ca3af' },
+                    ticks: { font: { size: 10 }, color: qikit.chart.axisText },
                   },
                 },
               }}
             />
           </div>
           <div className={styles.actions}>
-            <Button appearance="primary" icon={<ArrowDownloadRegular />}
-              onClick={handleWriteToSheet} style={{ borderRadius: '8px', width: '100%' }}>
-              Write to Sheet
+            <Button appearance="primary" disabled={isWriting}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+              onClick={handleWriteToSheet} style={{ borderRadius: '6px', width: '100%' }}>
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
+          <LiveUpdateStatus {...liveUpdate} />
         </>
       )}
     </div>

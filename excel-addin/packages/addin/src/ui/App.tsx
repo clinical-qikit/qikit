@@ -10,13 +10,15 @@ import { SpcPanel } from './spc/SpcPanel';
 import { DoeWizard } from './doe/DoeWizard';
 import { ParetoPanel } from './pareto/ParetoPanel';
 import { BChartPanel } from './bchart/BChartPanel';
+import { PanelErrorBoundary } from './shared/PanelErrorBoundary';
+import { qikit } from '../theme/tokens';
 
 const useStyles = makeStyles({
   shell: {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    backgroundColor: '#f8f9fb',
+    backgroundColor: qikit.color.shell,
   },
   header: {
     display: 'flex',
@@ -27,12 +29,12 @@ const useStyles = makeStyles({
   logoMark: {
     width: '28px',
     height: '28px',
-    borderRadius: '6px',
-    background: 'linear-gradient(135deg, #107C6C, #0A6B5C)',
+    borderRadius: qikit.radius.md,
+    background: `linear-gradient(135deg, ${qikit.color.brand}, ${qikit.color.brandPressed})`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#fff',
+    color: qikit.color.surface,
     fontWeight: '700',
     fontSize: '13px',
     letterSpacing: '-0.5px',
@@ -41,7 +43,7 @@ const useStyles = makeStyles({
   title: {
     fontSize: '15px',
     fontWeight: '600',
-    color: '#1B1B1F',
+    color: qikit.color.ink,
     letterSpacing: '-0.3px',
   },
   nav: {
@@ -63,18 +65,18 @@ const useStyles = makeStyles({
     fontFamily: 'inherit',
     transition: 'all 0.15s ease',
     position: 'relative',
-    color: '#6b7280',
+    color: qikit.color.text,
     backgroundColor: 'transparent',
     whiteSpace: 'nowrap',
     flexShrink: 0,
     '&:hover': {
-      color: '#107C6C',
+      color: qikit.color.brand,
       backgroundColor: 'rgba(16, 124, 108, 0.04)',
     },
   },
   navItemActive: {
-    color: '#107C6C',
-    backgroundColor: '#ffffff',
+    color: qikit.color.brand,
+    backgroundColor: qikit.color.surface,
     boxShadow: '0 -1px 3px rgba(0,0,0,0.04)',
     '&::after': {
       content: '""',
@@ -83,7 +85,7 @@ const useStyles = makeStyles({
       left: '10px',
       right: '10px',
       height: '2px',
-      backgroundColor: '#107C6C',
+      backgroundColor: qikit.color.brand,
       borderRadius: '2px 2px 0 0',
     },
   },
@@ -94,8 +96,8 @@ const useStyles = makeStyles({
   content: {
     flex: 1,
     overflowY: 'auto',
-    backgroundColor: '#ffffff',
-    borderTop: '1px solid #e8e6e3',
+    backgroundColor: qikit.color.surface,
+    borderTop: `1px solid ${qikit.color.border}`,
   },
 });
 
@@ -118,25 +120,31 @@ export const App: React.FC = () => {
         <div className={styles.logoMark}>QI</div>
         <span className={styles.title}>QI Kit</span>
       </div>
-      <nav className={styles.nav}>
+      <nav className={styles.nav} role="tablist" aria-label="QI Kit tools">
         {TABS.map(({ key, label, Icon, IconActive }) => (
           <button
             key={key}
+            role="tab"
+            id={`tab-${key}`}
+            aria-selected={tab === key}
+            aria-controls="qikit-tabpanel"
             className={`${styles.navItem} ${tab === key ? styles.navItemActive : ''}`}
             onClick={() => setTab(key)}
           >
-            <span className={styles.navIcon}>
+            <span className={styles.navIcon} aria-hidden="true">
               {tab === key ? <IconActive /> : <Icon />}
             </span>
             {label}
           </button>
         ))}
       </nav>
-      <div className={styles.content}>
-        {tab === 'spc'    && <SpcPanel />}
-        {tab === 'doe'    && <DoeWizard />}
-        {tab === 'pareto' && <ParetoPanel />}
-        {tab === 'bchart' && <BChartPanel />}
+      <div className={styles.content} role="tabpanel" id="qikit-tabpanel" aria-labelledby={`tab-${tab}`}>
+        <PanelErrorBoundary key={tab}>
+          {tab === 'spc'    && <SpcPanel />}
+          {tab === 'doe'    && <DoeWizard />}
+          {tab === 'pareto' && <ParetoPanel />}
+          {tab === 'bchart' && <BChartPanel />}
+        </PanelErrorBoundary>
       </div>
     </div>
   );

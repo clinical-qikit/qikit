@@ -3,6 +3,7 @@ import {
   Button, Input, makeStyles,
 } from '@fluentui/react-components';
 import { AddRegular, DismissRegular } from '@fluentui/react-icons';
+import { qikit } from '../../theme/tokens';
 
 const useStyles = makeStyles({
   container: {
@@ -21,7 +22,7 @@ const useStyles = makeStyles({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
-    color: '#9ca3af',
+    color: qikit.color.textMuted,
   },
   row: {
     display: 'grid',
@@ -95,6 +96,7 @@ export const FactorEditor: React.FC<FactorEditorProps> = ({ factors, onChange })
             size="small"
             onClick={() => removeFactor(i)}
             disabled={factors.length <= 2}
+            aria-label={`Remove factor ${f.name || i + 1}`}
             style={{ minWidth: '28px', padding: 0 }}
           />
         </div>

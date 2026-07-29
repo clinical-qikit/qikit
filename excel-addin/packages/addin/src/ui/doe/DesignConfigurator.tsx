@@ -3,6 +3,7 @@ import {
   RadioGroup, Radio, makeStyles, Badge, Input, Checkbox,
 } from '@fluentui/react-components';
 import { DesignType } from '@qikit/engine';
+import { qikit } from '../../theme/tokens';
 
 const useStyles = makeStyles({
   container: {
@@ -10,9 +11,9 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: '12px',
     padding: '14px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '10px',
-    border: '1px solid #f0f1f3',
+    backgroundColor: qikit.color.surfaceAlt,
+    borderRadius: qikit.radius.md,
+    border: `1px solid ${qikit.color.borderSubtle}`,
   },
   header: {
     display: 'flex',
@@ -22,7 +23,7 @@ const useStyles = makeStyles({
   label: {
     fontSize: '12px',
     fontWeight: '600',
-    color: '#374151',
+    color: qikit.color.ink,
   },
   grid: {
     display: 'grid',
@@ -31,17 +32,17 @@ const useStyles = makeStyles({
   },
   fieldLabel: {
     fontSize: '11px',
-    color: '#6b7280',
+    color: qikit.color.text,
     marginBottom: '4px',
   },
   hint: {
     fontSize: '11px',
-    color: '#dc2626',
+    color: qikit.color.danger,
     marginTop: '2px',
   },
   divider: {
     height: '1px',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: qikit.color.border,
   },
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Checkbox } from '@fluentui/react-components';
+import { Button, Checkbox, Spinner } from '@fluentui/react-components';
 import {
   ChevronDownRegular, ChevronRightRegular,
   ArrowSyncRegular, SettingsRegular,
@@ -7,8 +7,10 @@ import {
 } from '@fluentui/react-icons';
 import { ChartType, compute, SPCResult } from '@qikit/engine';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { registerLiveUpdate } from '../../excel/live-update';
 import { ChartViewer } from '../shared/ChartViewer';
 import { DataPreview } from '../shared/DataPreview';
+import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
 import { useSpcStyles } from './styles';
 import { NEEDS_SUBGROUP, SpcOptions, DEFAULT_OPTIONS, DataGrain } from './constants';
 import { parseColumns, buildSpcInput, buildNoteMap, buildSheetRows, SpcDataSelection } from './data-prep';
@@ -50,7 +52,9 @@ export const SpcPanel: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [includeDataTable, setIncludeDataTable] = useState(false);
+  const [isWriting, setIsWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liveUpdate = useLiveUpdateStatus();
 
   // Options
   const [options, setOptions] = useState<SpcOptions>(DEFAULT_OPTIONS);
@@ -146,20 +150,38 @@ export const SpcPanel: React.FC = () => {
   }, []);
 
   const handleWriteToSheet = useCallback(async () => {
-    if (!result) return;
+    if (!result || !rangeAddress) return;
     setError(null);
+    setIsWriting(true);
     try {
       const { finalCols, rows } = buildSheetRows(
         result, annotations, rawData, hasHeaders, headers, includeDataTable,
       );
+      const sheetData = [finalCols, ...rows];
       const sheetLabel = `SPC ${result.chart_type.toUpperCase()}`;
-      const { sheetName, rangeAddress: ra } = await writeToNewSheet(sheetLabel, [finalCols, ...rows]);
+      const { sheetName, rangeAddress: ra } = await writeToNewSheet(sheetLabel, sheetData);
       const { createSPCChart } = await import('../../excel/chart-builder');
       await createSPCChart(result, sheetName, ra);
+      const bindingId = await registerLiveUpdate({
+        panel: 'spc',
+        sourceAddress: rangeAddress,
+        outputSheet: sheetName,
+        outputRowCount: sheetData.length,
+        config: {
+          xCol, yCol, nCol, notesCol, chartType, dataGrain, xPeriod, options,
+          includeDataTable, annotations,
+        },
+      });
+      liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+    } finally {
+      setIsWriting(false);
     }
-  }, [result, annotations, rawData, hasHeaders, headers, includeDataTable]);
+  }, [
+    result, rangeAddress, annotations, rawData, hasHeaders, headers, includeDataTable,
+    xCol, yCol, nCol, notesCol, chartType, dataGrain, xPeriod, options, liveUpdate.activate,
+  ]);
 
   const needsSubgroup = NEEDS_SUBGROUP.includes(chartType);
   const hasData = rawData.length > 1;
@@ -176,7 +198,7 @@ export const SpcPanel: React.FC = () => {
         <div className={styles.dataSourceEmpty}>
           <div className={styles.dataSourceIcon}><DocumentRegular /></div>
           <Button appearance="primary" size="medium" onClick={handleSelectData}
-            style={{ borderRadius: '6px', minWidth: '180px', backgroundColor: '#107C6C', borderColor: '#0A6B5C' }}>
+            style={{ borderRadius: '6px', minWidth: '180px' }}>
             Use Current Selection
           </Button>
           <span className={styles.dataSourceHint}>Select a data range in Excel, then click above</span>
@@ -187,17 +209,19 @@ export const SpcPanel: React.FC = () => {
           <div className={styles.dataSourceBar}>
             <span className={styles.address}>{rangeAddress}</span>
             <Button size="small" icon={<ArrowSyncRegular />} appearance="subtle"
-              onClick={handleSelectData} title="Re-read selection" style={{ borderRadius: '6px' }} />
+              onClick={handleSelectData} title="Re-read selection" aria-label="Re-read selection"
+              style={{ borderRadius: '6px' }} />
           </div>
           {hasData && (
             <button className={styles.settingsToggle} onClick={() => setPreviewOpen(o => !o)}
+              aria-expanded={previewOpen} aria-controls="spc-data-preview"
               style={{ marginTop: '8px' }}>
               {previewOpen ? <ChevronDownRegular style={{ fontSize: '12px' }} /> : <ChevronRightRegular style={{ fontSize: '12px' }} />}
               Data preview
             </button>
           )}
           {previewOpen && hasData && (
-            <div style={{ marginTop: '8px' }}>
+            <div style={{ marginTop: '8px' }} id="spc-data-preview">
               <DataPreview data={rawData} hasHeaders={hasHeaders} />
             </div>
           )}
@@ -229,14 +253,15 @@ export const SpcPanel: React.FC = () => {
       {/* ── Settings ── */}
       {hasData && (
         <div className={styles.section}>
-          <button className={styles.settingsToggle} onClick={() => setSettingsOpen(o => !o)}>
+          <button className={styles.settingsToggle} onClick={() => setSettingsOpen(o => !o)}
+            aria-expanded={settingsOpen} aria-controls="spc-settings-panel">
             <SettingsRegular style={{ fontSize: '14px' }} />
             Settings
             {settingsOpen ? <ChevronDownRegular style={{ fontSize: '12px' }} /> : <ChevronRightRegular style={{ fontSize: '12px' }} />}
           </button>
 
           {settingsOpen && (
-            <div className={styles.settingsPanel}>
+            <div className={styles.settingsPanel} id="spc-settings-panel">
               <SignalMethodPicker value={options.method} onChange={method => patchOptions({ method })} />
               <LimitOptions options={options} needsSubgroup={needsSubgroup} onChange={patchOptions} />
             </div>
@@ -245,7 +270,7 @@ export const SpcPanel: React.FC = () => {
       )}
 
       {/* ── Error ── */}
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error}</div>}
 
       {/* ── Chart ── */}
       {result ? (
@@ -283,11 +308,13 @@ export const SpcPanel: React.FC = () => {
           <div className={styles.actions}>
             <Checkbox label="Include source data" checked={includeDataTable}
               onChange={(_, d) => setIncludeDataTable(!!d.checked)} />
-            <Button appearance="primary" icon={<ArrowDownloadRegular />}
-              onClick={handleWriteToSheet} style={{ borderRadius: '6px', backgroundColor: '#107C6C', borderColor: '#0A6B5C' }}>
-              Write to Sheet
+            <Button appearance="primary" disabled={isWriting}
+              icon={isWriting ? <Spinner size="tiny" /> : <ArrowDownloadRegular />}
+              onClick={handleWriteToSheet} style={{ borderRadius: '6px' }}>
+              {isWriting ? 'Writing…' : 'Write to Sheet'}
             </Button>
           </div>
+          <LiveUpdateStatus {...liveUpdate} />
         </>
       ) : hasData ? (
         <div className={styles.emptyChart}>Computing chart…</div>

@@ -5,9 +5,9 @@
   "id": "qikit-spc-doe",
   "developer": {
     "name": "qikit",
-    "websiteUrl": "https://github.com/davidvandyke/qikit",
-    "privacyUrl": "https://github.com/davidvandyke/qikit/privacy",
-    "termsOfUseUrl": "https://github.com/davidvandyke/qikit/terms"
+    "websiteUrl": "https://github.com/clinical-qikit/qikit",
+    "privacyUrl": "https://github.com/clinical-qikit/qikit#readme",
+    "termsOfUseUrl": "https://github.com/clinical-qikit/qikit/blob/main/LICENSE"
   },
   "name": {
     "short": "QI Kit",
@@ -21,7 +21,7 @@
     "outline": "assets/icon-32.png",
     "color": "assets/icon-80.png"
   },
-  "accentColor": "#4F6BED",
+  "accentColor": "#107C6C",
   "extensions": [
     {
       "requirements": {
