@@ -13,6 +13,7 @@ import pytest
 import plotly.graph_objects as go
 from qikit import SPCResult, qic, paretochart, bchart
 import qikit.spc as _core
+import qikit.spc.constants as _constants
 
 
 
@@ -1103,10 +1104,134 @@ class TestVariableLimits:
         })
         
         r = qic(data=data, x="group", y="y", chart="s")
-        
+
         ucl = r.data["ucl"].to_numpy()
         assert not np.isclose(ucl[0], ucl[1])
         assert np.isclose(ucl[0], ucl[2])
+
+
+class TestSubgroupConstants:
+    """constants.a3/b3/b4 — tabulated to n=25, analytic above."""
+
+    @pytest.mark.parametrize("n", range(2, 26))
+    def test_tabulated_values_are_exact(self, n):
+        """No drift below n=26: the published tables win over the series form."""
+        assert _constants.a3(n) == _constants.A3[n]
+        assert _constants.b3(n) == _constants.B3[n]
+        assert _constants.b4(n) == _constants.B4[n]
+
+    def test_analytic_above_the_table(self):
+        n = 100
+        c4 = 1 - 1 / (4 * n) - 7 / (32 * n**2)
+        spread = 3 * math.sqrt(1 - c4**2) / c4
+        assert _constants.a3(n) == pytest.approx(3 / (c4 * math.sqrt(n)))
+        assert _constants.b4(n) == pytest.approx(1 + spread)
+        assert _constants.b3(n) == pytest.approx(max(0.0, 1 - spread))
+
+    def test_seam_is_continuous(self):
+        """Table at 25 and series at 26 must not jump — charts straddle the seam."""
+        assert _constants.a3(25) == pytest.approx(_constants.a3(26), abs=0.02)
+        assert _constants.b4(25) == pytest.approx(_constants.b4(26), abs=0.01)
+        assert _constants.b3(25) == pytest.approx(_constants.b3(26), abs=0.01)
+
+    def test_undefined_below_two(self):
+        """A subgroup of one has no SD — NaN, not an exception."""
+        for n in (0, 1):
+            assert math.isnan(_constants.a3(n))
+            assert math.isnan(_constants.b3(n))
+            assert math.isnan(_constants.b4(n))
+            assert math.isnan(_constants.c4(n))
+
+
+class TestLargeSubgroups:
+    """Subgroup sizes above the n=2..25 tables — realistic monthly volumes."""
+
+    def _frame(self, sizes, seed=0):
+        rng = np.random.default_rng(seed)
+        return pd.DataFrame({
+            "month": np.repeat(np.arange(len(sizes)), sizes),
+            "los": rng.normal(4.2, 1.8, int(np.sum(sizes))),
+        })
+
+    def test_equal_subgroups_in_the_thousands(self):
+        """The case that used to raise ValueError: subgroup_n in 2..25."""
+        df = self._frame([2000] * 6)
+        for chart in ("xbar", "s"):
+            r = qic(data=df, x="month", y="los", chart=chart)
+            assert len(r.data) == 6
+            assert r.data[["ucl", "lcl"]].notna().all().all()
+
+    def test_equal_large_subgroups_use_the_analytic_form(self):
+        df = self._frame([500] * 5)
+        r = qic(data=df, x="month", y="los", chart="xbar")
+        sds = df.groupby("month")["los"].std(ddof=1)
+        expected = r.data["cl"].iloc[0] + _constants.a3(500) * sds.mean()
+        assert r.data["ucl"].iloc[0] == pytest.approx(expected)
+
+    def test_limits_breathe_with_volume(self):
+        """Variable monthly volume: higher volume must give tighter limits."""
+        sizes = np.array([800, 1500, 3000, 1200, 4000, 900])
+        df = self._frame(sizes)
+        for chart in ("xbar", "s"):
+            r = qic(data=df, x="month", y="los", chart=chart)
+            width = (r.data["ucl"] - r.data["lcl"]).to_numpy()
+            assert np.all(np.isfinite(width))
+            # Widths must be strictly ordered against volume, not merely correlated.
+            assert list(np.argsort(sizes)) == list(np.argsort(-width))
+
+    def test_mixed_small_and_huge_subgroups(self):
+        """[4, 4, 3000] used to pass the median gate, then hand back NaN for the 3000."""
+        df = self._frame([4, 4, 3000])
+        r = qic(data=df, x="month", y="los", chart="xbar")
+        ucl = r.data["ucl"].to_numpy()
+        assert np.all(np.isfinite(ucl))
+        assert ucl[0] == pytest.approx(ucl[1])          # equal n → equal limits
+        half = ucl - r.data["cl"].to_numpy()
+        assert half[2] / half[0] == pytest.approx(math.sqrt(4 / 3000), rel=1e-9)
+
+    def test_small_subgroups_still_rejected_only_when_unusable(self):
+        """A size-1 subgroup is a gap, not a crash."""
+        df = self._frame([5, 1, 5])
+        r = qic(data=df, x="month", y="los", chart="xbar")
+        assert math.isnan(r.data["ucl"].iloc[1])
+        assert np.isfinite(r.data["ucl"].iloc[0])
+        assert np.isfinite(r.data["ucl"].iloc[2])
+
+    def test_no_usable_subgroup_raises(self):
+        df = self._frame([1, 1, 1])
+        with pytest.raises(ValueError, match="2 or more observations"):
+            qic(data=df, x="month", y="los", chart="xbar")
+
+
+class TestEqualNUnchanged:
+    """Guards the promise that lifting the ceiling moved nothing at small n."""
+
+    def test_classic_a3_formula_still_holds(self):
+        df = pd.DataFrame({
+            "grp": np.repeat([1, 2, 3, 4, 5], 4),
+            "val": [9.5, 10.5, 9.5, 10.5] * 5,
+        })
+        r = qic(data=df, x="grp", y="val", chart="xbar")
+        s_bar = df.groupby("grp")["val"].std(ddof=1).mean()
+        assert r.data["ucl"].iloc[0] == pytest.approx(10.0 + _constants.A3[4] * s_bar)
+        assert r.data["lcl"].iloc[0] == pytest.approx(10.0 - _constants.A3[4] * s_bar)
+
+    def test_classic_b3_b4_formula_still_holds(self):
+        df = pd.DataFrame({
+            "grp": np.repeat([1, 2, 3, 4, 5], 4),
+            "val": [9.5, 10.5, 9.5, 10.5] * 5,
+        })
+        r = qic(data=df, x="grp", y="val", chart="s")
+        cl = r.data["cl"].iloc[0]
+        assert r.data["ucl"].iloc[0] == pytest.approx(_constants.B4[4] * cl)
+        assert r.data["lcl"].iloc[0] == pytest.approx(_constants.B3[4] * cl)
+
+    def test_grand_mean_unchanged_at_equal_n(self):
+        """Weighted grand mean == unweighted mean of subgroup means when n is constant."""
+        rng = np.random.default_rng(7)
+        df = pd.DataFrame({"grp": np.repeat(np.arange(6), 4), "val": rng.normal(10, 2, 24)})
+        r = qic(data=df, x="grp", y="val", chart="xbar")
+        assert r.data["cl"].iloc[0] == pytest.approx(df.groupby("grp")["val"].mean().mean())
 
 
 class TestExtendedRules:

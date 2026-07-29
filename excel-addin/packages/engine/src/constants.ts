@@ -21,3 +21,55 @@ export const A3: Record<number, number> = {
   15: 0.789, 16: 0.763, 17: 0.739, 18: 0.718, 19: 0.698, 20: 0.680,
   21: 0.663, 22: 0.647, 23: 0.633, 24: 0.619, 25: 0.606,
 };
+
+// ---------------------------------------------------------------------------
+// Constant accessors — tabulated for n = 2..25, analytic above.
+// Mirrors src/qikit/spc/constants.py.
+//
+// The tables stay authoritative below n = 26: the series form for c4 is a poor
+// substitute at small n, putting A3(2) at 2.586 vs the tabulated 2.659 (-2.7%)
+// and B4(2) at 3.092 vs 3.267 (-5.4%). By n = 25 the two agree to four decimals,
+// so the seam is smooth and the series takes over from there.
+//
+// Do not "simplify" the tables away — small-n charts would move.
+// ---------------------------------------------------------------------------
+
+function tabulated(n: number, table: Record<number, number>): number | undefined {
+  return n >= 2 && n <= 25 && Number.isInteger(n) ? table[n] : undefined;
+}
+
+/** Unbiasing constant: E[s] = c4(n)·σ. NaN for n < 2. */
+export function c4(n: number): number {
+  if (!(n >= 2)) return NaN;
+  return 1 - 1 / (4 * n) - 7 / (32 * n * n);
+}
+
+/** 3·√(1 − c4²)/c4 — the half-width shared by B3 and B4. */
+function bSpread(n: number): number {
+  const c = c4(n);
+  return Number.isNaN(c) ? NaN : (3 * Math.sqrt(Math.max(0, 1 - c * c))) / c;
+}
+
+/** A3 = 3/(c4·√n) for the Xbar chart. NaN for n < 2. */
+export function a3(n: number): number {
+  const hit = tabulated(n, A3);
+  if (hit !== undefined) return hit;
+  const c = c4(n);
+  return Number.isNaN(c) ? NaN : 3 / (c * Math.sqrt(n));
+}
+
+/** B3 = max(0, 1 − 3√(1 − c4²)/c4) for the S chart. NaN for n < 2. */
+export function b3(n: number): number {
+  const hit = tabulated(n, B3);
+  if (hit !== undefined) return hit;
+  const spread = bSpread(n);
+  return Number.isNaN(spread) ? NaN : Math.max(0, 1 - spread);
+}
+
+/** B4 = 1 + 3√(1 − c4²)/c4 for the S chart. NaN for n < 2. */
+export function b4(n: number): number {
+  const hit = tabulated(n, B4);
+  if (hit !== undefined) return hit;
+  const spread = bSpread(n);
+  return Number.isNaN(spread) ? NaN : 1 + spread;
+}

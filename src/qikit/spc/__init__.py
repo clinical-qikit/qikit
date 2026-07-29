@@ -21,7 +21,7 @@ References
 from __future__ import annotations
 
 from .api import bchart, paretochart, qic
-from .constants import A3, B4  # noqa: F401 — exposed for the test suite
+from .constants import A3, B3, B4, a3, b3, b4, c4  # noqa: F401 — exposed for the test suite
 from .options import PlotOptions
 from .results import BChartResult, ParetoResult, SPCResult
 from .signals import _crossings_threshold, _longest_run_threshold  # noqa: F401 — exposed for the test suite

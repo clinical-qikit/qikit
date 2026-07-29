@@ -14,7 +14,13 @@ export interface SPCInput {
   exclude?: number[];
   clOverride?: number;
   multiply?: number;
+  /** Arithmetic mean of subgroup SDs — xbar/s with equal subgroup sizes. */
   sBar?: number;
+  /** Pooled σ̂ — xbar/s with unequal subgroup sizes. Mutually exclusive with sBar.
+   *  When neither is given, compute() derives one from the subgrouped data. */
+  sigmaHat?: number;
+  /** Fallback subgroup size, used only when no per-point n array is available.
+   *  Not a constraint — any size >= 2 is valid. */
   subgroupN?: number;
   /** Funnel plot mode (p/pp/u/up only): sort by denominator ascending, sigma signals only. */
   funnel?: boolean;
@@ -41,7 +47,8 @@ export interface SPCResult {
 export interface ChartSpec {
   center: (yBase: number[], nBase?: number[]) => number;
   limits: (cl: number, y: number[], n: number[] | undefined,
-           mask: boolean[], subgroupN?: number, sBar?: number) => [number[], number[]];
+           mask: boolean[], subgroupN?: number, sBar?: number,
+           sigmaHat?: number) => [number[], number[]];
   needsN: boolean;
   isAttribute: boolean;
   floorLcl: boolean;

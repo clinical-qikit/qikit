@@ -22,6 +22,7 @@ def compute(
     method: str = "anhoej",
     s_bar: float | None = None,
     exclude_mask: np.ndarray | None = None,
+    sigma_hat: float | None = None,
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
@@ -35,9 +36,13 @@ def compute(
                    covers freeze/part boundaries, so points outside the
                    baseline window still get checked against its limits.
     cl_override  : user-specified fixed center line
-    subgroup_n   : subgroup size for s/xbar charts
+    subgroup_n   : fallback scalar subgroup size for s/xbar charts, used only
+                   when n is not supplied. Not a constraint — any size >= 2 is
+                   valid.
     method       : run-signal method ("anhoej", "ihi", "weco", "nelson")
-    s_bar        : mean of subgroup SDs for xbar chart
+    s_bar        : arithmetic mean of subgroup SDs — equal-n s/xbar charts
+    sigma_hat    : pooled σ̂ — s/xbar charts with unequal subgroup sizes.
+                   Mutually exclusive with s_bar; see _xbar_limits for why.
     exclude_mask : True = ghost this point out of signal detection entirely
                    (exclude=); None = no ghosting. Unlike `mask`, this does
                    not include freeze/part boundaries.
@@ -82,7 +87,7 @@ def compute(
     cl_arr = np.full(len(y), cl_val, dtype=float)
 
     # Limits
-    ucl_arr, lcl_arr = spec.limits(cl_val, y, n, mask, subgroup_n, s_bar=s_bar)
+    ucl_arr, lcl_arr = spec.limits(cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat)
 
     if spec.floor_lcl:
         lcl_arr = np.where(lcl_arr < 0, 0.0, lcl_arr)

@@ -19,7 +19,7 @@ from typing import Callable
 
 import numpy as np
 
-from .constants import A3, B3, B4, D2, D4
+from .constants import D2, D4, a3, b3, b4, c4
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,9 +30,26 @@ def _moving_ranges(y: np.ndarray) -> np.ndarray:
     return np.abs(np.diff(y))
 
 
-def _get_constants(n: np.ndarray, table: dict[int, float]) -> np.ndarray:
-    """Map an array of subgroup sizes to an array of SPC constants."""
-    return np.array([table.get(int(val), np.nan) for val in n])
+def _get_constants(n: np.ndarray, const_fn: Callable[[float], float]) -> np.ndarray:
+    """
+    Map an array of subgroup sizes to an array of SPC constants.
+
+    const_fn is one of constants.a3 / b3 / b4 / c4, each of which returns NaN for
+    sizes below 2. A size-1 subgroup therefore renders as a gap rather than
+    breaking the whole chart.
+    """
+    return np.array([const_fn(float(val)) for val in n])
+
+
+def _subgroup_sizes(
+    n: np.ndarray | None, subgroup_n: int | None, k: int, label: str,
+) -> np.ndarray:
+    """Per-point subgroup sizes, preferring the n array over the scalar fallback."""
+    if n is not None:
+        return np.asarray(n, dtype=float)
+    if subgroup_n is not None:
+        return np.full(k, float(subgroup_n))
+    raise ValueError(f"{label} requires subgroup size information.")
 
 
 def _screened_mean_mr(y: np.ndarray, mask: np.ndarray) -> float:
@@ -80,12 +97,32 @@ def _cl_weighted(y_base: np.ndarray, n_base: np.ndarray | None) -> float:
     return total_events / total_n
 
 
+def _cl_grand_mean(y_base: np.ndarray, n_base: np.ndarray | None) -> float:
+    """
+    Volume-weighted grand mean Σ(nᵢx̄ᵢ)/Σnᵢ — for the Xbar chart.
+
+    Identical to the unweighted mean of subgroup means whenever subgroup sizes are
+    constant, and correct when they are not. Falls back to the unweighted mean if
+    sizes are unavailable (compute() may be called without n=).
+    """
+    if n_base is None:
+        return _cl_mean(y_base, n_base)
+    valid = ~(np.isnan(y_base) | np.isnan(n_base))
+    total_n = float(np.sum(n_base[valid]))
+    if total_n == 0:
+        return np.nan
+    return float(np.sum(y_base[valid] * n_base[valid]) / total_n)
+
+
 # ---------------------------------------------------------------------------
 # Limits functions:  (cl_val, y, n, mask, subgroup_n, **_) → (ucl_arr, lcl_arr)
 #
 # Every function returns two arrays of len(y).
 # Charts without limits return NaN arrays.
-# All functions accept **_ to silently ignore extra kwargs (e.g. s_bar).
+# All functions accept **_ to silently ignore extra kwargs (e.g. s_bar, sigma_hat).
+#
+# subgroup_n is a scalar fallback for callers that have no per-point n array; it is
+# never a constraint on the range of usable subgroup sizes.
 # ---------------------------------------------------------------------------
 
 def _no_limits(
@@ -149,19 +186,27 @@ def _c_limits(
 
 def _s_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
-    mask: np.ndarray, subgroup_n: int | None = None, **_,
+    mask: np.ndarray, subgroup_n: int | None = None, sigma_hat: float | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """S chart: UCL = B4·S̄, LCL = B3·S̄. Montgomery (2019), §6.4."""
-    if n is not None:
-        b4_vals = _get_constants(n, B4)
-        b3_vals = _get_constants(n, B3)
-    elif subgroup_n is not None:
-        b4_vals = np.full(len(y), B4.get(subgroup_n, np.nan))
-        b3_vals = np.full(len(y), B3.get(subgroup_n, np.nan))
-    else:
-        raise ValueError("S chart requires subgroup size information.")
+    """
+    S chart: UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄. Montgomery (2019), §6.4.
 
-    return b4_vals * cl, b3_vals * cl
+    With unequal subgroup sizes the caller supplies a pooled σ̂ instead, and limits
+    become σ̂·(c4(nᵢ) ± 3√(1 − c4(nᵢ)²)) — the same quantity, expressed against an
+    unbiased σ̂ rather than against a c4-biased S̄.
+
+    Known approximation: strictly the center line is c4(nᵢ)·σ̂ and varies per
+    subgroup too, but ChartSpec center lines are scalar (see compute.py cl_arr), so
+    the CL stays flat while the limits breathe.
+    """
+    sizes = _subgroup_sizes(n, subgroup_n, len(y), "S chart")
+
+    if sigma_hat is not None:
+        c = _get_constants(sizes, c4)
+        spread = 3.0 * np.sqrt(np.maximum(0.0, 1.0 - c * c))
+        return sigma_hat * (c + spread), np.maximum(0.0, sigma_hat * (c - spread))
+
+    return _get_constants(sizes, b4) * cl, _get_constants(sizes, b3) * cl
 
 
 def _g_limits(
@@ -207,19 +252,27 @@ def _up_limits(
 
 def _xbar_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
-    mask: np.ndarray, subgroup_n: int | None = None, s_bar: float | None = None, **_,
+    mask: np.ndarray, subgroup_n: int | None = None, s_bar: float | None = None,
+    sigma_hat: float | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Xbar chart: UCL = X̄̄ + A3·S̄, LCL = X̄̄ - A3·S̄. Montgomery (2019), §6.4."""
+    """
+    Xbar chart: UCL = X̄̄ + A3(nᵢ)·S̄, LCL = X̄̄ − A3(nᵢ)·S̄. Montgomery (2019), §6.4.
+
+    With unequal subgroup sizes the caller supplies a pooled σ̂ instead of S̄, and
+    limits become X̄̄ ± 3σ̂/√nᵢ. The two estimators must not be mixed: A3 = 3/(c4√n)
+    already embeds the correction for the bias of an *arithmetic* mean of subgroup
+    SDs, so A3·σ̂ would over-correct and widen the limits by 1/c4(n).
+    """
+    sizes = _subgroup_sizes(n, subgroup_n, len(y), "xbar chart")
+
+    if sigma_hat is not None:
+        half = 3.0 * sigma_hat / np.sqrt(np.where(sizes >= 2, sizes, np.nan))
+        return cl + half, cl - half
+
     if s_bar is None:
         raise ValueError("xbar chart requires s_bar (mean of subgroup SDs)")
 
-    if n is not None:
-        a3_vals = _get_constants(n, A3)
-    elif subgroup_n is not None:
-        a3_vals = np.full(len(y), A3.get(subgroup_n, np.nan))
-    else:
-        raise ValueError("xbar chart requires subgroup size information.")
-
+    a3_vals = _get_constants(sizes, a3)
     return cl + a3_vals * s_bar, cl - a3_vals * s_bar
 
 
@@ -249,7 +302,7 @@ CHARTS: dict[str, ChartSpec] = {
     "g":    ChartSpec(_cl_median, _g_limits,  floor_lcl=True),
     "pp":   ChartSpec(_cl_weighted, _pp_limits, needs_n=True, is_attribute=True, floor_lcl=True),
     "up":   ChartSpec(_cl_weighted, _up_limits, needs_n=True, is_attribute=True, floor_lcl=True),
-    "xbar": ChartSpec(_cl_mean,   _xbar_limits),
+    "xbar": ChartSpec(_cl_grand_mean, _xbar_limits),
 }
 
 VALID_CHARTS = set(CHARTS) | {"t"}
