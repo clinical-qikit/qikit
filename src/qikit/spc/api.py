@@ -20,7 +20,7 @@ import pandas as pd
 from .constants import A3, B4
 from .compute import compute
 from .limits import CHARTS, VALID_CHARTS
-from .options import PlotOptions
+from .options import PlotOptions, VALID_RUNS_HIGHLIGHT
 from .results import BChartResult, ParetoResult, SPCResult
 from .signals import _runs_signals, _sigma_signals
 
@@ -75,6 +75,7 @@ def qic(
     y_percent: bool | None = None,
     y_percent_accuracy: int | None = None,
     connect: bool | None = None,
+    runs_highlight: str = "all",
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
@@ -109,6 +110,14 @@ def qic(
                False = markers only. When None (default), connectivity is
                inferred from the x-axis: categorical values that don't look
                sequential default to markers only.
+    runs_highlight : which runs-signal points get colored orange on the chart.
+               "all" (default) colors every point the runs method flagged — for
+               the Anhoej crossings test that is the whole series. "localized"
+               colors only the points forming an actual run, suppressing the
+               crossings blanket. "none" turns off runs coloring entirely.
+               Sigma outliers stay red in all three modes, and the crossings
+               result is always reported in summary["crossings_signal"].
+               Overridable per-call via result.plot(runs_highlight=...).
 
     Returns
     -------
@@ -141,6 +150,11 @@ def qic(
             f"Valid types: {sorted(VALID_CHARTS)}"
         )
 
+    if runs_highlight not in VALID_RUNS_HIGHLIGHT:
+        raise ValueError(
+            f"runs_highlight must be one of {VALID_RUNS_HIGHLIGHT}, got {runs_highlight!r}."
+        )
+
     # ------------------------------------------------------------------
     # Resolve spec early
     # ------------------------------------------------------------------
@@ -159,7 +173,7 @@ def qic(
         nrow=nrow, ncol=ncol, scales=scales,
         part_labels=part_labels,
         height=height, width=width,
-        connect=connect,
+        connect=connect, runs_highlight=runs_highlight,
     )
 
     # ------------------------------------------------------------------
@@ -320,7 +334,7 @@ def qic(
     # 7. Compute limits and signals
     # ------------------------------------------------------------------
     (
-        cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_summary
+        cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
     ) = _compute_spc_arrays(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
         s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel=funnel
@@ -331,7 +345,7 @@ def qic(
     # ------------------------------------------------------------------
     df = _assemble_final_df(
         x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
-        sigma_sig, runs_sig, mask, notes, target, multiply, chart, part_indices, part_labels
+        sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels
     )
 
     # ------------------------------------------------------------------
@@ -501,7 +515,7 @@ def _compute_spc_arrays(
     if part_indices and freeze_idx is None:
         boundaries = [0] + [p - 1 for p in part_indices] + [n_pts]
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [np.empty(n_pts) for _ in range(5)]
-        sigma_sig, runs_sig = [np.zeros(n_pts, dtype=bool) for _ in range(2)]
+        sigma_sig, runs_sig, runs_loc = [np.zeros(n_pts, dtype=bool) for _ in range(3)]
         per_part_summaries = []
         for seg_i in range(len(boundaries) - 1):
             start, end = boundaries[seg_i], boundaries[seg_i + 1]
@@ -516,6 +530,7 @@ def _compute_spc_arrays(
             l95 = seg_raw["cl"] - s3 * (2/3)
             lcl_95_arr[start:end] = np.where(l95 < 0, 0.0, l95) if spec.floor_lcl else l95
             sigma_sig[start:end], runs_sig[start:end] = seg_raw["sigma_signal"], seg_raw["runs_signal"]
+            runs_loc[start:end] = seg_raw["runs_signal_localized"]
             per_part_summaries.append({"part": seg_i + 1, **seg_raw["summary"]})
 
         runs_summary = {**per_part_summaries[-1], "parts": per_part_summaries}
@@ -528,8 +543,9 @@ def _compute_spc_arrays(
             new_summaries = []
             for seg_i in range(len(boundaries) - 1):
                 s, e = boundaries[seg_i], boundaries[seg_i + 1]
-                sig, summ = _runs_signals(y_plot[s:e], cl_arr[s:e], method=method)
-                runs_sig[s:e], new_summaries.append({"part": seg_i + 1, **summ})
+                sig, loc, summ = _runs_signals(y_plot[s:e], cl_arr[s:e], method=method)
+                runs_sig[s:e], runs_loc[s:e] = sig, loc
+                new_summaries.append({"part": seg_i + 1, **summ})
             runs_summary = {**new_summaries[-1], "parts": new_summaries}
     else:
         res = compute(chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val)
@@ -544,21 +560,23 @@ def _compute_spc_arrays(
                 for a in [cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr]
             ]
             sigma_sig = _sigma_signals(y_plot, ucl_arr, lcl_arr)
-            runs_sig, runs_summary = _runs_signals(y_plot, cl_arr, method=method)
+            runs_sig, runs_loc, runs_summary = _runs_signals(y_plot, cl_arr, method=method)
         else:
             sigma_sig, runs_sig, runs_summary = res["sigma_signal"], res["runs_signal"], res["summary"]
+            runs_loc = res["runs_signal_localized"]
 
     if funnel:
         # Runs rules assume temporal ordering; suppress them for cross-sectional funnel plots.
         runs_sig = np.zeros(len(runs_sig), dtype=bool)
+        runs_loc = np.zeros(len(runs_loc), dtype=bool)
         runs_summary = {**runs_summary, "runs_disabled": True, "note": "runs signals suppressed (funnel mode)"}
 
-    return cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_summary
+    return cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
 
 
 def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
-    sigma_sig, runs_sig, mask, notes, target, multiply, chart, part_indices, part_labels
+    sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
@@ -568,7 +586,8 @@ def _assemble_final_df(
     df_dict = {
         "x": x_vals, "y": y_plot, "cl": cl_arr, "ucl": ucl_arr, "lcl": lcl_arr,
         "ucl_95": ucl_95_arr, "lcl_95": lcl_95_arr,
-        "sigma_signal": sigma_sig, "runs_signal": runs_sig, "baseline": mask,
+        "sigma_signal": sigma_sig, "runs_signal": runs_sig,
+        "runs_signal_localized": runs_loc, "baseline": mask,
     }
 
     if notes is not None:

@@ -6,6 +6,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# Which runs-signal points get point-level coloring.
+#   all       — every point the runs method flagged (includes the Anhoej
+#               crossings whole-series pattern)
+#   localized — only the points forming an actual run; the crossings blanket
+#               is suppressed (still reported in summary["crossings_signal"])
+#   none      — no runs coloring; sigma outliers are unaffected
+VALID_RUNS_HIGHLIGHT = ("all", "localized", "none")
+
 
 @dataclass(frozen=True)
 class PlotOptions:
@@ -34,4 +42,5 @@ class PlotOptions:
     height: int | None = None
     width: int | None = None
     connect: bool | None = None
+    runs_highlight: str = "all"
     x_nticks_all: bool = False

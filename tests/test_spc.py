@@ -314,6 +314,83 @@ class TestSignalDetection:
         assert isinstance(r.signals, bool)
 
 
+class TestRunsSignalLocalized:
+    """The runs_signal_localized column backing plot(runs_highlight=...)."""
+
+    # weco/nelson need control limits, so they are not paired with run charts.
+    @pytest.mark.parametrize("chart,method", [
+        (c, m) for c in ("run", "i", "c") for m in ("anhoej", "ihi")
+    ] + [(c, m) for c in ("i", "c") for m in ("weco", "nelson")])
+    def test_localized_is_subset_of_runs_signal(self, chart, method, normal_30):
+        """Invariant: localized never marks a point runs_signal doesn't."""
+        for y in (normal_30, list(range(1, 31)), [20.0] * 15 + [1.0] * 15):
+            r = qic(y=list(y), chart=chart, method=method)
+            loc = r.data["runs_signal_localized"].to_numpy()
+            runs = r.data["runs_signal"].to_numpy()
+            assert not (loc & ~runs).any()
+
+    def test_crossings_blanket_excluded_from_localized(self):
+        """When only the crossings test fires, localized marks nothing."""
+        # 4 blocks of 5: few crossings, but longest run 5 < threshold 7
+        y = [1.1, 1.2, 1.15, 1.25, 1.05, 0.8, 0.75, 0.9, 0.85, 0.7,
+             1.2, 1.3, 1.1, 1.25, 1.15, 0.75, 0.85, 0.8, 0.9, 0.7]
+        r = qic(y=y, chart="i")
+        assert r.summary["crossings_signal"] is True
+        assert r.summary["run_signal"] is False
+        assert r.data["runs_signal"].sum() == 20
+        assert r.data["runs_signal_localized"].sum() == 0
+
+    def test_long_run_survives_the_blanket(self):
+        """Both sub-signals firing: localized keeps just the run points."""
+        y = [11, 12, 11, 12, 11, 12, 11, 12] + [9, 8, 9, 8] + \
+            [11, 12, 11, 12] + [9, 8, 9, 8] + [11, 12, 11, 12]
+        r = qic(y=[float(v) for v in y], chart="i")
+        assert r.summary["crossings_signal"] is True
+        assert r.summary["run_signal"] is True
+        assert r.data["runs_signal"].sum() == 24
+        assert list(r.data.index[r.data["runs_signal_localized"]]) == list(range(8))
+
+    def test_runs_signal_unchanged_by_localized_split(self):
+        """Regression guard: the default runs_signal column is untouched."""
+        # A run of 8, then alternating points give 22 crossings — above the
+        # threshold, so the crossings blanket never applies.
+        y = [12.0] * 8 + [9.0, 11.5] * 11
+        r = qic(y=y, chart="i")
+        assert r.summary["crossings_signal"] is False
+        assert r.summary["run_signal"] is True
+        # Long-run path: runs_signal and localized are identical
+        assert r.data["runs_signal"].sum() == 8
+        assert (r.data["runs_signal"] == r.data["runs_signal_localized"]).all()
+
+    def test_multipart_t_chart_reports_runs_signals(self):
+        """
+        Multi-part t-charts detect runs per part.
+
+        This path re-derives runs signals after the power back-transform, on top
+        of the per-segment values compute() already produced. The two agree only
+        because x**3.6 is monotone and so preserves every above/below-CL
+        relationship runs detection depends on — this test pins that down.
+        """
+        # Two identical parts of 14; each has a run of 7 and only 1 crossing.
+        # Spread is wide enough that no point breaches the limits, so runs is
+        # the only signal — a sigma signal would mask what we're checking.
+        part = [4.2, 2.3, 1.2, 1.1, 5.1, 5.6, 4.0,
+                20.4, 17.2, 23.9, 21.9, 8.0, 22.6, 8.6]
+        r = qic(y=part * 2, chart="t", part=15)
+
+        assert r.data["sigma_signal"].sum() == 0
+        assert [p["run_signal"] for p in r.summary["parts"]] == [True, True]
+        assert r.data["runs_signal"].sum() == 28
+        assert r.signals is True
+
+    def test_funnel_suppresses_both(self):
+        y = [5, 8, 12, 20, 30, 41, 55, 70]
+        n = [50, 80, 120, 200, 300, 400, 550, 700]
+        r = qic(y=y, n=n, chart="p", funnel=True)
+        assert r.data["runs_signal"].sum() == 0
+        assert r.data["runs_signal_localized"].sum() == 0
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -355,7 +432,10 @@ class TestEdgeCases:
 
     def test_consistent_schema(self, normal_30):
         """All chart types produce the same DataFrame columns."""
-        expected_cols = {"x", "y", "cl", "ucl", "lcl", "ucl_95", "lcl_95", "sigma_signal", "runs_signal", "baseline"}
+        expected_cols = {
+            "x", "y", "cl", "ucl", "lcl", "ucl_95", "lcl_95",
+            "sigma_signal", "runs_signal", "runs_signal_localized", "baseline",
+        }
         for chart in ["run", "i", "c"]:
             r = _result(chart, normal_30)
             assert set(r.data.columns) == expected_cols
@@ -391,6 +471,22 @@ class TestDisplayParams:
         derived = {"part_indices", "x_nticks_all"}
         fields = set(PlotOptions.__dataclass_fields__) - derived
         assert fields <= set(inspect.signature(qic).parameters)
+
+    def test_runs_highlight_round_trips(self, normal_30):
+        r = _result("i", normal_30, runs_highlight="localized")
+        assert r._plot_opts["runs_highlight"] == "localized"
+
+    def test_runs_highlight_defaults_to_all(self, normal_30):
+        assert _result("i", normal_30)._plot_opts["runs_highlight"] == "all"
+
+    def test_runs_highlight_invalid_raises_in_qic(self, normal_30):
+        with pytest.raises(ValueError, match="runs_highlight must be one of"):
+            _result("i", normal_30, runs_highlight="bogus")
+
+    def test_runs_highlight_invalid_raises_in_plot(self, normal_30):
+        r = _result("i", normal_30)
+        with pytest.raises(ValueError, match="runs_highlight must be one of"):
+            r.plot(runs_highlight="bogus")
 
     def test_facet_connect_passed_through(self, normal_30):
         df = pd.DataFrame({"y": normal_30, "grp": ["a"] * 15 + ["b"] * 15})

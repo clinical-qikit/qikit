@@ -83,7 +83,7 @@ def compute(
 
     # Signals
     sigma_sig = _sigma_signals(y, ucl_arr, lcl_arr)
-    runs_sig, runs_summary = _runs_signals(y, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
+    runs_sig, runs_loc, runs_summary = _runs_signals(y, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
 
     return {
         "y": y,
@@ -92,5 +92,6 @@ def compute(
         "lcl": lcl_arr,
         "sigma_signal": sigma_sig,
         "runs_signal": runs_sig,
+        "runs_signal_localized": runs_loc,
         "summary": runs_summary,
     }

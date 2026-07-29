@@ -63,7 +63,7 @@ describe('SPC Conformance Tests', () => {
         if (dict.data.length > 0) {
             dict.data.forEach((row: any, i: number) => {
                 const expRow = expected.data[i];
-                ['y', 'cl', 'ucl', 'lcl', 'sigma_signal', 'runs_signal'].forEach(col => {
+                ['y', 'cl', 'ucl', 'lcl', 'sigma_signal', 'runs_signal', 'runs_signal_localized'].forEach(col => {
                     if (col in row && col in expRow) {
                         if (typeof row[col] === 'number' && row[col] !== null) {
                             expect(row[col]).toBeCloseTo(expRow[col], 5);

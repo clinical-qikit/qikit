@@ -212,9 +212,12 @@ export function markMixture(y: number[], cl: number[], ucl: number[], threshold:
 export function detectSignals(
   y: number[], cl: number[], method: SignalMethod,
   ucl: number[], lcl: number[]
-): { signals: boolean[]; summary: Record<string, any> } {
+): { signals: boolean[]; signalsLocalized: boolean[]; summary: Record<string, any> } {
   const nUseful = y.filter((v, i) => !isNaN(v) && v !== cl[i]).length;
   let signalArr = new Array(y.length).fill(false);
+  // Same as signalArr but excluding any whole-series pattern — see the anhoej
+  // branch. Identical to signalArr for every other method.
+  let localizedArr = new Array(y.length).fill(false);
   let summary: Record<string, any> = { n_useful: nUseful };
 
   if (method === 'anhoej') {
@@ -226,10 +229,13 @@ export function detectSignals(
     const runSignal = longest >= runThresh;
     const crossSignal = crossings <= crossThresh;
 
+    // Localized pattern — only the points forming the long runs
+    localizedArr = runSignal ? markLongRuns(y, cl, runThresh) : new Array(y.length).fill(false);
+    signalArr = localizedArr.slice();
     if (crossSignal) {
+      // Whole-series pattern — mark all useful points. Long-run marks are a
+      // subset of the useful points, so this is a superset of localizedArr.
       for (let i = 0; i < y.length; i++) if (!isNaN(y[i]) && y[i] !== cl[i]) signalArr[i] = true;
-    } else if (runSignal) {
-      signalArr = markLongRuns(y, cl, runThresh);
     }
     summary = {
       ...summary,
@@ -244,6 +250,7 @@ export function detectSignals(
     const shiftArr = markLongRuns(y, cl, 8);
     const trendArr = markTrends(y, 6);
     signalArr = shiftArr.map((s, i) => s || trendArr[i]);
+    localizedArr = signalArr.slice();
     summary = {
       ...summary,
       shift_threshold: 8,
@@ -257,6 +264,7 @@ export function detectSignals(
     const r3 = markZones(y, cl, ucl, 4, 5, 1);
     const r4 = markLongRuns(y, cl, 8);
     signalArr = r1.map((v, i) => v || r2[i] || r3[i] || r4[i]);
+    localizedArr = signalArr.slice();
     summary.weco_rules_triggered = [
       r1.some(v => v) ? 1 : null,
       r2.some(v => v) ? 2 : null,
@@ -273,6 +281,7 @@ export function detectSignals(
     const r7 = markStratification(y, cl, ucl, 15);
     const r8 = markMixture(y, cl, ucl, 8);
     signalArr = r1.map((v, i) => v || r2[i] || r3[i] || r4[i] || r5[i] || r6[i] || r7[i] || r8[i]);
+    localizedArr = signalArr.slice();
     summary.nelson_rules_triggered = [
       r1.some(v => v) ? 1 : null,
       r2.some(v => v) ? 2 : null,
@@ -285,5 +294,5 @@ export function detectSignals(
     ].filter(v => v !== null);
   }
 
-  return { signals: signalArr, summary };
+  return { signals: signalArr, signalsLocalized: localizedArr, summary };
 }
