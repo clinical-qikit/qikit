@@ -79,6 +79,7 @@
         "lcl_95": 0.04315323780084859,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -91,6 +92,7 @@
         "lcl_95": 0.053301013369040806,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -103,6 +105,7 @@
         "lcl_95": 0.06422309488019624,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -115,6 +118,7 @@
         "lcl_95": 0.06972756571327379,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -127,6 +131,7 @@
         "lcl_95": 0.07629172216879765,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -139,6 +144,7 @@
         "lcl_95": 0.08435700580770718,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -151,6 +157,7 @@
         "lcl_95": 0.09122911405785161,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -163,6 +170,7 @@
         "lcl_95": 0.09630189362569903,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -175,6 +183,7 @@
         "lcl_95": 0.10522819472782191,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -187,6 +196,7 @@
         "lcl_95": 0.10895123321267693,
         "sigma_signal": true,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       }
     ]

@@ -65,6 +65,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -77,6 +78,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -89,6 +91,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -101,6 +104,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -113,6 +117,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -125,6 +130,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -137,6 +143,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -149,6 +156,7 @@
         "lcl_95": 0.4539007092198579,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       }
     ]
