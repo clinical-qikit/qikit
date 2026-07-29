@@ -225,6 +225,7 @@ export function compute(input: SPCInput): SPCResult {
   const lcl95Arr = new Array(nPts).fill(NaN);
   const sigmaSig = new Array(nPts).fill(false);
   const runsSig = new Array(nPts).fill(false);
+  const runsLoc = new Array(nPts).fill(false);
   const summaries: any[] = [];
 
   for (let i = 0; i < boundaries.length - 1; i++) {
@@ -261,9 +262,10 @@ export function compute(input: SPCInput): SPCResult {
     }
 
     // Signals per segment
-    const { signals: sSig, summary: sSum } = detectSignals(segY, clArr.slice(s, e), method, uclArr.slice(s, e), lclArr.slice(s, e));
+    const { signals: sSig, signalsLocalized: sLoc, summary: sSum } = detectSignals(segY, clArr.slice(s, e), method, uclArr.slice(s, e), lclArr.slice(s, e));
     for (let j = 0; j < e - s; j++) {
       runsSig[s + j] = sSig[j];
+      runsLoc[s + j] = sLoc[j];
       sigmaSig[s + j] = (!isNaN(uclArr[s + j]) && segY[j] > uclArr[s + j]) || (!isNaN(lclArr[s + j]) && segY[j] < lclArr[s + j]);
     }
     summaries.push(sSum);
@@ -299,13 +301,18 @@ export function compute(input: SPCInput): SPCResult {
     ucl_95: ucl95Arr[i],
     lcl_95: lcl95Arr[i],
     sigma_signal: sigmaSig[i],
-    runs_signal: runsSig[i]
+    runs_signal: runsSig[i],
+    runs_signal_localized: runsLoc[i]
   }));
 
   // Runs rules assume temporal ordering; suppress them for cross-sectional funnel plots.
   if (funnel) {
     runsSig.fill(false);
-    for (const d of data) d.runs_signal = false;
+    runsLoc.fill(false);
+    for (const d of data) {
+      d.runs_signal = false;
+      d.runs_signal_localized = false;
+    }
   }
 
   const signals = sigmaSig.some(s => s) || runsSig.some(s => s);

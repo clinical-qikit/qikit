@@ -251,9 +251,13 @@ def _mark_mixture(y: np.ndarray, cl: np.ndarray, ucl: np.ndarray, threshold: int
 def _runs_signals(
     y: np.ndarray, cl: np.ndarray, method: str = "anhoej",
     ucl: np.ndarray | None = None, lcl: np.ndarray | None = None
-) -> tuple[np.ndarray, dict[str, Any]]:
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
     """
-    Detect non-random runs patterns. Returns (per_point_signal, summary_dict).
+    Detect non-random runs patterns.
+
+    Returns (per_point_signal, per_point_localized, summary_dict), where
+    per_point_localized excludes any whole-series pattern — see the anhoej
+    note below. For every other method the two arrays are identical.
 
     Methods
     -------
@@ -305,13 +309,16 @@ def _runs_signals(
         run_signal = longest >= run_threshold
         cross_signal = crossings <= cross_threshold
 
-        signal_arr = np.zeros(len(y), dtype=bool)
+        # Localized pattern — only the points forming the long runs
+        localized_arr = (
+            _mark_long_runs(y, cl, run_threshold) if run_signal
+            else np.zeros(len(y), dtype=bool)
+        )
+        signal_arr = localized_arr.copy()
         if cross_signal:
-            # Whole-series pattern — mark all useful points
+            # Whole-series pattern — mark all useful points. Long-run marks are a
+            # subset of the useful points, so this is a superset of localized_arr.
             signal_arr[useful_mask] = True
-        elif run_signal:
-            # Localized pattern — mark only the long runs
-            signal_arr = _mark_long_runs(y, cl, run_threshold)
 
         summary: dict[str, Any] = {
             "n_useful": n_useful,
@@ -332,6 +339,7 @@ def _runs_signals(
         trend_signal_arr = _mark_trends(y, trend_threshold)
 
         signal_arr = shift_signal_arr | trend_signal_arr
+        localized_arr = signal_arr.copy()
 
         summary = {
             "n_useful": n_useful,
@@ -353,6 +361,7 @@ def _runs_signals(
         r4 = _mark_long_runs(y, cl, 8)
 
         signal_arr = r1 | r2 | r3 | r4
+        localized_arr = signal_arr.copy()
         summary = {
             "n_useful": n_useful,
             "weco_rules_triggered": [i+1 for i, r in enumerate([r1, r2, r3, r4]) if np.any(r)]
@@ -371,9 +380,10 @@ def _runs_signals(
         r8 = _mark_mixture(y, cl, ucl, 8)
 
         signal_arr = r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8
+        localized_arr = signal_arr.copy()
         summary = {
             "n_useful": n_useful,
             "nelson_rules_triggered": [i+1 for i, r in enumerate([r1, r2, r3, r4, r5, r6, r7, r8]) if np.any(r)]
         }
 
-    return signal_arr, summary
+    return signal_arr, localized_arr, summary

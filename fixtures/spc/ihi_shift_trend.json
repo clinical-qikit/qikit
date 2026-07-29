@@ -61,6 +61,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -73,6 +74,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -85,6 +87,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -97,6 +100,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -109,6 +113,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -121,6 +126,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -133,6 +139,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -145,6 +152,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -157,6 +165,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -169,6 +178,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -181,6 +191,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -193,6 +204,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -205,6 +217,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -217,6 +230,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -229,6 +243,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       },
       {
@@ -241,6 +256,7 @@
         "lcl_95": 12.5,
         "sigma_signal": true,
         "runs_signal": true,
+        "runs_signal_localized": true,
         "baseline": true
       }
     ]

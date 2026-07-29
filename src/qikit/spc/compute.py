@@ -95,7 +95,7 @@ def compute(
     else:
         y_signal = np.where(np.asarray(exclude_mask, dtype=bool), np.nan, y)
     sigma_sig = _sigma_signals(y_signal, ucl_arr, lcl_arr)
-    runs_sig, runs_summary = _runs_signals(y_signal, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
+    runs_sig, runs_loc, runs_summary = _runs_signals(y_signal, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
 
     return {
         "y": y,
@@ -104,5 +104,6 @@ def compute(
         "lcl": lcl_arr,
         "sigma_signal": sigma_sig,
         "runs_signal": runs_sig,
+        "runs_signal_localized": runs_loc,
         "summary": runs_summary,
     }

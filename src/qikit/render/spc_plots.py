@@ -18,7 +18,24 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from qikit.spc.options import VALID_RUNS_HIGHLIGHT
+
 from .utils import apply_tufte_theme, NORMAL, CL, SIGMA, RUNS, GRID, WARN
+
+
+def _resolve_runs_signal(df: Any, runs_highlight: str) -> np.ndarray:
+    """
+    Pick the runs-signal array the caller asked to highlight.
+
+    "localized" drops the Anhoej crossings whole-series blanket, leaving only
+    the points that form an actual run. Falls back to the plain runs_signal
+    column for results built before runs_signal_localized existed.
+    """
+    if runs_highlight == "none":
+        return np.zeros(len(df), dtype=bool)
+    if runs_highlight == "localized" and "runs_signal_localized" in df.columns:
+        return df["runs_signal_localized"].to_numpy()
+    return df["runs_signal"].to_numpy()
 
 
 def _point_colors(sigma_sig: np.ndarray, runs_sig: np.ndarray) -> list[str]:
@@ -50,6 +67,7 @@ def _add_chart_traces(
     part_indices: list[int] | None = None,
     part_labels: list[str] | None = None,
     connect: bool | None = None,
+    runs_highlight: str = "all",
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, and notes to fig.
@@ -61,7 +79,7 @@ def _add_chart_traces(
     lcl = df["lcl"].to_numpy(dtype=float)
 
     sigma_sig = df["sigma_signal"].to_numpy()
-    runs_sig = df["runs_signal"].to_numpy()
+    runs_sig = _resolve_runs_signal(df, runs_highlight)
     colors = _point_colors(sigma_sig, runs_sig)
     symbols = _point_symbols(sigma_sig, runs_sig)
 
@@ -353,6 +371,7 @@ def _plot_faceted(
     width: int | None = None,
     connect: bool | None = None,
     x_nticks_all: bool = False,
+    runs_highlight: str = "all",
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -390,6 +409,7 @@ def _plot_faceted(
             x_pad=x_pad,
             row=r_row, col=r_col,
             connect=connect,
+            runs_highlight=runs_highlight,
         )
 
     _configure_layout(
@@ -574,11 +594,18 @@ def plot_result(
     width: int | None = None,
     connect: bool | None = None,
     x_nticks_all: bool = False,
+    runs_highlight: str = "all",
     **_kwargs: Any,
 ) -> go.Figure:
     """
     Render an SPCResult as a Plotly Figure.
     """
+    # plot(**overrides) bypasses qic(), so this is the only guard on that path.
+    if runs_highlight not in VALID_RUNS_HIGHLIGHT:
+        raise ValueError(
+            f"runs_highlight must be one of {VALID_RUNS_HIGHLIGHT}, got {runs_highlight!r}."
+        )
+
     if "facet" in result.data.columns:
         return _plot_faceted(
             result, nrow=nrow, ncol=ncol, scales=scales,
@@ -589,6 +616,7 @@ def plot_result(
             flip=flip, show_grid=show_grid, x_order=x_order,
             height=height, width=width,
             connect=connect, x_nticks_all=x_nticks_all,
+            runs_highlight=runs_highlight,
         )
 
     df = result.data
@@ -604,6 +632,7 @@ def plot_result(
         part_indices=part_indices,
         part_labels=part_labels,
         connect=connect,
+        runs_highlight=runs_highlight,
     )
 
     _configure_layout(

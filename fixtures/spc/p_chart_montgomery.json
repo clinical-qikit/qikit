@@ -88,6 +88,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -100,6 +101,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -112,6 +114,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -124,6 +127,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -136,6 +140,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -148,6 +153,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -160,6 +166,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -172,6 +179,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -184,6 +192,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -196,6 +205,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -208,6 +218,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -220,6 +231,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -232,6 +244,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -244,6 +257,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -256,6 +270,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": true,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -268,6 +283,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -280,6 +296,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -292,6 +309,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -304,6 +322,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -316,6 +335,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -328,6 +348,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -340,6 +361,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -352,6 +374,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": true,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -364,6 +387,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -376,6 +400,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -388,6 +413,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -400,6 +426,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -412,6 +439,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -424,6 +452,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       },
       {
@@ -436,6 +465,7 @@
         "lcl_95": 0.11206280982572994,
         "sigma_signal": false,
         "runs_signal": false,
+        "runs_signal_localized": false,
         "baseline": true
       }
     ]
