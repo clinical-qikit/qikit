@@ -187,7 +187,7 @@ def _c_limits(
 def _s_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None, sigma_hat: float | None = None, **_,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     S chart: UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄, CL = S̄. Montgomery (2019), §6.4.
 
