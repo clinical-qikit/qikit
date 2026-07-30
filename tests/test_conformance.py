@@ -20,9 +20,11 @@ def test_fixture(path):
     if "clOverride" in inputs:
         inputs["cl"] = inputs.pop("clOverride")
     
-    # Strip TS-only keys before calling Python qic
+    # Strip TS-only keys before calling Python qic — it re-derives subgroup sizes
+    # and the sigma estimate from the grouping column.
     inputs.pop("subgroupN", None)
     inputs.pop("sBar", None)
+    inputs.pop("sigmaHat", None)
         
     result = fn(**inputs)
 

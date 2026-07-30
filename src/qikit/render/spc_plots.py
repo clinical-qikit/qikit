@@ -203,17 +203,20 @@ def _add_chart_traces(
 
     # Direct labels — work in both single and faceted mode
     if show_labels and len(x) > 0:
-        x_last = x[-1]
         ann_kwargs: dict[str, Any] = {}
         if row is not None and col is not None:
             ann_kwargs = {"row": row, "col": col}
         for arr, label in [(cl, "CL"), (ucl, "UCL"), (lcl, "LCL")]:
-            valid = arr[~np.isnan(arr)]
-            if len(valid) == 0:
+            valid_idx = np.flatnonzero(~np.isnan(arr))
+            if len(valid_idx) == 0:
                 continue
-            val = float(valid[-1])
+            # Anchor at the last point that actually has a value. For a stepped line
+            # (variable n, or the S chart's c4(nᵢ)·σ̂ center) the label reads the value
+            # at its own x, so a trailing gap must not drag it off the line.
+            last = int(valid_idx[-1])
+            val = float(arr[last])
             fig.add_annotation(
-                x=x_last, y=val,
+                x=x[last], y=val,
                 text=f"{label}={val:.{decimals}f}",
                 xshift=8 + x_pad * 4,
                 showarrow=False, xanchor="left",

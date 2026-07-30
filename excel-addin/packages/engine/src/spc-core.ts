@@ -1,7 +1,32 @@
 import { ChartSpec, SPCInput, SPCResult } from './spc-types';
 import { nanmean, nanmedian, nansum, screenedMeanMR } from './spc-helpers';
-import { A3, B3, B4, D2, D4 } from './constants';
+import { D2, D4, a3, b3, b4, c4 } from './constants';
 import { detectSignals } from './signals';
+
+/**
+ * Per-point subgroup sizes, preferring the n array over the scalar fallback.
+ * NaN when neither is available — the constant accessors turn that into NaN limits.
+ */
+function subgroupSizes(n: number[] | undefined, subN: number | undefined, k: number): number[] {
+  if (n) return n;
+  return new Array(k).fill(subN ?? NaN);
+}
+
+/**
+ * Volume-weighted grand mean Σ(nᵢx̄ᵢ)/Σnᵢ for the Xbar chart. Identical to the
+ * unweighted mean when subgroup sizes are constant, correct when they are not.
+ */
+function grandMean(yBase: number[], nBase?: number[]): number {
+  if (!nBase) return nanmean(yBase);
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < yBase.length; i++) {
+    if (Number.isNaN(yBase[i]) || Number.isNaN(nBase[i])) continue;
+    num += yBase[i] * nBase[i];
+    den += nBase[i];
+  }
+  return den === 0 ? NaN : num / den;
+}
 
 export const CHARTS: Record<string, ChartSpec> = {
   run: {
@@ -90,21 +115,43 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: true, isAttribute: true, floorLcl: true
   },
   xbar: {
-    center: (yb) => nanmean(yb),
-    limits: (cl, y, _n, _mask, subN, sBar) => {
-      const a3 = subN ? A3[subN] : NaN;
-      return [new Array(y.length).fill(cl + a3 * sBar!), new Array(y.length).fill(cl - a3 * sBar!)];
+    // UCL = X̄̄ + A3(nᵢ)·S̄, LCL = X̄̄ − A3(nᵢ)·S̄. Montgomery (2019), §6.4.
+    // With unequal subgroup sizes the caller supplies a pooled σ̂ instead of S̄ and
+    // limits become X̄̄ ± 3σ̂/√nᵢ. The two must not be mixed: A3 = 3/(c4√n) already
+    // embeds the correction for the bias of an arithmetic mean of subgroup SDs.
+    center: (yb, nb) => grandMean(yb, nb),
+    limits: (cl, y, n, _mask, subN, sBar, sigmaHat) => {
+      const sizes = subgroupSizes(n, subN, y.length);
+      if (sigmaHat !== undefined) {
+        const half = sizes.map(ni => (3 * sigmaHat) / Math.sqrt(ni >= 2 ? ni : NaN));
+        return [half.map(h => cl + h), half.map(h => cl - h)];
+      }
+      const a = sizes.map(ni => a3(ni));
+      return [a.map(v => cl + v * sBar!), a.map(v => cl - v * sBar!)];
     },
     needsN: false, isAttribute: false, floorLcl: false
   },
   s: {
+    // UCL = B4(nᵢ)·S̄, LCL = B3(nᵢ)·S̄, CL = S̄. Montgomery (2019), §6.4.
+    // Unequal sizes express the whole chart against a pooled σ̂ instead:
+    //   CL = c4(nᵢ)·σ̂ (the third return element), U/L = CL ± 3σ̂·√(1 − c4(nᵢ)²).
+    // The center line has to vary too — E[sᵢ] = c4(nᵢ)·σ̂ climbs with n, and the CL
+    // feeds the runs detector, which is a pure side-of-CL test.
     center: (yb) => nanmean(yb),
-    limits: (cl, y, _n, _mask, subN) => {
-      const b4 = subN ? B4[subN] : NaN;
-      const b3 = subN ? B3[subN] : NaN;
-      return [new Array(y.length).fill(b4 * cl), new Array(y.length).fill(b3 * cl)];
+    limits: (cl, y, n, _mask, subN, _sBar, sigmaHat) => {
+      const sizes = subgroupSizes(n, subN, y.length);
+      if (sigmaHat !== undefined) {
+        const clI = sizes.map(ni => sigmaHat * c4(ni));
+        const half = sizes.map(ni => 3 * sigmaHat * Math.sqrt(Math.max(0, 1 - c4(ni) * c4(ni))));
+        return [
+          clI.map((c, i) => c + half[i]),
+          clI.map((c, i) => Math.max(0, c - half[i])),
+          clI,
+        ];
+      }
+      return [sizes.map(ni => b4(ni) * cl), sizes.map(ni => b3(ni) * cl)];
     },
-    needsN: false, isAttribute: false, floorLcl: false
+    needsN: false, isAttribute: false, floorLcl: true
   },
   ip: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
@@ -118,7 +165,7 @@ export const CHARTS: Record<string, ChartSpec> = {
 };
 
 export function compute(input: SPCInput): SPCResult {
-  let { y, n, chart, method = 'anhoej', freeze, part, exclude = [], clOverride, multiply = 1.0, sBar, subgroupN, funnel = false } = input;
+  let { y, n, chart, method = 'anhoej', freeze, part, exclude = [], clOverride, multiply = 1.0, sBar, sigmaHat, subgroupN, funnel = false } = input;
 
   // Resolved display hints (mirrors Python qic() semantics)
   const yPercent = input.yPercent ?? (chart === 'p' || chart === 'pp');
@@ -172,25 +219,54 @@ export function compute(input: SPCInput): SPCResult {
   if ((chart === 'xbar' || chart === 's') && subgroupN) {
     const yAgg = [];
     const nAgg = [];
+    const sdAgg = [];
     const maskAgg = [];
     for (let i = 0; i < y.length; i += subgroupN) {
       const chunk = y.slice(i, i + subgroupN);
       if (chunk.length === 0) continue;
-      
-      if (chart === 'xbar') {
-        yAgg.push(nanmean(chunk));
-      } else {
-        const m = nanmean(chunk);
-        const sqDiffs = chunk.map(v => Math.pow(v - m, 2));
-        yAgg.push(Math.sqrt(nansum(sqDiffs) / (chunk.length - 1)));
-      }
+
+      const m = nanmean(chunk);
+      const sqDiffs = chunk.map(v => Math.pow(v - m, 2));
+      const sd = Math.sqrt(nansum(sqDiffs) / (chunk.length - 1));
+      yAgg.push(chart === 'xbar' ? m : sd);
+      sdAgg.push(sd);
+      // A trailing partial chunk is genuinely smaller — record its real size so the
+      // limits functions pick the matching constant rather than subgroupN's.
       nAgg.push(chunk.length);
-      maskAgg.push(mask[i]); 
+      maskAgg.push(mask[i]);
     }
     yCalc = yAgg;
     nCalc = nAgg;
     y = [...yAgg];
     mask = [...maskAgg];
+
+    // Derive the sigma estimate when the caller supplied neither. Mirrors
+    // _sigma_estimate() in src/qikit/spc/api.py: equal subgroup sizes get the
+    // classical S̄ = mean(sᵢ) that pairs with A3/B3/B4; unequal sizes get the pooled
+    // σ̂ = Sp/c4(d+1), which pairs with the 3σ̂/√nᵢ form instead.
+    if (sBar === undefined && sigmaHat === undefined) {
+      const usableSizes: number[] = [];
+      const usableSds: number[] = [];
+      for (let i = 0; i < nAgg.length; i++) {
+        if (nAgg[i] >= 2 && !Number.isNaN(sdAgg[i])) {
+          usableSizes.push(nAgg[i]);
+          usableSds.push(sdAgg[i]);
+        }
+      }
+      if (usableSizes.length > 0) {
+        if (new Set(usableSizes).size === 1) {
+          sBar = nanmean(usableSds);
+        } else {
+          let ss = 0;
+          let dof = 0;
+          usableSizes.forEach((ni, i) => {
+            ss += (ni - 1) * usableSds[i] * usableSds[i];
+            dof += ni - 1;
+          });
+          sigmaHat = Math.sqrt(ss / dof) / c4(dof + 1);
+        }
+      }
+    }
   }
 
   // Transforms
@@ -249,15 +325,18 @@ export function compute(input: SPCInput): SPCResult {
     
     // Limits
     // Important: for t-chart, we need to pass clVal which is in transformed space
-    const [uclSeg, lclSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar);
-    
+    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat);
+
     for (let j = 0; j < e - s; j++) {
-      clArr[s + j] = clVal;
+      // clSeg is present only for charts whose center line varies per point; an
+      // explicit clOverride is the user's line and outranks it.
+      const clHere = (clOverride === undefined && clSeg) ? clSeg[j] : clVal;
+      clArr[s + j] = clHere;
       uclArr[s + j] = uclSeg[j];
       lclArr[s + j] = spec.floorLcl ? Math.max(0, lclSeg[j]) : lclSeg[j];
-      const spread = uclSeg[j] - clVal;
-      ucl95Arr[s + j] = clVal + spread * (2 / 3);
-      const l95 = clVal - spread * (2 / 3);
+      const spread = uclSeg[j] - clHere;
+      ucl95Arr[s + j] = clHere + spread * (2 / 3);
+      const l95 = clHere - spread * (2 / 3);
       lcl95Arr[s + j] = spec.floorLcl ? Math.max(0, l95) : l95;
     }
 

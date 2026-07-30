@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDownRegular, ChevronRightRegular } from '@fluentui/react-icons';
 import { SPCResult } from '@qikit/engine';
 import { useSpcStyles } from './styles';
+import { formatLimit } from './data-prep';
 import { qikit } from '../../theme/tokens';
 
 interface SummaryPanelProps {
@@ -68,15 +69,15 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ result }) => {
                 </div>
               </div>
             )}
-            {result.data[0] && !isNaN(result.data[0].cl) && (
+            {result.data.some((d: any) => !isNaN(d.cl)) && (
               <>
                 <div className={styles.summaryItem}>
                   <div className={styles.summaryKey}>CL</div>
-                  <div className={styles.summaryVal}>{result.data[0].cl.toFixed(3)}</div>
+                  <div className={styles.summaryVal}>{formatLimit(result.data, 'cl')}</div>
                 </div>
                 <div className={styles.summaryItem}>
                   <div className={styles.summaryKey}>UCL</div>
-                  <div className={styles.summaryVal}>{isNaN(result.data[0].ucl) ? '—' : result.data[0].ucl.toFixed(3)}</div>
+                  <div className={styles.summaryVal}>{formatLimit(result.data, 'ucl')}</div>
                 </div>
               </>
             )}

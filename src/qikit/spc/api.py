@@ -11,13 +11,14 @@ api.py — qic() main entry point, plus paretochart() and bchart().
 from __future__ import annotations
 
 import dataclasses
+import math
 import warnings
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .constants import A3, B4
+from .constants import c4
 from .compute import compute
 from .limits import CHARTS, VALID_CHARTS
 from .options import PlotOptions, VALID_RUNS_HIGHLIGHT
@@ -243,7 +244,8 @@ def qic(
     # 1. Resolve and Aggregate Data
     # ------------------------------------------------------------------
     (
-        x_vals, y_arr, n_vals, notes, part, exclude, part_labels, s_bar_val, subgroup_n_val
+        x_vals, y_arr, n_vals, notes, part, exclude, part_labels,
+        s_bar_val, sigma_hat_val, subgroup_n_val,
     ) = _resolve_and_aggregate(
         data, x, y, n, notes, part, exclude, part_labels, chart, agg_fun, x_period, spec
     )
@@ -340,8 +342,8 @@ def qic(
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
     ) = _compute_spc_arrays(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
-        s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel=funnel,
-        exclude_mask=exclude_mask,
+        s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
+        funnel=funnel, exclude_mask=exclude_mask,
     )
 
     # ------------------------------------------------------------------
@@ -402,6 +404,7 @@ def _resolve_and_aggregate(
 ) -> tuple:
     """Helper to resolve columns and aggregate data if needed."""
     s_bar_val = None
+    sigma_hat_val = None
     subgroup_n_val = None
     n_vals = None
 
@@ -455,16 +458,21 @@ def _resolve_and_aggregate(
                 part = (changes + 2).tolist()
 
             if chart in ("xbar", "s"):
-                subgroup_n_val = int(np.median(group_sizes.to_numpy()))
-                group_sds = grouped[y_col].std(ddof=1)
-                if chart == "xbar" and subgroup_n_val not in A3:
-                    raise ValueError(f"xbar chart requires subgroup_n in 2..25, got {subgroup_n_val}.")
-                if chart == "s" and subgroup_n_val not in B4:
-                    raise ValueError(f"s chart requires subgroup_n in 2..25, got {subgroup_n_val}.")
-                sds_arr = group_sds.to_numpy(dtype=float)
-                s_bar_val = float(np.mean(sds_arr[~np.isnan(sds_arr)])) if np.any(~np.isnan(sds_arr)) else np.nan
+                sizes = group_sizes.to_numpy()
+                sds_arr = grouped[y_col].std(ddof=1).to_numpy(dtype=float)
+                usable = (sizes >= 2) & ~np.isnan(sds_arr)
+                if not np.any(usable):
+                    largest = int(sizes.max()) if len(sizes) else 0
+                    raise ValueError(
+                        f"{chart} chart requires at least one subgroup with 2 or more "
+                        f"observations; the largest has {largest}."
+                    )
+                s_bar_val, sigma_hat_val = _sigma_estimate(sizes, sds_arr, usable)
                 y_arr = sds_arr if chart == "s" else _agg(grouped[y_col], agg_fun)
-                n_vals = group_sizes.to_numpy(dtype=float)
+                n_vals = sizes.astype(float)
+                # Scalar fallback for direct compute() callers only — n_vals above is
+                # what actually drives the per-subgroup constants.
+                subgroup_n_val = int(np.median(sizes))
             elif spec and spec.is_attribute:
                 y_arr = grouped[y_col].sum().to_numpy(dtype=float)
                 n_vals = grouped[n_col].sum().to_numpy(dtype=float) if n_col else None
@@ -502,7 +510,38 @@ def _resolve_and_aggregate(
 
         n_vals = np.asarray(n, dtype=float) if n is not None else None
 
-    return x_vals, y_arr, n_vals, notes, part, exclude, part_labels, s_bar_val, subgroup_n_val
+    return (
+        x_vals, y_arr, n_vals, notes, part, exclude, part_labels,
+        s_bar_val, sigma_hat_val, subgroup_n_val,
+    )
+
+
+def _sigma_estimate(
+    sizes: np.ndarray, sds: np.ndarray, usable: np.ndarray
+) -> tuple[float | None, float | None]:
+    """
+    Pick the σ estimator for an xbar/s chart. Returns (s_bar, sigma_hat); exactly
+    one is non-None.
+
+    Equal subgroup sizes get the classical S̄ = mean(sᵢ), which pairs with the
+    A3/B3/B4 constants — those already embed the 1/c4(n) correction for the bias of
+    an arithmetic mean of SDs.
+
+    Unequal sizes get the pooled estimate σ̂ = Sp/c4(d+1), where
+    Sp = √(Σ(nᵢ−1)sᵢ² / Σ(nᵢ−1)) and d = Σ(nᵢ−1)  (Montgomery 2019, §6.3.2).
+    Feeding that into A3 would double-correct, so the limits functions switch to the
+    3σ̂/√nᵢ form instead. Subgroups of size 1 contribute to neither estimate and get
+    NaN limits.
+    """
+    if np.unique(sizes[usable]).size == 1:
+        return float(np.mean(sds[usable])), None
+
+    dof = sizes[usable] - 1.0
+    total_dof = float(np.sum(dof))
+    if total_dof <= 0:
+        return np.nan, None
+    pooled = math.sqrt(float(np.sum(dof * sds[usable] ** 2)) / total_dof)
+    return None, pooled / c4(total_dof + 1.0)
 
 
 def _agg(series_grouped, agg_fun):
@@ -514,8 +553,8 @@ def _agg(series_grouped, agg_fun):
 
 def _compute_spc_arrays(
     chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
-    s_bar_val, subgroup_n_val, part_indices, freeze_idx, spec, funnel: bool = False,
-    exclude_mask=None,
+    s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
+    funnel: bool = False, exclude_mask=None,
 ):
     n_pts = len(y_calc)
     if exclude_mask is None:
@@ -535,7 +574,8 @@ def _compute_spc_arrays(
             seg_mask = mask[start:end] # Preserve global exclusions in segments
             seg_raw = compute(
                 chart=chart_for_compute, y=y_calc[start:end], n=n_vals[start:end] if n_vals is not None else None,
-                mask=seg_mask, cl_override=cl, method=method, s_bar=s_bar_val, subgroup_n=subgroup_n_val,
+                mask=seg_mask, cl_override=cl, method=method, s_bar=s_bar_val,
+                sigma_hat=sigma_hat_val, subgroup_n=subgroup_n_val,
                 exclude_mask=exclude_mask[start:end],
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
@@ -564,7 +604,7 @@ def _compute_spc_arrays(
     else:
         res = compute(
             chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
-            exclude_mask=exclude_mask,
+            sigma_hat=sigma_hat_val, exclude_mask=exclude_mask,
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         s3 = ucl_arr - cl_arr

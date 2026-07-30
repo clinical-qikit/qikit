@@ -8,6 +8,8 @@ References
 
 from __future__ import annotations
 
+import math
+
 # ---------------------------------------------------------------------------
 # SPC constants  (Montgomery 2019, Appendix VI, Table VI)
 # ---------------------------------------------------------------------------
@@ -36,3 +38,80 @@ A3 = {
     15: 0.789, 16: 0.763, 17: 0.739, 18: 0.718, 19: 0.698, 20: 0.680,
     21: 0.663, 22: 0.647, 23: 0.633, 24: 0.619, 25: 0.606,
 }
+
+# c4 unbiasing constant (n = subgroup size, 2..25)  Montgomery (2019), Table VI
+C4 = {
+    2: 0.7979, 3: 0.8862, 4: 0.9213, 5: 0.9400, 6: 0.9515, 7: 0.9594,
+    8: 0.9650, 9: 0.9693, 10: 0.9727, 11: 0.9754, 12: 0.9776, 13: 0.9794,
+    14: 0.9810, 15: 0.9823, 16: 0.9835, 17: 0.9845, 18: 0.9854, 19: 0.9862,
+    20: 0.9869, 21: 0.9876, 22: 0.9882, 23: 0.9887, 24: 0.9892, 25: 0.9896,
+}
+
+
+# ---------------------------------------------------------------------------
+# Constant accessors — tabulated for n = 2..25, analytic above
+#
+# The tables above stay authoritative below n = 26. The series form for c4 is a
+# poor substitute at small n: it puts c4(2) at 0.8203 vs the tabulated 0.7979
+# (+2.8%), which in turn skews A3(2) to 2.586 vs 2.659 (-2.7%) and B4(2) to
+# 3.092 vs 3.267 (-5.4%). By n = 25 the two agree to four decimals, so the seam
+# is smooth and the series takes over from there (relative error in c4 is
+# 8.6e-06 at n = 26, 1.5e-07 at n = 100, below 1e-09 past n = 500).
+#
+# Do not "simplify" the tables away — small-n charts would move.
+# ---------------------------------------------------------------------------
+
+def _tabulated(n: float, table: dict[int, float]) -> float | None:
+    """Exact tabulated value when n is a whole number in 2..25, else None."""
+    if 2 <= n <= 25 and float(n).is_integer():
+        return table[int(n)]
+    return None
+
+
+def c4(n: float) -> float:
+    """
+    Unbiasing constant: E[s] = c4(n)·σ.  c4 ≈ 1 - 1/(4n) - 7/(32n²).
+
+    NaN for n < 2 — a subgroup of one has no defined standard deviation.
+    """
+    if not n >= 2:  # also catches NaN
+        return math.nan
+    hit = _tabulated(n, C4)
+    if hit is not None:
+        return hit
+    return 1.0 - 1.0 / (4.0 * n) - 7.0 / (32.0 * n * n)
+
+
+def _b_spread(n: float) -> float:
+    """3·√(1 − c4²)/c4 — the half-width shared by B3 and B4."""
+    c = c4(n)
+    if math.isnan(c):
+        return math.nan
+    return 3.0 * math.sqrt(max(0.0, 1.0 - c * c)) / c
+
+
+def a3(n: float) -> float:
+    """A3 = 3/(c4·√n) for the Xbar chart. NaN for n < 2."""
+    hit = _tabulated(n, A3)
+    if hit is not None:
+        return hit
+    c = c4(n)
+    return math.nan if math.isnan(c) else 3.0 / (c * math.sqrt(n))
+
+
+def b3(n: float) -> float:
+    """B3 = max(0, 1 − 3√(1 − c4²)/c4) for the S chart. NaN for n < 2."""
+    hit = _tabulated(n, B3)
+    if hit is not None:
+        return hit
+    spread = _b_spread(n)
+    return math.nan if math.isnan(spread) else max(0.0, 1.0 - spread)
+
+
+def b4(n: float) -> float:
+    """B4 = 1 + 3√(1 − c4²)/c4 for the S chart. NaN for n < 2."""
+    hit = _tabulated(n, B4)
+    if hit is not None:
+        return hit
+    spread = _b_spread(n)
+    return math.nan if math.isnan(spread) else 1.0 + spread

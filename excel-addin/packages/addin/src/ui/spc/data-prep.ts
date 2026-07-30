@@ -2,6 +2,27 @@ import { ChartType, SPCInput, SPCResult } from '@qikit/engine';
 import { GRAIN_CHARTS, NEEDS_N, SpcOptions, DataGrain } from './constants';
 import { colLetter } from '../shared/col-letter';
 
+// ─── Summary formatting ───────────────────────────────────────────────────────
+
+/**
+ * Format a limit column (cl / ucl / lcl) for a readout with no position attached.
+ *
+ * Reading row 0 and calling it "the" CL is only honest when the line is flat. It
+ * isn't for p/u charts with variable denominators, for xbar/s with unequal subgroup
+ * sizes, or for an S chart center line (c4(nᵢ)·σ̂). Those get a range instead.
+ */
+export function formatLimit(rows: any[], key: string, decimals = 3): string {
+  const vals = rows.map(r => r?.[key]).filter(v => typeof v === 'number' && !isNaN(v));
+  if (vals.length === 0) return '—';
+
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  // Below the displayed precision the two ends would print identically anyway.
+  const tol = Math.pow(10, -decimals) / 2;
+  if (hi - lo < tol) return lo.toFixed(decimals);
+  return `${lo.toFixed(decimals)}–${hi.toFixed(decimals)}`;
+}
+
 // ─── Date/aggregation helpers ─────────────────────────────────────────────────
 
 export function isLikelyDate(val: any): boolean {
