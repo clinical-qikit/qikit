@@ -76,7 +76,8 @@
         "sigma_signal": true,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 7,
@@ -89,7 +90,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 1,
@@ -102,7 +104,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 6,
@@ -115,7 +118,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 4,
@@ -128,7 +132,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 3,
@@ -141,7 +146,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 2,
@@ -154,7 +160,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       },
       {
         "x": 8,
@@ -167,7 +174,8 @@
         "sigma_signal": false,
         "runs_signal": false,
         "runs_signal_localized": false,
-        "baseline": true
+        "baseline": true,
+        "excluded": false
       }
     ]
   }

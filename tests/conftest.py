@@ -2,8 +2,19 @@
 Shared fixtures for qikit tests.
 """
 
-import numpy as np
-import pytest
+import sys
+from pathlib import Path
+
+# Tests must exercise the checkout they live in. Both the repo .venv and the system
+# Python carry editable installs of clinical-qikit whose .pth files hard-code the
+# path of the primary checkout, so a run from a git worktree would otherwise import
+# whatever branch that other tree is sitting on.
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+import numpy as np  # noqa: E402
+import pytest  # noqa: E402
 
 
 @pytest.fixture
