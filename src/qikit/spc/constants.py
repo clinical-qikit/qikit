@@ -39,15 +39,24 @@ A3 = {
     21: 0.663, 22: 0.647, 23: 0.633, 24: 0.619, 25: 0.606,
 }
 
+# c4 unbiasing constant (n = subgroup size, 2..25)  Montgomery (2019), Table VI
+C4 = {
+    2: 0.7979, 3: 0.8862, 4: 0.9213, 5: 0.9400, 6: 0.9515, 7: 0.9594,
+    8: 0.9650, 9: 0.9693, 10: 0.9727, 11: 0.9754, 12: 0.9776, 13: 0.9794,
+    14: 0.9810, 15: 0.9823, 16: 0.9835, 17: 0.9845, 18: 0.9854, 19: 0.9862,
+    20: 0.9869, 21: 0.9876, 22: 0.9882, 23: 0.9887, 24: 0.9892, 25: 0.9896,
+}
+
 
 # ---------------------------------------------------------------------------
 # Constant accessors — tabulated for n = 2..25, analytic above
 #
 # The tables above stay authoritative below n = 26. The series form for c4 is a
-# poor substitute at small n: it puts A3(2) at 2.586 vs the tabulated 2.659
-# (-2.7%) and B4(2) at 3.092 vs 3.267 (-5.4%). By n = 25 the two agree to four
-# decimals, so the seam is smooth and the series takes over from there (relative
-# error in c4 is 8.6e-06 at n = 26, 1.5e-07 at n = 100, below 1e-09 past n = 500).
+# poor substitute at small n: it puts c4(2) at 0.8203 vs the tabulated 0.7979
+# (+2.8%), which in turn skews A3(2) to 2.586 vs 2.659 (-2.7%) and B4(2) to
+# 3.092 vs 3.267 (-5.4%). By n = 25 the two agree to four decimals, so the seam
+# is smooth and the series takes over from there (relative error in c4 is
+# 8.6e-06 at n = 26, 1.5e-07 at n = 100, below 1e-09 past n = 500).
 #
 # Do not "simplify" the tables away — small-n charts would move.
 # ---------------------------------------------------------------------------
@@ -67,6 +76,9 @@ def c4(n: float) -> float:
     """
     if not n >= 2:  # also catches NaN
         return math.nan
+    hit = _tabulated(n, C4)
+    if hit is not None:
+        return hit
     return 1.0 - 1.0 / (4.0 * n) - 7.0 / (32.0 * n * n)
 
 

@@ -22,14 +22,22 @@ export const A3: Record<number, number> = {
   21: 0.663, 22: 0.647, 23: 0.633, 24: 0.619, 25: 0.606,
 };
 
+export const C4: Record<number, number> = {
+  2: 0.7979, 3: 0.8862, 4: 0.9213, 5: 0.9400, 6: 0.9515, 7: 0.9594,
+  8: 0.9650, 9: 0.9693, 10: 0.9727, 11: 0.9754, 12: 0.9776, 13: 0.9794,
+  14: 0.9810, 15: 0.9823, 16: 0.9835, 17: 0.9845, 18: 0.9854, 19: 0.9862,
+  20: 0.9869, 21: 0.9876, 22: 0.9882, 23: 0.9887, 24: 0.9892, 25: 0.9896,
+};
+
 // ---------------------------------------------------------------------------
 // Constant accessors — tabulated for n = 2..25, analytic above.
 // Mirrors src/qikit/spc/constants.py.
 //
 // The tables stay authoritative below n = 26: the series form for c4 is a poor
-// substitute at small n, putting A3(2) at 2.586 vs the tabulated 2.659 (-2.7%)
-// and B4(2) at 3.092 vs 3.267 (-5.4%). By n = 25 the two agree to four decimals,
-// so the seam is smooth and the series takes over from there.
+// substitute at small n, putting c4(2) at 0.8203 vs the tabulated 0.7979 (+2.8%),
+// which in turn skews A3(2) to 2.586 vs 2.659 (-2.7%) and B4(2) to 3.092 vs 3.267
+// (-5.4%). By n = 25 the two agree to four decimals, so the seam is smooth and
+// the series takes over from there.
 //
 // Do not "simplify" the tables away — small-n charts would move.
 // ---------------------------------------------------------------------------
@@ -41,6 +49,8 @@ function tabulated(n: number, table: Record<number, number>): number | undefined
 /** Unbiasing constant: E[s] = c4(n)·σ. NaN for n < 2. */
 export function c4(n: number): number {
   if (!(n >= 2)) return NaN;
+  const hit = tabulated(n, C4);
+  if (hit !== undefined) return hit;
   return 1 - 1 / (4 * n) - 7 / (32 * n * n);
 }
 
