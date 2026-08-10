@@ -107,6 +107,10 @@ def qic(
                detection (only sigma signals are meaningful cross-sectionally),
                and renders markers only with all x-axis labels shown.
                Valid only for charts with denominators (p, pp, u, up).
+               notes=, a list-valued target= and exclude= are given in *input*
+               order and are re-ordered along with the data; summary["excluded"]
+               reports positions in the sorted (plotted) order. freeze= and
+               part= are rejected — they assume the points are in time order.
     connect : explicitly control point connectivity. True = lines+markers,
                False = markers only. When None (default), connectivity is
                inferred from the x-axis: categorical values that don't look
@@ -143,6 +147,13 @@ def qic(
         raise ValueError(
             f"funnel=True is only valid for attribute charts with denominators "
             f"(p, pp, u, up). Got chart={chart!r}."
+        )
+
+    if funnel and (freeze is not None or part is not None):
+        raise ValueError(
+            "funnel=True cannot be combined with freeze= or part=. A funnel plot is a "
+            "cross-sectional comparison ordered by denominator; freeze= and part= are "
+            "temporal/phase concepts that assume the points are in time order."
         )
 
     if chart not in VALID_CHARTS:
@@ -259,10 +270,28 @@ def qic(
     if funnel:
         if n_vals is None:
             raise ValueError("funnel=True requires denominators (n=).")
+        # Every per-point input must be permuted here. If a positional argument is
+        # added to _assemble_final_df later, it belongs in this block too.
         sort_order = np.argsort(n_vals, kind="stable")
         x_vals = [x_vals[i] for i in sort_order]
         y_arr = y_arr[sort_order]
         n_vals = n_vals[sort_order]
+
+        if isinstance(notes, (list, np.ndarray, pd.Series)) and len(notes) == len(sort_order):
+            notes_vals = list(notes)
+            notes = [notes_vals[i] for i in sort_order]
+
+        if isinstance(target, (list, np.ndarray, pd.Series)) and len(target) == len(sort_order):
+            target = np.asarray(target, dtype=float)[sort_order]
+
+        if exclude is not None and not isinstance(exclude, str):
+            # exclude is 1-based into the *input* order. new_pos[i] is where original
+            # point i landed — the inverse of the sort permutation.
+            new_pos = np.argsort(sort_order)
+            exclude = [
+                int(new_pos[i - 1]) + 1 if 1 <= i <= len(new_pos) else int(i)
+                for i in exclude
+            ]
 
     # ------------------------------------------------------------------
     # 3. Build baseline mask

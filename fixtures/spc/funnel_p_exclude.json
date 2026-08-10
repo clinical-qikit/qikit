@@ -1,0 +1,219 @@
+{
+  "id": "funnel_p_exclude",
+  "reference": "Funnel plot with exclude= \u2014 the excluded index is 1-based into the *input* order and must follow the denominator sort (clinic at n=260 is input position 4 and sorts to position 9). Spiegelhalter 2005 for the funnel form.",
+  "function": "qic",
+  "input": {
+    "y": [
+      8,
+      15,
+      9,
+      33,
+      6,
+      20,
+      12,
+      70,
+      9,
+      22
+    ],
+    "n": [
+      45,
+      120,
+      80,
+      260,
+      55,
+      150,
+      95,
+      310,
+      70,
+      180
+    ],
+    "chart": "p",
+    "funnel": true,
+    "exclude": [
+      4
+    ]
+  },
+  "check": {
+    "cl": [
+      0.1547511,
+      0.0001
+    ],
+    "ucl": [
+      0.3164937,
+      0.0001
+    ],
+    "signals": true,
+    "runs_disabled": true
+  },
+  "snapshot": {
+    "chart_type": "p",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 10,
+      "n_baseline": 9,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [
+        9
+      ],
+      "n_useful": 9,
+      "longest_run": 7,
+      "n_crossings": 2,
+      "run_threshold": 10,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false,
+      "runs_disabled": true,
+      "note": "runs signals suppressed (funnel mode)"
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.17777777777777778,
+        "cl": 0.15475113122171946,
+        "ucl": 0.31649365414461544,
+        "lcl": 0.0,
+        "ucl_95": 0.26257947983698343,
+        "lcl_95": 0.04692278260645548,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 5,
+        "y": 0.10909090909090909,
+        "cl": 0.15475113122171946,
+        "ucl": 0.3010527479073658,
+        "lcl": 0.008449514536073122,
+        "ucl_95": 0.25228554234548367,
+        "lcl_95": 0.05721672009795524,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 9,
+        "y": 0.12857142857142856,
+        "cl": 0.15475113122171946,
+        "ucl": 0.2844336538609853,
+        "lcl": 0.025068608582453633,
+        "ucl_95": 0.24120614631456333,
+        "lcl_95": 0.06829611612887558,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 3,
+        "y": 0.1125,
+        "cl": 0.15475113122171946,
+        "ucl": 0.27605802341389146,
+        "lcl": 0.033444239029547476,
+        "ucl_95": 0.23562239268316745,
+        "lcl_95": 0.07387986976027147,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 7,
+        "y": 0.12631578947368421,
+        "cl": 0.15475113122171946,
+        "ucl": 0.2660699700050165,
+        "lcl": 0.04343229243842245,
+        "ucl_95": 0.22896369041058412,
+        "lcl_95": 0.08053857203285479,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 2,
+        "y": 0.125,
+        "cl": 0.15475113122171946,
+        "ucl": 0.2537977939395961,
+        "lcl": 0.05570446850384278,
+        "ucl_95": 0.2207822397003039,
+        "lcl_95": 0.08872002274313504,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 6,
+        "y": 0.13333333333333333,
+        "cl": 0.15475113122171946,
+        "ucl": 0.243341159534386,
+        "lcl": 0.06616110290905293,
+        "ucl_95": 0.2138111500968305,
+        "lcl_95": 0.09569111234660843,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 10,
+        "y": 0.12222222222222222,
+        "cl": 0.15475113122171946,
+        "ucl": 0.23562239268316745,
+        "lcl": 0.07387986976027147,
+        "ucl_95": 0.20866530552935145,
+        "lcl_95": 0.10083695691408748,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 4,
+        "y": 0.12692307692307692,
+        "cl": 0.15475113122171946,
+        "ucl": 0.22204008812418996,
+        "lcl": 0.08746217431924895,
+        "ucl_95": 0.19961043582336646,
+        "lcl_95": 0.10989182662007246,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": false,
+        "excluded": true
+      },
+      {
+        "x": 8,
+        "y": 0.22580645161290322,
+        "cl": 0.15475113122171946,
+        "ucl": 0.2163750940793365,
+        "lcl": 0.09312716836410243,
+        "ucl_95": 0.19583377312679748,
+        "lcl_95": 0.11366848931664145,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      }
+    ]
+  }
+}

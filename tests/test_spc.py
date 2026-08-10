@@ -871,6 +871,90 @@ class TestNotes:
         assert "note" not in r.data.columns
 
 
+class TestFunnelAlignment:
+    """funnel=True sorts by denominator; every per-point input must follow the sort."""
+
+    # n ascending is [5, 50, 500, 5000] — input order 1, 3, 2, 4.
+    Y = [4, 480, 55, 4700]
+    N = [5, 500, 50, 5000]
+    LABELS = ["A", "B", "C", "D"]
+
+    def _funnel(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="p", funnel=True, **kw)
+
+    def test_notes_follow_the_sort(self):
+        """Reported bug: notes stayed in input order while the data was reordered."""
+        notes = ["five", "five-hundred", "fifty", "five-thousand"]
+        r = self._funnel(notes=notes)
+        assert r.data["notes"].tolist() == ["five", "fifty", "five-hundred", "five-thousand"]
+        # Asserting y as well pins the pairing, not merely the order.
+        assert r.data["y"].tolist() == pytest.approx([0.8, 1.1, 0.96, 0.94])
+
+    def test_scalar_notes_broadcast_unchanged(self):
+        """A scalar note broadcasts; the permutation must be a no-op."""
+        r = self._funnel(notes="site visit")
+        assert r.data["notes"].tolist() == ["site visit"] * 4
+
+    def test_list_target_follows_the_sort(self):
+        """A list-valued target= is positional and must be permuted."""
+        r = self._funnel(target=[0.1, 0.2, 0.3, 0.4])
+        assert r.data["target"].tolist() == pytest.approx([0.1, 0.3, 0.2, 0.4])
+
+    def test_scalar_target_unchanged(self):
+        """A scalar target broadcasts unchanged."""
+        r = self._funnel(target=0.5)
+        assert r.data["target"].tolist() == pytest.approx([0.5] * 4)
+
+    def test_exclude_ghosts_the_named_point(self):
+        """exclude= is 1-based into the input order, not the sorted order."""
+        r = self._funnel(x=self.LABELS, exclude=[2])
+        assert r.data["excluded"].sum() == 1
+        ghosted = r.data.loc[r.data["excluded"]].iloc[0]
+        assert ghosted["x"] == "B"
+        assert not ghosted["baseline"]
+
+    def test_exclude_removes_the_right_point_from_the_baseline(self):
+        """The payload: which counts actually left the center-line calculation."""
+        r = self._funnel(exclude=[2])
+        assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+
+    def test_exclude_column_follows_the_sort(self):
+        """The DataFrame bool-column path resolves to indices and must permute too."""
+        df = pd.DataFrame({
+            "x": self.LABELS, "y": self.Y, "n": self.N,
+            "drop": [False, True, False, False],
+        })
+        r = qic(data=df, x="x", y="y", n="n", chart="p", funnel=True, exclude="drop")
+        ghosted = r.data.loc[r.data["excluded"]].iloc[0]
+        assert ghosted["x"] == "B"
+        assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+
+    def test_exclude_out_of_range_is_ignored(self):
+        """Out-of-range indices stay silently dropped, as before."""
+        r = self._funnel(exclude=[99])
+        assert r.data["excluded"].sum() == 0
+
+    def test_summary_excluded_reports_sorted_positions(self):
+        """summary['excluded'] indexes the plotted rows, not the input."""
+        r = self._funnel(exclude=[2])
+        assert r.summary["excluded"] == [3]
+
+    def test_freeze_with_funnel_raises(self):
+        """freeze= assumes time order and is meaningless under a denominator sort."""
+        with pytest.raises(ValueError, match="funnel"):
+            self._funnel(freeze=2)
+
+    def test_part_with_funnel_raises(self):
+        """Same for part=."""
+        with pytest.raises(ValueError, match="funnel"):
+            self._funnel(part=3)
+
+    def test_funnel_without_freeze_or_part_still_works(self):
+        """Guard against over-broad validation."""
+        r = self._funnel()
+        assert len(r.data) == 4
+
+
 # ---------------------------------------------------------------------------
 # Regression values — known published/hand-calculated data
 # ---------------------------------------------------------------------------

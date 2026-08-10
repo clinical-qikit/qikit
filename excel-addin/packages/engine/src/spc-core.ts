@@ -206,10 +206,20 @@ export function compute(input: SPCInput): SPCResult {
     if (!nCalc) {
       throw new Error('funnel=true requires denominators (n).');
     }
+    if (freeze !== undefined || part !== undefined) {
+      throw new Error('funnel=true cannot be combined with freeze or part. A funnel plot is a cross-sectional comparison ordered by denominator; freeze and part are temporal/phase concepts that assume the points are in time order.');
+    }
     const order = nCalc.map((_, i) => i).sort((a, b) => nCalc![a] - nCalc![b]);
     y = order.map(i => (y as number[])[i]);
     yCalc = order.map(i => yCalc[i]);
     nCalc = order.map(i => nCalc![i]);
+
+    // exclude is 1-based into the *input* order; invert the sort permutation so the
+    // named point stays ghosted after the reorder. Mirrors src/qikit/spc/api.py.
+    const newPos = new Array<number>(order.length);
+    order.forEach((orig, pos) => { newPos[orig] = pos; });
+    const exArr = Array.isArray(exclude) ? exclude : [exclude];
+    exclude = exArr.map(i => (i >= 1 && i <= order.length ? newPos[i - 1] + 1 : i));
   }
 
   let mask = new Array(y.length).fill(true);
