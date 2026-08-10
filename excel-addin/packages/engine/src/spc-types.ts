@@ -6,7 +6,9 @@ export type SignalMethod = 'anhoej' | 'ihi' | 'weco' | 'nelson';
 
 export interface SPCInput {
   y: number[];
-  n?: number[];
+  /** Denominators for p/pp/u/up. A scalar is broadcast to every point — the
+   *  constant-subgroup-size case, which the shared fixtures use throughout. */
+  n?: number[] | number;
   chart: ChartType;
   method?: SignalMethod;
   freeze?: number;

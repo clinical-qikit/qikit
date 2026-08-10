@@ -6,12 +6,7 @@ import { compute } from '../src';
 // narrow the baseline; their boundary points are still checked against it.
 // Mirrors src/qikit/spc/compute.py.
 describe('excluded points are ghosted from signal detection', () => {
-  // n is scalar-capable at runtime but typed number[] in SPCInput, hence the fill.
-  const outlier = {
-    y: [10, 11, 9, 12, 45, 10, 11, 9, 12, 10],
-    n: new Array(10).fill(100),
-    chart: 'p' as const,
-  };
+  const outlier = { y: [10, 11, 9, 12, 45, 10, 11, 9, 12, 10], n: 100, chart: 'p' as const };
 
   test('an excluded outlier is not flagged against the limits it is excluded from', () => {
     const { data, summary } = compute({ ...outlier, exclude: [5] });
