@@ -880,6 +880,82 @@ class TestNotes:
         assert "note" not in r.data.columns
 
 
+class TestFacetForwarding:
+    """The facet recursion must forward every per-call argument, not just some."""
+
+    @staticmethod
+    def _df():
+        return pd.DataFrame({
+            "unit": ["A"] * 4 + ["B"] * 4,
+            "site": ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4"],
+            "y": [4, 480, 55, 4700] * 2,
+            "n": [5, 500, 50, 5000] * 2,
+            "note": ["five", "five-hundred", "fifty", "five-thousand"] * 2,
+        })
+
+    def _facet(self, **kw):
+        return qic(data=self._df(), x="site", y="y", n="n", chart="p",
+                   facets="unit", **kw)
+
+    def test_funnel_sorts_within_each_facet(self):
+        """funnel= was dropped, so faceted funnels silently came back unsorted."""
+        r = self._facet(funnel=True)
+        assert r.data[r.data["facet"] == "A"]["x"].tolist() == ["a1", "a3", "a2", "a4"]
+        assert r.data[r.data["facet"] == "B"]["x"].tolist() == ["b1", "b3", "b2", "b4"]
+
+    def test_funnel_display_overrides_reach_the_parent(self):
+        """The combined result carries the funnel render hints, not the defaults."""
+        r = self._facet(funnel=True)
+        assert r._plot_opts["connect"] is False
+        assert r._plot_opts["x_nticks_all"] is True
+
+    def test_notes_column_forwarded(self):
+        r = self._facet(notes="note")
+        assert "notes" in r.data.columns
+        assert r.data[r.data["facet"] == "A"]["notes"].tolist() == [
+            "five", "five-hundred", "fifty", "five-thousand"
+        ]
+
+    def test_notes_follow_the_funnel_sort_within_a_facet(self):
+        r = self._facet(funnel=True, notes="note")
+        assert r.data[r.data["facet"] == "A"]["notes"].tolist() == [
+            "five", "fifty", "five-hundred", "five-thousand"
+        ]
+
+    def test_list_notes_sliced_per_facet(self):
+        """A positional list spans data=, so each facet gets its own rows."""
+        r = qic(data=self._df(), y="y", n="n", chart="p", facets="unit",
+                notes=list("12345678"))
+        by_facet = r.data.groupby("facet")["notes"].apply(list).to_dict()
+        assert by_facet == {"A": ["1", "2", "3", "4"], "B": ["5", "6", "7", "8"]}
+
+    def test_scalar_target_forwarded(self):
+        r = self._facet(target=0.9)
+        assert "target" in r.data.columns
+        assert r.data["target"].tolist() == pytest.approx([0.9] * 8)
+
+    def test_subtitle_and_caption_survive(self):
+        r = self._facet(subtitle="SUB", caption="CAP")
+        assert r.subtitle == "SUB"
+        assert r.caption == "CAP"
+
+    def test_funnel_with_freeze_raises_through_the_facet_path(self):
+        """The validation runs before the recursion, so facets cannot bypass it."""
+        with pytest.raises(ValueError, match="funnel"):
+            self._facet(funnel=True, freeze=2)
+
+    def test_x_period_forwarded(self):
+        """x_period drives time bucketing inside the recursion, not just rendering."""
+        dates = pd.to_datetime(
+            ["2024-01-01", "2024-01-02", "2024-02-01", "2024-02-02"] * 2
+        )
+        df = pd.DataFrame({"unit": ["A"] * 4 + ["B"] * 4, "d": dates,
+                           "y": [1.0, 2.0, 3.0, 4.0] * 2})
+        r = qic(data=df, x="d", y="y", chart="i", facets="unit", x_period="month")
+        # Two months per facet rather than four raw rows.
+        assert len(r.data) == 4
+
+
 class TestFunnelAlignment:
     """funnel=True sorts by denominator; every per-point input must follow the sort."""
 

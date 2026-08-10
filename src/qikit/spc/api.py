@@ -212,9 +212,11 @@ def qic(
             )
 
         facet_vals = list(data[facets].unique())
+        n_rows = len(data)
 
         sub_results = []
         for fv in facet_vals:
+            facet_rows = np.flatnonzero((data[facets] == fv).to_numpy())
             sub_df = data[data[facets] == fv].copy()
             sub_result = qic(
                 data=sub_df,
@@ -224,6 +226,11 @@ def qic(
                 cl=cl, multiply=multiply,
                 title=str(fv), ylab=ylab, xlab=xlab,
                 agg_fun=agg_fun,
+                funnel=funnel,
+                notes=_subset_per_facet(notes, facet_rows, n_rows),
+                target=_subset_per_facet(target, facet_rows, n_rows),
+                x_period=x_period,
+                part_labels=part_labels,
                 print_summary=False,
                 _plot_options=opts,
             )
@@ -243,7 +250,10 @@ def qic(
             "by_facet": by_facet,
         }
 
-        plot_opts = dataclasses.asdict(dataclasses.replace(opts, part_indices=[]))
+        facet_opts = dataclasses.replace(opts, part_indices=[])
+        if funnel:
+            facet_opts = dataclasses.replace(facet_opts, connect=False, x_nticks_all=True)
+        plot_opts = dataclasses.asdict(facet_opts)
 
         return SPCResult(
             data=combined_df,
@@ -252,6 +262,8 @@ def qic(
             summary=combined_summary,
             signals=any_signals,
             title=title,
+            subtitle=subtitle,
+            caption=caption,
             ylab=ylab,
             xlab=xlab,
             _plot_opts=plot_opts,
@@ -432,6 +444,21 @@ def qic(
         xlab=xlab,
         _plot_opts=plot_opts,
     )
+
+
+def _subset_per_facet(value, facet_rows: np.ndarray, n_rows: int):
+    """
+    Slice a positional per-row argument (notes=, target=) down to one facet.
+
+    Column names and scalars are facet-independent and pass through untouched.
+    A list is positional over data=, so it only makes sense to slice one whose
+    length matches; anything else is left alone so the existing length error
+    fires downstream rather than an IndexError here.
+    """
+    if isinstance(value, (list, np.ndarray, pd.Series)) and len(value) == n_rows:
+        vals = list(value)
+        return [vals[i] for i in facet_rows]
+    return value
 
 
 def _resolve_and_aggregate(
