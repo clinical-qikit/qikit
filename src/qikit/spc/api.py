@@ -63,7 +63,7 @@ def qic(
     show_grid: bool = False,
     show_x_labels: bool = True,
     # Formatting
-    decimals: int = 1,
+    decimals: int | None = None,
     point_size: float = 1.5,
     x_period: str | None = None,
     x_format: str | None = None,
@@ -118,6 +118,10 @@ def qic(
                full label in the hover tooltip. Intended for funnel plots over
                hundreds of categorical units, where the axis text is unreadable
                anyway. Overridable per-call via result.plot(show_x_labels=...).
+    decimals : decimal places for the CL/UCL/LCL labels. When None (default),
+               scaled to the spread the limits span, so a proportion keeps its
+               resolution and a large count is not padded with noise. On a
+               percent axis the labels are written as percentages.
     connect : explicitly control point connectivity. True = lines+markers,
                False = markers only. When None (default), connectivity is
                inferred from the x-axis: categorical values that don't look

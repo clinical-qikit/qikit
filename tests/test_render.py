@@ -47,25 +47,26 @@ class TestPlotBasics:
 
 class TestSignalColors:
     def test_signal_point_is_red(self):
-        """A point beyond limits should be colored red (#d62728)."""
+        """A point beyond limits should be colored brick red (#b13b31)."""
         y = [10.0] * 29 + [40.0]
         r = qic(y=y, chart="i")
         fig = r.plot()
         colors = fig.data[0].marker.color
-        assert any(c == "#d62728" for c in colors)
+        assert any(c == "#b13b31" for c in colors)
 
     def test_normal_points_are_gray(self):
-        """Normal points should be muted gray."""
+        """Normal points should be the dark data ink."""
         y = [10.0] * 20
         r = qic(y=y, chart="i")
         fig = r.plot()
         colors = fig.data[0].marker.color
-        assert all(c == "#888888" for c in colors)
+        assert all(c == "#3a3a3a" for c in colors)
 
 
-SIGMA_RED = "#d62728"
-RUNS_ORANGE = "#ff7f0e"
-NORMAL_GRAY = "#888888"
+# Hardcoded on purpose: these pin the palette against accidental drift.
+SIGMA_RED = "#b13b31"
+RUNS_ORANGE = "#d99a2b"
+NORMAL_GRAY = "#3a3a3a"
 
 
 @pytest.fixture
@@ -156,6 +157,65 @@ class TestRunsHighlight:
         assert r.data["runs_signal_localized"].sum() == 16
         colors = list(r.plot(runs_highlight="localized").data[0].marker.color)
         assert colors.count(RUNS_ORANGE) == 16
+
+
+class TestPointSizes:
+    """Signal points carry more ink than routine ones."""
+
+    def test_signal_points_are_larger(self):
+        y = list(np.random.default_rng(21).normal(50, 4, 23))
+        y.insert(17, 120.0)
+        fig = qic(y=y, chart="i").plot()
+        sizes = list(fig.data[0].marker.size)
+        colors = list(fig.data[0].marker.color)
+        signal = [s for s, c in zip(sizes, colors) if c != NORMAL_GRAY]
+        normal = [s for s, c in zip(sizes, colors) if c == NORMAL_GRAY]
+        assert signal and normal
+        assert min(signal) > max(normal)
+
+    def test_point_size_scales_all_points(self, i_result):
+        small = set(i_result.plot(point_size=1.0).data[0].marker.size)
+        large = set(i_result.plot(point_size=3.0).data[0].marker.size)
+        assert min(large) > max(small)
+
+
+class TestLabelDecimals:
+    """CL/UCL/LCL labels scale their precision to the spread they span."""
+
+    @staticmethod
+    def _labels(fig):
+        return [a.text for a in fig.layout.annotations if a.text and "=" in a.text]
+
+    def test_large_counts_drop_decimals(self):
+        y = list(np.random.default_rng(3).poisson(1200, 24).astype(float))
+        for text in self._labels(qic(y=y, chart="c").plot()):
+            assert "." not in text
+
+    def test_small_values_keep_resolution(self):
+        """decimals=1 would round these limits into a single value."""
+        y = list(np.random.default_rng(3).normal(0.82, 0.05, 24))
+        labels = self._labels(qic(y=y, chart="i").plot())
+        assert len(set(labels)) == 3
+        for text in labels:
+            assert len(text.split(".")[1]) >= 3
+
+    def test_percent_axis_labels_match_axis(self):
+        """A percent axis shows 100x the stored value; the labels must agree."""
+        rng = np.random.default_rng(3)
+        n = [120.0] * 24
+        y = list(rng.binomial(120, 0.18, 24).astype(float))
+        labels = self._labels(qic(y=y, n=n, chart="p").plot())
+        assert labels and all(t.endswith("%") for t in labels)
+        assert any(t.startswith("CL=1") for t in labels)  # ~18%, not 0.18
+
+    def test_explicit_decimals_still_honored(self, i_result):
+        labels = self._labels(i_result.plot(decimals=3))
+        assert all(len(t.split(".")[1]) == 3 for t in labels)
+
+    def test_flat_series_does_not_crash(self):
+        """Zero spread has no scale to derive precision from."""
+        labels = self._labels(qic(y=[10.0] * 20, chart="i").plot())
+        assert len(labels) == 3
 
 
 class TestRunChart:

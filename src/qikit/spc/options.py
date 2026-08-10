@@ -22,7 +22,7 @@ class PlotOptions:
     show_95: bool = False
     show_grid: bool = False
     show_x_labels: bool = True
-    decimals: int = 1
+    decimals: int | None = None  # None = scale to the limit spread
     point_size: float = 1.5
     x_angle: int | None = None
     x_pad: float = 1.0
