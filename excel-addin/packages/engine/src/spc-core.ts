@@ -28,6 +28,23 @@ function grandMean(yBase: number[], nBase?: number[]): number {
   return den === 0 ? NaN : num / den;
 }
 
+/**
+ * I chart limits: σ̂ = MR̄/d2 (Montgomery 2019, §6.2; d2 = 1.128 for n = 2).
+ * Shared by the i and ip charts, which differ only in their center line.
+ */
+function iLimits(cl: number, y: number[], mask: boolean[]): [number[], number[]] {
+  const mrBar = screenedMeanMR(y, mask);
+  const sigma = mrBar / D2[2];
+  if (!(sigma > 0)) {
+    // A perfectly flat series has no variation to estimate a spread from.
+    // Zero-width limits would draw three coincident lines and call any
+    // departure a signal, so report no limits and let it read as a run chart.
+    // The !(> 0) form also catches the NaN mrBar case (fewer than 2 points).
+    return [new Array(y.length).fill(NaN), new Array(y.length).fill(NaN)];
+  }
+  return [new Array(y.length).fill(cl + 3 * sigma), new Array(y.length).fill(cl - 3 * sigma)];
+}
+
 export const CHARTS: Record<string, ChartSpec> = {
   run: {
     center: (yb) => nanmedian(yb),
@@ -36,11 +53,7 @@ export const CHARTS: Record<string, ChartSpec> = {
   },
   i: {
     center: (yb) => nanmean(yb),
-    limits: (cl, y, _n, mask) => {
-      const mrBar = screenedMeanMR(y, mask);
-      const sigma = mrBar / D2[2];
-      return [new Array(y.length).fill(cl + 3 * sigma), new Array(y.length).fill(cl - 3 * sigma)];
-    },
+    limits: (cl, y, _n, mask) => iLimits(cl, y, mask),
     needsN: false, isAttribute: false, floorLcl: false
   },
   mr: {
@@ -160,11 +173,7 @@ export const CHARTS: Record<string, ChartSpec> = {
   },
   ip: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
-    limits: (cl, y, _n, mask) => {
-      const mrBar = screenedMeanMR(y, mask);
-      const sigma = mrBar / D2[2];
-      return [new Array(y.length).fill(cl + 3 * sigma), new Array(y.length).fill(cl - 3 * sigma)];
-    },
+    limits: (cl, y, _n, mask) => iLimits(cl, y, mask),
     needsN: true, isAttribute: true, floorLcl: false
   }
 };

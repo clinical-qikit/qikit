@@ -101,6 +101,33 @@ class TestIChart:
         # Limits should be tighter than the spike
         assert r_with.data["ucl"].iloc[0] < 50
 
+    def test_screening_does_not_collapse_sigma(self):
+        """
+        Screening must not throw away the only informative moving range.
+
+        With 28 zero MRs and one of 30, MR̄ = 1.0345 and the D4·MR̄ screen sits
+        at 3.38 — below the single MR that carries the variation. Screening it
+        out left the survivors averaging 0, collapsing UCL/LCL onto CL and
+        flagging all 30 points instead of the one real outlier.
+        """
+        y = [10.0] * 29 + [40.0]
+        r = _result("i", y)
+        cl = r.data["cl"].iloc[0]
+        ucl = r.data["ucl"].iloc[0]
+        lcl = r.data["lcl"].iloc[0]
+        assert ucl > cl > lcl
+        # σ̂ falls back to the unscreened MR̄ = 30/29 → σ̂ = 0.9171
+        assert math.isclose(ucl, cl + 3 * (30 / 29) / 1.128, rel_tol=1e-6)
+        assert int(r.data["sigma_signal"].sum()) == 1
+        assert bool(r.data["sigma_signal"].iloc[-1])
+
+    def test_screening_still_applies_when_it_leaves_signal(self):
+        """The ordinary screening path is untouched: a lone spike is still screened."""
+        y = [10.0, 11.0, 9.0, 10.0, 12.0] * 3 + [90.0] + [10.0, 11.0, 9.0, 10.0] * 2
+        r = _result("i", y)
+        # The spike is screened out of σ̂, so the limits stay far below it.
+        assert r.data["ucl"].iloc[0] < 90.0
+
     def test_nan_handling(self):
         y = [1.0, 2.0, np.nan, 4.0, 5.0]
         r = _result("i", y)
@@ -108,11 +135,19 @@ class TestIChart:
         assert not np.isnan(r.data["cl"].iloc[0])
 
     def test_all_same_values(self):
-        """All-same values → CL at that value, zero-width limits, no crash."""
+        """
+        All-same values → CL at that value and no limits at all.
+
+        A flat series has no variation to estimate a spread from. Zero-width
+        limits would draw three coincident lines and call any departure a
+        signal, so the chart reports NaN limits and reads as a run chart.
+        """
         y = [5.0] * 20
         r = _result("i", y)
         assert math.isclose(r.data["cl"].iloc[0], 5.0)
-        assert math.isclose(r.data["ucl"].iloc[0], 5.0, abs_tol=1e-10)
+        assert r.data["ucl"].isna().all()
+        assert r.data["lcl"].isna().all()
+        assert not r.data["sigma_signal"].any()
 
     def test_signals_field(self, normal_30):
         r = _result("i", normal_30)
@@ -125,15 +160,22 @@ class TestIChart:
         cl_after = r.data["cl"].iloc[25]
         assert math.isclose(cl_before, cl_after, abs_tol=1e-10)
 
+    # A spike at 1-based index 11, on a baseline that varies. The baseline must
+    # not be perfectly flat: excluding the spike would then leave no variation
+    # at all and the limits would come back NaN, measuring nothing.
+    _SPIKE_AT_11 = [10.0, 11.0, 9.0, 10.0, 12.0, 9.0, 11.0, 10.0, 9.0, 11.0] + \
+                   [100.0] + \
+                   [10.0, 12.0, 9.0, 11.0, 10.0, 9.0, 11.0, 10.0, 12.0]
+
     def test_exclude(self):
-        y = [10.0] * 10 + [100.0] + [10.0] * 9
+        y = self._SPIKE_AT_11
         r_excl = _result("i", y, exclude=[11])
         r_all = _result("i", y)
         assert r_excl.data["ucl"].iloc[0] < r_all.data["ucl"].iloc[0]
 
     def test_exclude_accepts_a_bare_index(self):
         """exclude=5 is accepted just as part=3 is; it used to raise TypeError."""
-        y = [10.0] * 10 + [100.0] + [10.0] * 9
+        y = self._SPIKE_AT_11
         scalar = _result("i", y, exclude=11)
         listed = _result("i", y, exclude=[11])
         assert scalar.summary["excluded"] == listed.summary["excluded"] == [11]
@@ -1267,6 +1309,24 @@ def test_ip_chart():
     # UCL would be 0.16 + 3*0.0366 = 0.27
     # Our calculated empirical sigma was 0.0886 -> UCL = 0.16 + 3*0.0886 = 0.4258
     assert not np.isclose(r.data["ucl"].iloc[0], 0.16 + 3 * np.sqrt(0.16 * 0.84 / 100))
+
+
+def test_ip_chart_screening_does_not_collapse_sigma():
+    """ip shares _i_limits, so the screening fallback must hold there too."""
+    y = [10] * 29 + [40]
+    n = [100] * 30
+    r = qic(y=y, n=n, chart="ip")
+    cl = r.data["cl"].iloc[0]
+    assert r.data["ucl"].iloc[0] > cl > r.data["lcl"].iloc[0]
+    assert int(r.data["sigma_signal"].sum()) == 1
+
+
+def test_ip_chart_flat_series_has_no_limits():
+    y = [10] * 20
+    n = [100] * 20
+    r = qic(y=y, n=n, chart="ip")
+    assert r.data["ucl"].isna().all()
+    assert r.data["lcl"].isna().all()
 
 
 class TestVariableLimits:

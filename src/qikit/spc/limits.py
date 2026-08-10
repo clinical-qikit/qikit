@@ -65,7 +65,18 @@ def _screened_mean_mr(y: np.ndarray, mask: np.ndarray) -> float:
     mrs = _moving_ranges(y_valid)
     mr_bar = float(np.nanmean(mrs))
     mrs_screened = mrs[mrs <= D4[2] * mr_bar]
-    return float(np.nanmean(mrs_screened)) if len(mrs_screened) > 0 else mr_bar
+    if len(mrs_screened) == 0:
+        return mr_bar
+
+    # Screening drops MRs above D4·MR̄, but where most MRs are zero the
+    # threshold falls below the one informative MR and screens it out. The
+    # survivors then average to 0, collapsing the limits onto the center line
+    # and flagging every point. Fall back to the unscreened mean whenever
+    # screening leaves nothing to estimate from.
+    screened_mean = float(np.nanmean(mrs_screened))
+    if np.isnan(screened_mean) or screened_mean <= 0:
+        return mr_bar
+    return screened_mean
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +154,12 @@ def _i_limits(
         nans = np.full(len(y), np.nan)
         return nans, nans
     sigma = mr_bar / D2[2]
+    if sigma <= 0:
+        # A perfectly flat series has no variation to estimate a spread from.
+        # Zero-width limits would draw three coincident lines and call any
+        # departure a signal, so report no limits and let it read as a run chart.
+        nans = np.full(len(y), np.nan)
+        return nans, nans
     k = len(y)
     return np.full(k, cl + 3 * sigma), np.full(k, cl - 3 * sigma)
 
