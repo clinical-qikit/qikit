@@ -12,8 +12,11 @@ export interface SPCInput {
   chart: ChartType;
   method?: SignalMethod;
   freeze?: number;
-  part?: number[];
-  exclude?: number[];
+  /** 1-based index (or list) where a new phase begins. A bare index is accepted. */
+  part?: number[] | number;
+  /** 1-based index (or list) to ghost from the baseline *and* from signal
+   *  detection. A bare index is accepted, as for part. */
+  exclude?: number[] | number;
   clOverride?: number;
   multiply?: number;
   /** Arithmetic mean of subgroup SDs — xbar/s with equal subgroup sizes. */

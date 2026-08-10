@@ -31,6 +31,21 @@ describe('excluded points are ghosted from signal detection', () => {
     expect(withGhost.summary.longest_run).toBe(11);
   });
 
+  test('a bare exclude index means the same as a one-element list', () => {
+    const scalar = compute({ ...outlier, exclude: 5 });
+    const listed = compute({ ...outlier, exclude: [5] });
+    expect(scalar.data[4].sigma_signal).toBe(false);
+    expect(scalar.data[0].cl).toBeCloseTo(listed.data[0].cl, 12);
+  });
+
+  test('a bare part index means the same as a one-element list', () => {
+    const y = [1, 1, 1, 1, 1, 9, 9, 9, 9, 9];
+    const scalar = compute({ y, chart: 'i', part: 6 });
+    const listed = compute({ y, chart: 'i', part: [6] });
+    expect(scalar.data.map(d => d.cl)).toEqual(listed.data.map(d => d.cl));
+    expect(scalar.data[0].cl).not.toBeCloseTo(scalar.data[9].cl, 6);
+  });
+
   test('freeze does not ghost — boundary points stay checkable', () => {
     // freeze narrows the baseline but every point is still tested against it.
     const { data } = compute({ y: [10, 10, 10, 10, 40], chart: 'i', freeze: 4 });

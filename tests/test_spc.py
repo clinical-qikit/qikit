@@ -131,6 +131,19 @@ class TestIChart:
         r_all = _result("i", y)
         assert r_excl.data["ucl"].iloc[0] < r_all.data["ucl"].iloc[0]
 
+    def test_exclude_accepts_a_bare_index(self):
+        """exclude=5 is accepted just as part=3 is; it used to raise TypeError."""
+        y = [10.0] * 10 + [100.0] + [10.0] * 9
+        scalar = _result("i", y, exclude=11)
+        listed = _result("i", y, exclude=[11])
+        assert scalar.summary["excluded"] == listed.summary["excluded"] == [11]
+        assert scalar.data["ucl"].tolist() == pytest.approx(listed.data["ucl"].tolist())
+
+    def test_exclude_rejects_a_bool(self):
+        """A bool is not an index, even though it is an int in Python."""
+        with pytest.raises(TypeError):
+            _result("i", [10.0] * 10, exclude=True)
+
 
 # ---------------------------------------------------------------------------
 # MR chart
@@ -1013,6 +1026,13 @@ class TestFunnelAlignment:
         ghosted = r.data.loc[r.data["excluded"]].iloc[0]
         assert ghosted["x"] == "B"
         assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+
+    def test_bare_exclude_index_follows_the_sort(self):
+        """The scalar form is normalised before the remap, so it permutes too."""
+        assert self._funnel(exclude=2).data["cl"].iloc[0] == pytest.approx(
+            self._funnel(exclude=[2]).data["cl"].iloc[0]
+        )
+        assert self._funnel(exclude=2).summary["excluded"] == [3]
 
     def test_exclude_out_of_range_is_ignored(self):
         """Out-of-range indices stay silently dropped, as before."""

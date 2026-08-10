@@ -42,7 +42,7 @@ def qic(
     multiply: float = 1.0,
     freeze: int | None = None,
     part: list[int] | int | str | None = None,
-    exclude: list[int] | str | None = None,
+    exclude: list[int] | int | str | None = None,
     target: float | list[float] | str | None = None,
     cl: float | None = None,
     funnel: bool = False,
@@ -98,7 +98,9 @@ def qic(
     method : run-signal detection — anhoej (default), ihi, weco, nelson
     freeze : baseline ends at this index (1-based)
     part   : index (or list) where new phases begin (1-based), or column name
-    exclude: list of indices to ghost from baseline (1-based), or column name
+    exclude: index (or list) to ghost from baseline (1-based), or column name.
+             Ghosted points are dropped from the limits *and* hidden from signal
+             detection; freeze=/part= only narrow the baseline.
     cl     : user-supplied fixed center line
     multiply : multiply y values by this factor; note that y_percent=True (default
                for p/pp charts) already handles percent display — combining both
@@ -281,6 +283,11 @@ def qic(
 
     if len(y_arr) == 0:
         raise ValueError("y= contains no values.")
+
+    # A bare index is accepted for exclude= just as it is for part=; normalising
+    # here means the funnel remap and the baseline mask both see one shape.
+    if isinstance(exclude, (int, np.integer)) and not isinstance(exclude, bool):
+        exclude = [int(exclude)]
 
     # ------------------------------------------------------------------
     # 2. Funnel sort: order points by denominator ascending
