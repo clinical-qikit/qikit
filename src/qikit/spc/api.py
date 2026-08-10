@@ -77,7 +77,7 @@ def qic(
     y_percent: bool | None = None,
     y_percent_accuracy: int | None = None,
     connect: bool | None = None,
-    runs_highlight: str = "all",
+    runs_highlight: str = "localized",
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
@@ -126,11 +126,12 @@ def qic(
                False = markers only. When None (default), connectivity is
                inferred from the x-axis: categorical values that don't look
                sequential default to markers only.
-    runs_highlight : which runs-signal points get colored orange on the chart.
-               "all" (default) colors every point the runs method flagged — for
-               the Anhoej crossings test that is the whole series. "localized"
-               colors only the points forming an actual run, suppressing the
-               crossings blanket. "none" turns off runs coloring entirely.
+    runs_highlight : which runs-signal points get colored amber on the chart.
+               "localized" (default) colors only the points forming an actual
+               run, suppressing the crossings blanket. "all" colors every point
+               the runs method flagged — for the Anhoej crossings test that is
+               the whole series, which marks the chart without localizing what
+               to look at. "none" turns off runs coloring entirely.
                Sigma outliers stay red in all three modes, and the crossings
                result is always reported in summary["crossings_signal"].
                Overridable per-call via result.plot(runs_highlight=...).

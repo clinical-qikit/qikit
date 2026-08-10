@@ -93,8 +93,8 @@ class TestRunsHighlight:
         assert crossings_and_run.data["sigma_signal"].sum() == 0
 
     def test_all_colors_every_point(self, crossings_and_run):
-        """Default: the crossings blanket turns the whole chart orange."""
-        fig = crossings_and_run.plot()
+        """all: the crossings blanket turns the whole chart amber."""
+        fig = crossings_and_run.plot(runs_highlight="all")
         colors = list(fig.data[0].marker.color)
         assert colors.count(RUNS_ORANGE) == 24
 
@@ -111,9 +111,10 @@ class TestRunsHighlight:
         colors = list(fig.data[0].marker.color)
         assert all(c == NORMAL_GRAY for c in colors)
 
-    def test_default_matches_all(self, crossings_and_run):
+    def test_default_matches_localized(self, crossings_and_run):
+        """The default localizes: a crossings signal must not blanket the chart."""
         assert list(crossings_and_run.plot().data[0].marker.color) == \
-            list(crossings_and_run.plot(runs_highlight="all").data[0].marker.color)
+            list(crossings_and_run.plot(runs_highlight="localized").data[0].marker.color)
 
     @pytest.mark.parametrize("mode", ["all", "localized", "none"])
     def test_sigma_stays_red(self, mode):
@@ -141,13 +142,15 @@ class TestRunsHighlight:
             [11, 12, 11, 12] + [9, 8, 9, 8] + [11, 12, 11, 12]
         df = pd.DataFrame({"y": [float(v) for v in y] * 2, "grp": ["a"] * 24 + ["b"] * 24})
         r = qic(data=df, y="y", chart="i", facets="grp")
-        n_all = sum(list(t.marker.color).count(RUNS_ORANGE) for t in r.plot().data if t.mode and "markers" in t.mode)
-        n_loc = sum(
-            list(t.marker.color).count(RUNS_ORANGE)
-            for t in r.plot(runs_highlight="localized").data if t.mode and "markers" in t.mode
-        )
-        assert n_all == 48
-        assert n_loc == 16
+        def amber(fig):
+            return sum(
+                list(t.marker.color).count(RUNS_ORANGE)
+                for t in fig.data if t.mode and "markers" in t.mode
+            )
+        assert amber(r.plot(runs_highlight="all")) == 48
+        assert amber(r.plot(runs_highlight="localized")) == 16
+        # The default localizes, so it must match "localized" through this path too.
+        assert amber(r.plot()) == 16
 
     def test_multipart_chart_honors_option(self):
         """Multi-part charts segment signals per part."""

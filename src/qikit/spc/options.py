@@ -43,5 +43,5 @@ class PlotOptions:
     height: int | None = None
     width: int | None = None
     connect: bool | None = None
-    runs_highlight: str = "all"
+    runs_highlight: str = "localized"
     x_nticks_all: bool = False

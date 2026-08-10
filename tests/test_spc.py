@@ -502,8 +502,8 @@ class TestDisplayParams:
         r = _result("i", normal_30, runs_highlight="localized")
         assert r._plot_opts["runs_highlight"] == "localized"
 
-    def test_runs_highlight_defaults_to_all(self, normal_30):
-        assert _result("i", normal_30)._plot_opts["runs_highlight"] == "all"
+    def test_runs_highlight_defaults_to_localized(self, normal_30):
+        assert _result("i", normal_30)._plot_opts["runs_highlight"] == "localized"
 
     def test_runs_highlight_invalid_raises_in_qic(self, normal_30):
         with pytest.raises(ValueError, match="runs_highlight must be one of"):
