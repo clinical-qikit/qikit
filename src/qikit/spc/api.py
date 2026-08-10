@@ -42,7 +42,7 @@ def qic(
     multiply: float = 1.0,
     freeze: int | None = None,
     part: list[int] | int | str | None = None,
-    exclude: list[int] | str | None = None,
+    exclude: list[int] | int | str | None = None,
     target: float | list[float] | str | None = None,
     cl: float | None = None,
     funnel: bool = False,
@@ -61,8 +61,9 @@ def qic(
     show_labels: bool = True,
     show_95: bool = False,
     show_grid: bool = False,
+    show_x_labels: bool = True,
     # Formatting
-    decimals: int = 1,
+    decimals: int | None = None,
     point_size: float = 1.5,
     x_period: str | None = None,
     x_format: str | None = None,
@@ -97,7 +98,9 @@ def qic(
     method : run-signal detection — anhoej (default), ihi, weco, nelson
     freeze : baseline ends at this index (1-based)
     part   : index (or list) where new phases begin (1-based), or column name
-    exclude: list of indices to ghost from baseline (1-based), or column name
+    exclude: index (or list) to ghost from baseline (1-based), or column name.
+             Ghosted points are dropped from the limits *and* hidden from signal
+             detection; freeze=/part= only narrow the baseline.
     cl     : user-supplied fixed center line
     multiply : multiply y values by this factor; note that y_percent=True (default
                for p/pp charts) already handles percent display — combining both
@@ -107,6 +110,18 @@ def qic(
                detection (only sigma signals are meaningful cross-sectionally),
                and renders markers only with all x-axis labels shown.
                Valid only for charts with denominators (p, pp, u, up).
+               notes=, a list-valued target= and exclude= are given in *input*
+               order and are re-ordered along with the data; summary["excluded"]
+               reports positions in the sorted (plotted) order. freeze= and
+               part= are rejected — they assume the points are in time order.
+    show_x_labels : when False, hide the x-axis tick labels while keeping the
+               full label in the hover tooltip. Intended for funnel plots over
+               hundreds of categorical units, where the axis text is unreadable
+               anyway. Overridable per-call via result.plot(show_x_labels=...).
+    decimals : decimal places for the CL/UCL/LCL labels. When None (default),
+               scaled to the spread the limits span, so a proportion keeps its
+               resolution and a large count is not padded with noise. On a
+               percent axis the labels are written as percentages.
     connect : explicitly control point connectivity. True = lines+markers,
                False = markers only. When None (default), connectivity is
                inferred from the x-axis: categorical values that don't look
@@ -145,6 +160,13 @@ def qic(
             f"(p, pp, u, up). Got chart={chart!r}."
         )
 
+    if funnel and (freeze is not None or part is not None):
+        raise ValueError(
+            "funnel=True cannot be combined with freeze= or part=. A funnel plot is a "
+            "cross-sectional comparison ordered by denominator; freeze= and part= are "
+            "temporal/phase concepts that assume the points are in time order."
+        )
+
     if chart not in VALID_CHARTS:
         raise ValueError(
             f"Unknown chart type: {chart!r}. "
@@ -167,6 +189,7 @@ def qic(
     # ------------------------------------------------------------------
     opts = _plot_options if _plot_options is not None else PlotOptions(
         show_labels=show_labels, show_95=show_95, show_grid=show_grid,
+        show_x_labels=show_x_labels,
         decimals=decimals, point_size=point_size,
         x_angle=x_angle, x_pad=x_pad, x_period=x_period, x_format=x_format, x_order=x_order,
         y_neg=y_neg, y_percent=y_percent, y_percent_accuracy=y_percent_accuracy, y_expand=y_expand,
@@ -195,9 +218,11 @@ def qic(
             )
 
         facet_vals = list(data[facets].unique())
+        n_rows = len(data)
 
         sub_results = []
         for fv in facet_vals:
+            facet_rows = np.flatnonzero((data[facets] == fv).to_numpy())
             sub_df = data[data[facets] == fv].copy()
             sub_result = qic(
                 data=sub_df,
@@ -207,6 +232,11 @@ def qic(
                 cl=cl, multiply=multiply,
                 title=str(fv), ylab=ylab, xlab=xlab,
                 agg_fun=agg_fun,
+                funnel=funnel,
+                notes=_subset_per_facet(notes, facet_rows, n_rows),
+                target=_subset_per_facet(target, facet_rows, n_rows),
+                x_period=x_period,
+                part_labels=part_labels,
                 print_summary=False,
                 _plot_options=opts,
             )
@@ -226,7 +256,10 @@ def qic(
             "by_facet": by_facet,
         }
 
-        plot_opts = dataclasses.asdict(dataclasses.replace(opts, part_indices=[]))
+        facet_opts = dataclasses.replace(opts, part_indices=[])
+        if funnel:
+            facet_opts = dataclasses.replace(facet_opts, connect=False, x_nticks_all=True)
+        plot_opts = dataclasses.asdict(facet_opts)
 
         return SPCResult(
             data=combined_df,
@@ -235,6 +268,8 @@ def qic(
             summary=combined_summary,
             signals=any_signals,
             title=title,
+            subtitle=subtitle,
+            caption=caption,
             ylab=ylab,
             xlab=xlab,
             _plot_opts=plot_opts,
@@ -253,16 +288,39 @@ def qic(
     if len(y_arr) == 0:
         raise ValueError("y= contains no values.")
 
+    # A bare index is accepted for exclude= just as it is for part=; normalising
+    # here means the funnel remap and the baseline mask both see one shape.
+    if isinstance(exclude, (int, np.integer)) and not isinstance(exclude, bool):
+        exclude = [int(exclude)]
+
     # ------------------------------------------------------------------
     # 2. Funnel sort: order points by denominator ascending
     # ------------------------------------------------------------------
     if funnel:
         if n_vals is None:
             raise ValueError("funnel=True requires denominators (n=).")
+        # Every per-point input must be permuted here. If a positional argument is
+        # added to _assemble_final_df later, it belongs in this block too.
         sort_order = np.argsort(n_vals, kind="stable")
         x_vals = [x_vals[i] for i in sort_order]
         y_arr = y_arr[sort_order]
         n_vals = n_vals[sort_order]
+
+        if isinstance(notes, (list, np.ndarray, pd.Series)) and len(notes) == len(sort_order):
+            notes_vals = list(notes)
+            notes = [notes_vals[i] for i in sort_order]
+
+        if isinstance(target, (list, np.ndarray, pd.Series)) and len(target) == len(sort_order):
+            target = np.asarray(target, dtype=float)[sort_order]
+
+        if exclude is not None and not isinstance(exclude, str):
+            # exclude is 1-based into the *input* order. new_pos[i] is where original
+            # point i landed — the inverse of the sort permutation.
+            new_pos = np.argsort(sort_order)
+            exclude = [
+                int(new_pos[i - 1]) + 1 if 1 <= i <= len(new_pos) else int(i)
+                for i in exclude
+            ]
 
     # ------------------------------------------------------------------
     # 3. Build baseline mask
@@ -397,6 +455,21 @@ def qic(
         xlab=xlab,
         _plot_opts=plot_opts,
     )
+
+
+def _subset_per_facet(value, facet_rows: np.ndarray, n_rows: int):
+    """
+    Slice a positional per-row argument (notes=, target=) down to one facet.
+
+    Column names and scalars are facet-independent and pass through untouched.
+    A list is positional over data=, so it only makes sense to slice one whose
+    length matches; anything else is left alone so the existing length error
+    fires downstream rather than an IndexError here.
+    """
+    if isinstance(value, (list, np.ndarray, pd.Series)) and len(value) == n_rows:
+        vals = list(value)
+        return [vals[i] for i in facet_rows]
+    return value
 
 
 def _resolve_and_aggregate(

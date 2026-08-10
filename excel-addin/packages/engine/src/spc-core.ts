@@ -83,6 +83,9 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: false, isAttribute: false, floorLcl: true
   },
   pp: {
+    // Laney p' chart: σ'ᵢ = √(p̄(1−p̄)/nᵢ)·σ_z, σ_z = max(1, MR̄(z)/d2). Laney (2002).
+    // The floor keeps p' from coming out *narrower* than the naive p chart on an
+    // underdispersed sample — the method only ever widens.
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, n, mask) => {
       const sigmaBase = n!.map(ni => Math.sqrt(cl * (1 - cl) / ni));
@@ -92,13 +95,15 @@ export const CHARTS: Record<string, ChartSpec> = {
       if (zValid.length > 1) {
         const mrs = [];
         for (let i = 1; i < zValid.length; i++) mrs.push(Math.abs(zValid[i] - zValid[i - 1]));
-        sigmaZ = nanmean(mrs) / D2[2];
+        sigmaZ = Math.max(1.0, nanmean(mrs) / D2[2]);
       }
       return [sigmaBase.map(s => cl + 3 * s * sigmaZ), sigmaBase.map(s => cl - 3 * s * sigmaZ)];
     },
     needsN: true, isAttribute: true, floorLcl: true
   },
   up: {
+    // Laney u' chart: σ'ᵢ = √(ū/nᵢ)·σ_z, σ_z = max(1, MR̄(z)/d2). Laney (2002).
+    // Same floor as pp: an underdispersed sample falls back to the naive u limits.
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, n, mask) => {
       const sigmaBase = n!.map(ni => Math.sqrt(cl / ni));
@@ -108,7 +113,7 @@ export const CHARTS: Record<string, ChartSpec> = {
       if (zValid.length > 1) {
         const mrs = [];
         for (let i = 1; i < zValid.length; i++) mrs.push(Math.abs(zValid[i] - zValid[i - 1]));
-        sigmaZ = nanmean(mrs) / D2[2];
+        sigmaZ = Math.max(1.0, nanmean(mrs) / D2[2]);
       }
       return [sigmaBase.map(s => cl + 3 * s * sigmaZ), sigmaBase.map(s => cl - 3 * s * sigmaZ)];
     },
@@ -201,16 +206,35 @@ export function compute(input: SPCInput): SPCResult {
     if (!nCalc) {
       throw new Error('funnel=true requires denominators (n).');
     }
+    if (freeze !== undefined || part !== undefined) {
+      throw new Error('funnel=true cannot be combined with freeze or part. A funnel plot is a cross-sectional comparison ordered by denominator; freeze and part are temporal/phase concepts that assume the points are in time order.');
+    }
     const order = nCalc.map((_, i) => i).sort((a, b) => nCalc![a] - nCalc![b]);
     y = order.map(i => (y as number[])[i]);
     yCalc = order.map(i => yCalc[i]);
     nCalc = order.map(i => nCalc![i]);
+
+    // exclude is 1-based into the *input* order; invert the sort permutation so the
+    // named point stays ghosted after the reorder. Mirrors src/qikit/spc/api.py.
+    const newPos = new Array<number>(order.length);
+    order.forEach((orig, pos) => { newPos[orig] = pos; });
+    const exArr = Array.isArray(exclude) ? exclude : [exclude];
+    exclude = exArr.map(i => (i >= 1 && i <= order.length ? newPos[i - 1] + 1 : i));
   }
 
   let mask = new Array(y.length).fill(true);
   const excludeArr = Array.isArray(exclude) ? exclude : [exclude];
   const partArr = part ? (Array.isArray(part) ? part : [part]) : undefined;
-  excludeArr.forEach(i => mask[i - 1] = false);
+  // exclude= drops a point from the baseline *and* ghosts it out of signal
+  // detection; freeze/part only narrow the baseline, and their boundary points
+  // must still be checked against it. Mirrors src/qikit/spc/compute.py.
+  let excludeMask = new Array(y.length).fill(false);
+  excludeArr.forEach(i => {
+    if (i >= 1 && i <= y.length) {
+      mask[i - 1] = false;
+      excludeMask[i - 1] = true;
+    }
+  });
   if (freeze) {
     for (let i = freeze; i < y.length; i++) mask[i] = false;
   }
@@ -221,6 +245,7 @@ export function compute(input: SPCInput): SPCResult {
     const nAgg = [];
     const sdAgg = [];
     const maskAgg = [];
+    const exAgg = [];
     for (let i = 0; i < y.length; i += subgroupN) {
       const chunk = y.slice(i, i + subgroupN);
       if (chunk.length === 0) continue;
@@ -234,11 +259,13 @@ export function compute(input: SPCInput): SPCResult {
       // limits functions pick the matching constant rather than subgroupN's.
       nAgg.push(chunk.length);
       maskAgg.push(mask[i]);
+      exAgg.push(excludeMask[i]);
     }
     yCalc = yAgg;
     nCalc = nAgg;
     y = [...yAgg];
     mask = [...maskAgg];
+    excludeMask = [...exAgg];
 
     // Derive the sigma estimate when the caller supplied neither. Mirrors
     // _sigma_estimate() in src/qikit/spc/api.py: equal subgroup sizes get the
@@ -276,6 +303,10 @@ export function compute(input: SPCInput): SPCResult {
     yCalc = yNew;
     const maskNew = [];
     for (let i = 1; i < mask.length; i++) maskNew.push(mask[i] && mask[i - 1]);
+    // Each range spans two points, so it is ghosted if either endpoint was.
+    const exNew = [];
+    for (let i = 1; i < excludeMask.length; i++) exNew.push(excludeMask[i] || excludeMask[i - 1]);
+    excludeMask = exNew;
     // Note: X-axis would also be shortened in a real UI
     y = y.slice(1);
     nCalc = undefined;
@@ -340,12 +371,14 @@ export function compute(input: SPCInput): SPCResult {
       lcl95Arr[s + j] = spec.floorLcl ? Math.max(0, l95) : l95;
     }
 
-    // Signals per segment
-    const { signals: sSig, signalsLocalized: sLoc, summary: sSum } = detectSignals(segY, clArr.slice(s, e), method, uclArr.slice(s, e), lclArr.slice(s, e));
+    // Signals per segment — ghosted (exclude=) points are hidden from detection
+    // entirely, so they neither flag nor break a run. Mirrors compute.py.
+    const segSignalY = segY.map((v, j) => (excludeMask[s + j] ? NaN : v));
+    const { signals: sSig, signalsLocalized: sLoc, summary: sSum } = detectSignals(segSignalY, clArr.slice(s, e), method, uclArr.slice(s, e), lclArr.slice(s, e));
     for (let j = 0; j < e - s; j++) {
       runsSig[s + j] = sSig[j];
       runsLoc[s + j] = sLoc[j];
-      sigmaSig[s + j] = (!isNaN(uclArr[s + j]) && segY[j] > uclArr[s + j]) || (!isNaN(lclArr[s + j]) && segY[j] < lclArr[s + j]);
+      sigmaSig[s + j] = (!isNaN(uclArr[s + j]) && segSignalY[j] > uclArr[s + j]) || (!isNaN(lclArr[s + j]) && segSignalY[j] < lclArr[s + j]);
     }
     summaries.push(sSum);
   }

@@ -3,9 +3,11 @@ spc_plots.py — Plotly rendering for SPCResult.
 
 Design principles (Tufte, Visual Display of Quantitative Information):
 - Maximize data-ink ratio; every pixel earns its place
-- No plot border, no background fill, minimal grid
-- Normal points: small, muted (#888)
-- Signal points: the ONLY color — red (sigma), orange (runs)
+- No plot border, no background fill, no y spine, minimal grid
+- The series carries the darkest ink; reference lines are light hairlines
+- Signal points: the only color — brick (sigma), amber (runs) — plus a
+  diamond symbol on runs points so the distinction survives colorblindness
+- Signal points are drawn larger than routine points
 - CL/UCL/LCL labeled directly at right edge; no legend
 """
 
@@ -20,7 +22,11 @@ from plotly.subplots import make_subplots
 
 from qikit.spc.options import VALID_RUNS_HIGHLIGHT
 
-from .utils import apply_tufte_theme, NORMAL, CL, SIGMA, RUNS, GRID, WARN
+from .utils import (
+    apply_tufte_theme,
+    NORMAL, CL, LIMIT, SIGMA, RUNS, TARGET, GRID, WARN, AXIS,
+    TEXT, TEXT_MUTED, TEXT_FAINT,
+)
 
 
 def _resolve_runs_signal(df: Any, runs_highlight: str) -> np.ndarray:
@@ -39,7 +45,7 @@ def _resolve_runs_signal(df: Any, runs_highlight: str) -> np.ndarray:
 
 
 def _point_colors(sigma_sig: np.ndarray, runs_sig: np.ndarray) -> list[str]:
-    """Per-point colors: red (sigma) > orange (runs) > gray (normal)."""
+    """Per-point colors: brick (sigma) > amber (runs) > data ink (normal)."""
     return [
         SIGMA if s else RUNS if r else NORMAL
         for s, r in zip(sigma_sig, runs_sig)
@@ -54,11 +60,41 @@ def _point_symbols(sigma_sig: np.ndarray, runs_sig: np.ndarray) -> list[str]:
     ]
 
 
+def _point_sizes(sigma_sig: np.ndarray, runs_sig: np.ndarray, point_size: float) -> list[float]:
+    """Signal points are drawn larger so exceptions carry more ink than routine ones."""
+    base = point_size * 6
+    return [
+        base * 1.3 if (s or r) else base
+        for s, r in zip(sigma_sig, runs_sig)
+    ]
+
+
+def _label_decimals(*arrays: np.ndarray) -> int:
+    """
+    Pick decimal places for the CL/UCL/LCL labels from the spread they span.
+
+    Fixed decimals either round a proportion to nothing ("CL=0.2") or print
+    noise on a large count ("CL=1284.0000"). Scaling to the limit spread keeps
+    roughly three significant figures of whatever resolution the chart has.
+    """
+    vals = np.concatenate([np.asarray(a, dtype=float).ravel() for a in arrays if a is not None])
+    vals = vals[np.isfinite(vals)]
+    if len(vals) == 0:
+        return 1
+
+    spread = float(np.max(vals) - np.min(vals))
+    if spread <= 0:
+        # A flat series has no spread to scale by; fall back to magnitude.
+        spread = abs(float(vals[0])) or 1.0
+
+    return int(np.clip(2 - math.floor(math.log10(spread)), 0, 4))
+
+
 def _add_chart_traces(
     fig: go.Figure,
     df: Any,
     show_labels: bool,
-    decimals: int,
+    decimals: int | None,
     point_size: float,
     show_95: bool,
     x_pad: float,
@@ -68,6 +104,7 @@ def _add_chart_traces(
     part_labels: list[str] | None = None,
     connect: bool | None = None,
     runs_highlight: str = "all",
+    y_percent: bool = False,
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, and notes to fig.
@@ -82,6 +119,7 @@ def _add_chart_traces(
     runs_sig = _resolve_runs_signal(df, runs_highlight)
     colors = _point_colors(sigma_sig, runs_sig)
     symbols = _point_symbols(sigma_sig, runs_sig)
+    sizes = _point_sizes(sigma_sig, runs_sig, point_size)
 
     # Ghost points excluded via exclude=: faded and not counted toward
     # limits or signals (handled upstream in qikit.spc.compute/api).
@@ -115,7 +153,7 @@ def _add_chart_traces(
         x=x, y=y,
         mode=mode,
         line=dict(color=NORMAL, width=1),
-        marker=dict(color=colors, symbol=symbols, size=point_size * 4, line=dict(width=0), opacity=opacities),
+        marker=dict(color=colors, symbol=symbols, size=sizes, line=dict(width=0), opacity=opacities),
         name="data",
         text=text,
         customdata=customdata,
@@ -133,7 +171,7 @@ def _add_chart_traces(
             fig.add_trace(go.Scatter(
                 x=x, y=target,
                 mode="lines",
-                line=dict(color="#2ca02c", width=1, dash="dashdot"),
+                line=dict(color=TARGET, width=1, dash="dot"),
                 name="Target",
                 hoverinfo="skip",
                 zorder=1,
@@ -149,39 +187,18 @@ def _add_chart_traces(
         zorder=1,
     ), **add_kwargs)
 
-    # UCL/LCL — fill band when both limits exist (one shape replaces two lines)
-    has_ucl = not np.all(np.isnan(ucl))
-    has_lcl = not np.all(np.isnan(lcl))
-    if has_ucl and has_lcl:
-        fig.add_trace(go.Scatter(
-            x=x, y=lcl,
-            mode="lines",
-            line=dict(color=CL, width=1, dash="dash"),
-            name="LCL",
-            hoverinfo="skip",
-            zorder=1,
-        ), **add_kwargs)
-        fig.add_trace(go.Scatter(
-            x=x, y=ucl,
-            mode="lines",
-            line=dict(color=CL, width=1, dash="dash"),
-            fill="tonexty",
-            fillcolor="rgba(51,51,51,0.04)",
-            name="UCL",
-            hoverinfo="skip",
-            zorder=1,
-        ), **add_kwargs)
-    else:
-        for arr, name in [(ucl, "UCL"), (lcl, "LCL")]:
-            if not np.all(np.isnan(arr)):
-                fig.add_trace(go.Scatter(
-                    x=x, y=arr,
-                    mode="lines",
-                    line=dict(color=CL, width=1, dash="dash"),
-                    name=name,
-                    hoverinfo="skip",
-                    zorder=1,
-                ), **add_kwargs)
+    # UCL/LCL — light solid hairlines; the direct labels say which is which,
+    # so neither a dash pattern nor a fill between them has to carry meaning.
+    for arr, name in [(ucl, "UCL"), (lcl, "LCL")]:
+        if not np.all(np.isnan(arr)):
+            fig.add_trace(go.Scatter(
+                x=x, y=arr,
+                mode="lines",
+                line=dict(color=LIMIT, width=1),
+                name=name,
+                hoverinfo="skip",
+                zorder=1,
+            ), **add_kwargs)
 
     # 2-sigma warning lines
     if show_95 and not np.all(np.isnan(ucl)):
@@ -203,6 +220,14 @@ def _add_chart_traces(
 
     # Direct labels — work in both single and faceted mode
     if show_labels and len(x) > 0:
+        # A percent axis displays 100x the stored value, so both the chosen
+        # precision and the printed label follow the scale the reader sees.
+        scale = 100.0 if y_percent else 1.0
+        label_decimals = (
+            decimals if decimals is not None
+            else _label_decimals(cl * scale, ucl * scale, lcl * scale)
+        )
+        value_fmt = f"{{:.{label_decimals}{'%' if y_percent else 'f'}}}"
         ann_kwargs: dict[str, Any] = {}
         if row is not None and col is not None:
             ann_kwargs = {"row": row, "col": col}
@@ -217,10 +242,10 @@ def _add_chart_traces(
             val = float(arr[last])
             fig.add_annotation(
                 x=x[last], y=val,
-                text=f"{label}={val:.{decimals}f}",
+                text=f"{label}={value_fmt.format(val)}",
                 xshift=8 + x_pad * 4,
                 showarrow=False, xanchor="left",
-                font=dict(size=10, color=CL),
+                font=dict(size=10, color=TEXT_MUTED),
                 **ann_kwargs,
             )
 
@@ -240,9 +265,10 @@ def _add_chart_traces(
 
                 fig.add_vline(
                     x=x_val,
-                    line=dict(color="#999999", width=1, dash="dash"),
+                    line=dict(color=LIMIT, width=1),
                     annotation_text=label_text or "",
                     annotation_position="top",
+                    annotation_font=dict(size=9, color=TEXT_FAINT),
                     **add_kwargs
                 )
 
@@ -255,7 +281,8 @@ def _add_chart_traces(
                     x=row_data["x"], y=row_data["y"],
                     text=note,
                     showarrow=True, arrowhead=1,
-                    font=dict(size=9, color="#555"),
+                    arrowcolor=AXIS, arrowwidth=1,
+                    font=dict(size=9, color=TEXT_MUTED),
                     ax=0, ay=-25,
                     **add_kwargs
                 )
@@ -275,6 +302,7 @@ def _configure_layout(
     height: int | None = None,
     width: int | None = None,
     x_nticks_all: bool = False,
+    show_x_labels: bool = True,
 ) -> None:
     """Shared layout and axis styling for single and faceted plots."""
     apply_tufte_theme(fig)
@@ -296,6 +324,11 @@ def _configure_layout(
     else:
         fig.update_xaxes(nticks=5)
 
+    if not show_x_labels:
+        # The category axis and %{x} in the hovertemplate keep the full label
+        # available on hover, so this is purely a subtraction of axis ink.
+        fig.update_xaxes(showticklabels=False, ticks="")
+
     title_text = result.title
     if hasattr(result, "signals") and result.signals and title_text:
         title_text += " ⚠"
@@ -312,7 +345,7 @@ def _configure_layout(
         size_kwargs["width"] = width
 
     fig.update_layout(
-        title=dict(text=full_title, font=dict(size=14)),
+        title=dict(text=full_title, font=dict(size=15, color=TEXT), x=0, xanchor="left"),
         xaxis_title=result.xlab,
         yaxis_title=result.ylab,
         margin=dict(l=50, r=100, t=top_margin, b=80),
@@ -323,7 +356,7 @@ def _configure_layout(
         fig.add_annotation(
             text=result.caption, xref="paper", yref="paper",
             x=0, y=-0.2, showarrow=False,
-            font=dict(size=10, color="#777"), xanchor="left",
+            font=dict(size=10, color=TEXT_FAINT), xanchor="left",
         )
 
     grid_color = GRID if show_grid else "rgba(0,0,0,0)"
@@ -359,7 +392,7 @@ def _plot_faceted(
     scales: str,
     show_labels: bool,
     show_95: bool,
-    decimals: int,
+    decimals: int | None,
     point_size: float,
     x_angle: int | None,
     x_pad: float,
@@ -375,6 +408,7 @@ def _plot_faceted(
     connect: bool | None = None,
     x_nticks_all: bool = False,
     runs_highlight: str = "all",
+    show_x_labels: bool = True,
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -398,6 +432,11 @@ def _plot_faceted(
         subplot_titles=[str(v) for v in facet_vals],
     )
 
+    # make_subplots writes the panel titles as annotations; restyle them before
+    # traces append their own (direct labels, notes) to this same list.
+    for ann in fig.layout.annotations:
+        ann.font = dict(size=11, color=TEXT_MUTED)
+
     for idx, fv in enumerate(facet_vals):
         r_row = idx // ncol + 1
         r_col = idx % ncol + 1
@@ -413,13 +452,22 @@ def _plot_faceted(
             row=r_row, col=r_col,
             connect=connect,
             runs_highlight=runs_highlight,
+            y_percent=y_percent,
         )
 
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
+        show_x_labels=show_x_labels,
     )
+
+    # Shared axes hide the tick labels on inner panels; the tick marks left
+    # behind carry no information, so drop them. Runs after _configure_layout,
+    # which re-applies ticks="outside" to every axis.
+    for axis_name in fig.layout:
+        if axis_name.startswith(("xaxis", "yaxis")) and fig.layout[axis_name].showticklabels is False:
+            fig.layout[axis_name].ticks = ""
 
     return fig
 
@@ -578,7 +626,7 @@ def plot_result(
     show_grid: bool = False,
     show_labels: bool = True,
     show_95: bool = False,
-    decimals: int = 1,
+    decimals: int | None = None,
     point_size: float = 1.5,
     x_angle: int | None = None,
     x_pad: float = 1.0,
@@ -598,6 +646,7 @@ def plot_result(
     connect: bool | None = None,
     x_nticks_all: bool = False,
     runs_highlight: str = "all",
+    show_x_labels: bool = True,
     **_kwargs: Any,
 ) -> go.Figure:
     """
@@ -620,6 +669,7 @@ def plot_result(
             height=height, width=width,
             connect=connect, x_nticks_all=x_nticks_all,
             runs_highlight=runs_highlight,
+            show_x_labels=show_x_labels,
         )
 
     df = result.data
@@ -636,12 +686,14 @@ def plot_result(
         part_labels=part_labels,
         connect=connect,
         runs_highlight=runs_highlight,
+        y_percent=y_percent,
     )
 
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
+        show_x_labels=show_x_labels,
     )
 
     return fig

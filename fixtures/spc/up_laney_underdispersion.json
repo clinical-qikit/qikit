@@ -1,0 +1,199 @@
+{
+  "id": "up_laney_underdispersion",
+  "reference": "Laney 2002 \u2014 \u03c3_z is floored at 1.0 for the u' chart. This series is underdispersed (raw \u03c3_z \u2248 0.416); floored, u' must reproduce the naive u chart and drop the false signal on the last point.",
+  "function": "qic",
+  "input": {
+    "y": [
+      10,
+      11,
+      10,
+      11,
+      10,
+      11,
+      10,
+      11,
+      10,
+      16
+    ],
+    "n": 100,
+    "chart": "up"
+  },
+  "check": {
+    "cl": [
+      0.11,
+      0.0001
+    ],
+    "ucl": [
+      0.2094987,
+      0.0001
+    ],
+    "signals": false
+  },
+  "snapshot": {
+    "chart_type": "up",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 10,
+      "n_baseline": 10,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 6,
+      "longest_run": 5,
+      "n_crossings": 1,
+      "run_threshold": 7,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.1,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 2,
+        "y": 0.11,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 3,
+        "y": 0.1,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 4,
+        "y": 0.11,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 5,
+        "y": 0.1,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 6,
+        "y": 0.11,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 7,
+        "y": 0.1,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 8,
+        "y": 0.11,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 9,
+        "y": 0.1,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 10,
+        "y": 0.16,
+        "cl": 0.11,
+        "ucl": 0.20949874371066202,
+        "lcl": 0.010501256289337998,
+        "ucl_95": 0.17633249580710803,
+        "lcl_95": 0.04366750419289199,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      }
+    ]
+  }
+}

@@ -6,12 +6,17 @@ export type SignalMethod = 'anhoej' | 'ihi' | 'weco' | 'nelson';
 
 export interface SPCInput {
   y: number[];
-  n?: number[];
+  /** Denominators for p/pp/u/up. A scalar is broadcast to every point — the
+   *  constant-subgroup-size case, which the shared fixtures use throughout. */
+  n?: number[] | number;
   chart: ChartType;
   method?: SignalMethod;
   freeze?: number;
-  part?: number[];
-  exclude?: number[];
+  /** 1-based index (or list) where a new phase begins. A bare index is accepted. */
+  part?: number[] | number;
+  /** 1-based index (or list) to ghost from the baseline *and* from signal
+   *  detection. A bare index is accepted, as for part. */
+  exclude?: number[] | number;
   clOverride?: number;
   multiply?: number;
   /** Arithmetic mean of subgroup SDs — xbar/s with equal subgroup sizes. */

@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 from qikit import SPCResult, qic, paretochart, bchart
 import qikit.spc as _core
 import qikit.spc.constants as _constants
+import qikit.spc.limits as _limits
 import qikit.spc.signals as _signals
 
 
@@ -129,6 +130,19 @@ class TestIChart:
         r_excl = _result("i", y, exclude=[11])
         r_all = _result("i", y)
         assert r_excl.data["ucl"].iloc[0] < r_all.data["ucl"].iloc[0]
+
+    def test_exclude_accepts_a_bare_index(self):
+        """exclude=5 is accepted just as part=3 is; it used to raise TypeError."""
+        y = [10.0] * 10 + [100.0] + [10.0] * 9
+        scalar = _result("i", y, exclude=11)
+        listed = _result("i", y, exclude=[11])
+        assert scalar.summary["excluded"] == listed.summary["excluded"] == [11]
+        assert scalar.data["ucl"].tolist() == pytest.approx(listed.data["ucl"].tolist())
+
+    def test_exclude_rejects_a_bool(self):
+        """A bool is not an index, even though it is an int in Python."""
+        with pytest.raises(TypeError):
+            _result("i", [10.0] * 10, exclude=True)
 
 
 # ---------------------------------------------------------------------------
@@ -464,6 +478,15 @@ class TestDisplayParams:
         r = _result("i", normal_30, show_grid=True)
         fig = r.plot(show_grid=False)
         assert fig.layout.xaxis.showgrid is False
+
+    def test_show_x_labels_round_trips(self, normal_30):
+        """Catches show_x_labels being dropped from the PlotOptions construction."""
+        r = _result("i", normal_30, show_x_labels=False)
+        assert r._plot_opts["show_x_labels"] is False
+
+    def test_show_x_labels_defaults_true(self, normal_30):
+        r = _result("i", normal_30)
+        assert r._plot_opts["show_x_labels"] is True
 
     def test_plot_options_subset_of_qic_signature(self):
         import inspect
@@ -868,6 +891,173 @@ class TestNotes:
         y = [1.0, 2.0, 3.0]
         r = qic(y=y, chart="i")
         assert "note" not in r.data.columns
+
+
+class TestFacetForwarding:
+    """The facet recursion must forward every per-call argument, not just some."""
+
+    @staticmethod
+    def _df():
+        return pd.DataFrame({
+            "unit": ["A"] * 4 + ["B"] * 4,
+            "site": ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4"],
+            "y": [4, 480, 55, 4700] * 2,
+            "n": [5, 500, 50, 5000] * 2,
+            "note": ["five", "five-hundred", "fifty", "five-thousand"] * 2,
+        })
+
+    def _facet(self, **kw):
+        return qic(data=self._df(), x="site", y="y", n="n", chart="p",
+                   facets="unit", **kw)
+
+    def test_funnel_sorts_within_each_facet(self):
+        """funnel= was dropped, so faceted funnels silently came back unsorted."""
+        r = self._facet(funnel=True)
+        assert r.data[r.data["facet"] == "A"]["x"].tolist() == ["a1", "a3", "a2", "a4"]
+        assert r.data[r.data["facet"] == "B"]["x"].tolist() == ["b1", "b3", "b2", "b4"]
+
+    def test_funnel_display_overrides_reach_the_parent(self):
+        """The combined result carries the funnel render hints, not the defaults."""
+        r = self._facet(funnel=True)
+        assert r._plot_opts["connect"] is False
+        assert r._plot_opts["x_nticks_all"] is True
+
+    def test_notes_column_forwarded(self):
+        r = self._facet(notes="note")
+        assert "notes" in r.data.columns
+        assert r.data[r.data["facet"] == "A"]["notes"].tolist() == [
+            "five", "five-hundred", "fifty", "five-thousand"
+        ]
+
+    def test_notes_follow_the_funnel_sort_within_a_facet(self):
+        r = self._facet(funnel=True, notes="note")
+        assert r.data[r.data["facet"] == "A"]["notes"].tolist() == [
+            "five", "fifty", "five-hundred", "five-thousand"
+        ]
+
+    def test_list_notes_sliced_per_facet(self):
+        """A positional list spans data=, so each facet gets its own rows."""
+        r = qic(data=self._df(), y="y", n="n", chart="p", facets="unit",
+                notes=list("12345678"))
+        by_facet = r.data.groupby("facet")["notes"].apply(list).to_dict()
+        assert by_facet == {"A": ["1", "2", "3", "4"], "B": ["5", "6", "7", "8"]}
+
+    def test_scalar_target_forwarded(self):
+        r = self._facet(target=0.9)
+        assert "target" in r.data.columns
+        assert r.data["target"].tolist() == pytest.approx([0.9] * 8)
+
+    def test_subtitle_and_caption_survive(self):
+        r = self._facet(subtitle="SUB", caption="CAP")
+        assert r.subtitle == "SUB"
+        assert r.caption == "CAP"
+
+    def test_funnel_with_freeze_raises_through_the_facet_path(self):
+        """The validation runs before the recursion, so facets cannot bypass it."""
+        with pytest.raises(ValueError, match="funnel"):
+            self._facet(funnel=True, freeze=2)
+
+    def test_x_period_forwarded(self):
+        """x_period drives time bucketing inside the recursion, not just rendering."""
+        dates = pd.to_datetime(
+            ["2024-01-01", "2024-01-02", "2024-02-01", "2024-02-02"] * 2
+        )
+        df = pd.DataFrame({"unit": ["A"] * 4 + ["B"] * 4, "d": dates,
+                           "y": [1.0, 2.0, 3.0, 4.0] * 2})
+        r = qic(data=df, x="d", y="y", chart="i", facets="unit", x_period="month")
+        # Two months per facet rather than four raw rows.
+        assert len(r.data) == 4
+
+
+class TestFunnelAlignment:
+    """funnel=True sorts by denominator; every per-point input must follow the sort."""
+
+    # n ascending is [5, 50, 500, 5000] — input order 1, 3, 2, 4.
+    Y = [4, 480, 55, 4700]
+    N = [5, 500, 50, 5000]
+    LABELS = ["A", "B", "C", "D"]
+
+    def _funnel(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="p", funnel=True, **kw)
+
+    def test_notes_follow_the_sort(self):
+        """Reported bug: notes stayed in input order while the data was reordered."""
+        notes = ["five", "five-hundred", "fifty", "five-thousand"]
+        r = self._funnel(notes=notes)
+        assert r.data["notes"].tolist() == ["five", "fifty", "five-hundred", "five-thousand"]
+        # Asserting y as well pins the pairing, not merely the order.
+        assert r.data["y"].tolist() == pytest.approx([0.8, 1.1, 0.96, 0.94])
+
+    def test_scalar_notes_broadcast_unchanged(self):
+        """A scalar note broadcasts; the permutation must be a no-op."""
+        r = self._funnel(notes="site visit")
+        assert r.data["notes"].tolist() == ["site visit"] * 4
+
+    def test_list_target_follows_the_sort(self):
+        """A list-valued target= is positional and must be permuted."""
+        r = self._funnel(target=[0.1, 0.2, 0.3, 0.4])
+        assert r.data["target"].tolist() == pytest.approx([0.1, 0.3, 0.2, 0.4])
+
+    def test_scalar_target_unchanged(self):
+        """A scalar target broadcasts unchanged."""
+        r = self._funnel(target=0.5)
+        assert r.data["target"].tolist() == pytest.approx([0.5] * 4)
+
+    def test_exclude_ghosts_the_named_point(self):
+        """exclude= is 1-based into the input order, not the sorted order."""
+        r = self._funnel(x=self.LABELS, exclude=[2])
+        assert r.data["excluded"].sum() == 1
+        ghosted = r.data.loc[r.data["excluded"]].iloc[0]
+        assert ghosted["x"] == "B"
+        assert not ghosted["baseline"]
+
+    def test_exclude_removes_the_right_point_from_the_baseline(self):
+        """The payload: which counts actually left the center-line calculation."""
+        r = self._funnel(exclude=[2])
+        assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+
+    def test_exclude_column_follows_the_sort(self):
+        """The DataFrame bool-column path resolves to indices and must permute too."""
+        df = pd.DataFrame({
+            "x": self.LABELS, "y": self.Y, "n": self.N,
+            "drop": [False, True, False, False],
+        })
+        r = qic(data=df, x="x", y="y", n="n", chart="p", funnel=True, exclude="drop")
+        ghosted = r.data.loc[r.data["excluded"]].iloc[0]
+        assert ghosted["x"] == "B"
+        assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+
+    def test_bare_exclude_index_follows_the_sort(self):
+        """The scalar form is normalised before the remap, so it permutes too."""
+        assert self._funnel(exclude=2).data["cl"].iloc[0] == pytest.approx(
+            self._funnel(exclude=[2]).data["cl"].iloc[0]
+        )
+        assert self._funnel(exclude=2).summary["excluded"] == [3]
+
+    def test_exclude_out_of_range_is_ignored(self):
+        """Out-of-range indices stay silently dropped, as before."""
+        r = self._funnel(exclude=[99])
+        assert r.data["excluded"].sum() == 0
+
+    def test_summary_excluded_reports_sorted_positions(self):
+        """summary['excluded'] indexes the plotted rows, not the input."""
+        r = self._funnel(exclude=[2])
+        assert r.summary["excluded"] == [3]
+
+    def test_freeze_with_funnel_raises(self):
+        """freeze= assumes time order and is meaningless under a denominator sort."""
+        with pytest.raises(ValueError, match="funnel"):
+            self._funnel(freeze=2)
+
+    def test_part_with_funnel_raises(self):
+        """Same for part=."""
+        with pytest.raises(ValueError, match="funnel"):
+            self._funnel(part=3)
+
+    def test_funnel_without_freeze_or_part_still_works(self):
+        """Guard against over-broad validation."""
+        r = self._funnel()
+        assert len(r.data) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -1350,6 +1540,64 @@ class TestBChart:
         r = bchart(y, target=0.1, or_ratio=2.0)
         assert "cusum_up" in r.data.columns
         assert r.target == 0.1
+
+
+class TestLaneySigmaZFloor:
+    """σ_z is floored at 1.0 so p'/u' limits never tighten below naive p/u."""
+
+    # Underdispersed: raw σ_z ≈ 0.544 (pp) and ≈ 0.416 (up).
+    UNDER_PP = ([50, 53, 50, 53, 50, 53, 50, 53, 50, 65], 1000)
+    UNDER_UP = ([10, 11, 10, 11, 10, 11, 10, 11, 10, 16], 100)
+
+    def test_sigma_z_floors_at_one(self):
+        """A constant series has a raw estimate of 0.0 and must clamp up to 1.0."""
+        y = np.full(5, 0.05)
+        sigma_base = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
+        assert _limits._laney_sigma_z(y, 0.05, sigma_base, np.ones(5, dtype=bool)) == 1.0
+
+    def test_overdispersion_passes_through_unclamped(self):
+        """It is a floor, not a clamp — overdispersed samples keep their estimate."""
+        y = np.array([50, 60, 40, 70, 30], dtype=float) / 1000
+        sigma_base = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
+        sigma_z = _limits._laney_sigma_z(y, 0.05, sigma_base, np.ones(5, dtype=bool))
+        assert sigma_z == pytest.approx(3.21576, rel=1e-4)
+
+    def test_underdispersed_pp_falls_back_to_naive_p(self):
+        """An underdispersed p' chart reproduces the ordinary p chart."""
+        y, n = self.UNDER_PP
+        ns = [n] * len(y)
+        r_pp, r_p = qic(y=y, n=ns, chart="pp"), qic(y=y, n=ns, chart="p")
+        assert r_pp.data["ucl"].tolist() == pytest.approx(r_p.data["ucl"].tolist())
+        assert r_pp.data["lcl"].tolist() == pytest.approx(r_p.data["lcl"].tolist())
+        assert r_pp.summary["signals"] is False
+
+    def test_underdispersed_up_falls_back_to_naive_u(self):
+        """Same fallback property for the u' chart."""
+        y, n = self.UNDER_UP
+        ns = [n] * len(y)
+        r_up, r_u = qic(y=y, n=ns, chart="up"), qic(y=y, n=ns, chart="u")
+        assert r_up.data["ucl"].tolist() == pytest.approx(r_u.data["ucl"].tolist())
+        assert r_up.data["lcl"].tolist() == pytest.approx(r_u.data["lcl"].tolist())
+        assert r_up.summary["signals"] is False
+
+    def test_pp_limits_never_narrower_than_p(self):
+        """Property: across under-, equal- and over-dispersed series, p' ⊇ p."""
+        series = [
+            self.UNDER_PP[0],
+            [50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
+            [50, 60, 40, 70, 30, 65, 35, 70, 30, 60],
+        ]
+        for y in series:
+            ns = [1000] * len(y)
+            r_pp, r_p = qic(y=y, n=ns, chart="pp"), qic(y=y, n=ns, chart="p")
+            assert np.all(r_pp.data["ucl"].to_numpy() >= r_p.data["ucl"].to_numpy() - 1e-12)
+            assert np.all(r_pp.data["lcl"].to_numpy() <= r_p.data["lcl"].to_numpy() + 1e-12)
+
+    def test_constant_series_gives_naive_limits(self):
+        """A flat series used to collapse the limits onto the center line."""
+        r = qic(y=[50] * 5, n=[1000] * 5, chart="pp")
+        assert r.data["ucl"].iloc[0] == pytest.approx(0.0706760731, abs=1e-9)
+        assert r.data["ucl"].iloc[0] > r.data["cl"].iloc[0]
 
 
 class TestRealWorldScenarios:
