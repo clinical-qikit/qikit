@@ -21,6 +21,7 @@ class PlotOptions:
     show_labels: bool = True
     show_95: bool = False
     show_grid: bool = False
+    show_x_labels: bool = True
     decimals: int = 1
     point_size: float = 1.5
     x_angle: int | None = None

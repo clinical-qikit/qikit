@@ -186,6 +186,53 @@ class TestOptions:
         assert len(fig_with.data) > len(fig_without.data)
 
 
+class TestShowXLabels:
+    """show_x_labels=False hides tick text but keeps the label in hover."""
+
+    @staticmethod
+    def _funnel():
+        return qic(
+            x=[f"Clinic {c}" for c in "ABCDEF"],
+            y=[8, 15, 9, 33, 6, 20], n=[45, 120, 80, 260, 55, 150],
+            chart="p", funnel=True,
+        )
+
+    def test_show_x_labels_false_hides_ticks(self, i_result):
+        """The only guard against plot_result's **_kwargs swallowing the param."""
+        fig = i_result.plot(show_x_labels=False)
+        assert fig.layout.xaxis.showticklabels is False
+        assert fig.layout.xaxis.ticks == ""
+
+    def test_show_x_labels_default_shows_ticks(self, i_result):
+        fig = i_result.plot()
+        assert fig.layout.xaxis.showticklabels is None
+        assert fig.layout.xaxis.ticks == "outside"
+
+    def test_hidden_labels_keep_x_in_hover(self):
+        """Hiding ticks must not cost the label — %{x} still carries it."""
+        fig = self._funnel().plot(show_x_labels=False)
+        assert "%{x}" in fig.data[0].hovertemplate
+        assert fig.data[0].x[0] == "Clinic A"
+
+    def test_show_x_labels_on_funnel_categorical_axis(self):
+        """Tick visibility and tick density are independent settings."""
+        fig = self._funnel().plot(show_x_labels=False)
+        assert fig.layout.xaxis.showticklabels is False
+        assert fig.layout.xaxis.nticks == 0
+
+    def test_show_x_labels_faceted(self):
+        """Catches a missed forward through _plot_faceted."""
+        df = pd.DataFrame({
+            "x": list(range(1, 11)) * 2,
+            "y": list(np.arange(10.0)) * 2,
+            "unit": ["A"] * 10 + ["B"] * 10,
+        })
+        r = qic(data=df, x="x", y="y", chart="i", facets="unit")
+        fig = r.plot(show_x_labels=False)
+        assert fig.layout.xaxis.showticklabels is False
+        assert fig.layout.xaxis2.showticklabels is False
+
+
 def test_y_percent_default():
     # p-chart should default to y_percent=True
     y = [10] * 10

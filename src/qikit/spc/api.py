@@ -61,6 +61,7 @@ def qic(
     show_labels: bool = True,
     show_95: bool = False,
     show_grid: bool = False,
+    show_x_labels: bool = True,
     # Formatting
     decimals: int = 1,
     point_size: float = 1.5,
@@ -111,6 +112,10 @@ def qic(
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
                part= are rejected — they assume the points are in time order.
+    show_x_labels : when False, hide the x-axis tick labels while keeping the
+               full label in the hover tooltip. Intended for funnel plots over
+               hundreds of categorical units, where the axis text is unreadable
+               anyway. Overridable per-call via result.plot(show_x_labels=...).
     connect : explicitly control point connectivity. True = lines+markers,
                False = markers only. When None (default), connectivity is
                inferred from the x-axis: categorical values that don't look
@@ -178,6 +183,7 @@ def qic(
     # ------------------------------------------------------------------
     opts = _plot_options if _plot_options is not None else PlotOptions(
         show_labels=show_labels, show_95=show_95, show_grid=show_grid,
+        show_x_labels=show_x_labels,
         decimals=decimals, point_size=point_size,
         x_angle=x_angle, x_pad=x_pad, x_period=x_period, x_format=x_format, x_order=x_order,
         y_neg=y_neg, y_percent=y_percent, y_percent_accuracy=y_percent_accuracy, y_expand=y_expand,

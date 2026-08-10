@@ -275,6 +275,7 @@ def _configure_layout(
     height: int | None = None,
     width: int | None = None,
     x_nticks_all: bool = False,
+    show_x_labels: bool = True,
 ) -> None:
     """Shared layout and axis styling for single and faceted plots."""
     apply_tufte_theme(fig)
@@ -295,6 +296,11 @@ def _configure_layout(
         fig.update_xaxes(nticks=0)  # 0 = Plotly auto, shows all category labels
     else:
         fig.update_xaxes(nticks=5)
+
+    if not show_x_labels:
+        # The category axis and %{x} in the hovertemplate keep the full label
+        # available on hover, so this is purely a subtraction of axis ink.
+        fig.update_xaxes(showticklabels=False, ticks="")
 
     title_text = result.title
     if hasattr(result, "signals") and result.signals and title_text:
@@ -375,6 +381,7 @@ def _plot_faceted(
     connect: bool | None = None,
     x_nticks_all: bool = False,
     runs_highlight: str = "all",
+    show_x_labels: bool = True,
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -419,6 +426,7 @@ def _plot_faceted(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
+        show_x_labels=show_x_labels,
     )
 
     return fig
@@ -598,6 +606,7 @@ def plot_result(
     connect: bool | None = None,
     x_nticks_all: bool = False,
     runs_highlight: str = "all",
+    show_x_labels: bool = True,
     **_kwargs: Any,
 ) -> go.Figure:
     """
@@ -620,6 +629,7 @@ def plot_result(
             height=height, width=width,
             connect=connect, x_nticks_all=x_nticks_all,
             runs_highlight=runs_highlight,
+            show_x_labels=show_x_labels,
         )
 
     df = result.data
@@ -642,6 +652,7 @@ def plot_result(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
+        show_x_labels=show_x_labels,
     )
 
     return fig

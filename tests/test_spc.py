@@ -466,6 +466,15 @@ class TestDisplayParams:
         fig = r.plot(show_grid=False)
         assert fig.layout.xaxis.showgrid is False
 
+    def test_show_x_labels_round_trips(self, normal_30):
+        """Catches show_x_labels being dropped from the PlotOptions construction."""
+        r = _result("i", normal_30, show_x_labels=False)
+        assert r._plot_opts["show_x_labels"] is False
+
+    def test_show_x_labels_defaults_true(self, normal_30):
+        r = _result("i", normal_30)
+        assert r._plot_opts["show_x_labels"] is True
+
     def test_plot_options_subset_of_qic_signature(self):
         import inspect
         from qikit.spc import PlotOptions
