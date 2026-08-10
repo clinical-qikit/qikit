@@ -227,11 +227,19 @@ def _g_limits(
 def _laney_sigma_z(
     y: np.ndarray, cl: float, sigma_base: np.ndarray, mask: np.ndarray,
 ) -> float:
-    """Overdispersion factor σ_z for Laney p'/u' charts. Laney (2002)."""
+    """
+    Overdispersion factor σ_z for Laney p'/u' charts. Laney (2002).
+
+    σ_z = MR̄(z)/d2 measures how far the point-to-point variation of the
+    standardised residuals exceeds what the binomial/Poisson model predicts.
+    Floored at 1.0: the method exists to *widen* limits under overdispersion,
+    so an underdispersed sample must fall back to the ordinary p/u limits
+    rather than tighten below them and manufacture signals.
+    """
     z = (y - cl) / np.where(sigma_base > 0, sigma_base, np.nan)
     z_valid = z[mask & ~np.isnan(z)]
     if len(z_valid) > 1:
-        return float(np.nanmean(_moving_ranges(z_valid))) / D2[2]
+        return max(1.0, float(np.nanmean(_moving_ranges(z_valid))) / D2[2])
     return 1.0
 
 
@@ -239,7 +247,7 @@ def _pp_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Laney p' chart: σ'_i = √(p̄(1−p̄)/n_i) · σ_z. Laney (2002)."""
+    """Laney p' chart: σ'_i = √(p̄(1−p̄)/n_i) · σ_z, σ_z floored at 1.0. Laney (2002)."""
     sigma_base = np.sqrt(cl * (1.0 - cl) / np.where(n > 0, n, np.nan))
     sigma = sigma_base * _laney_sigma_z(y, cl, sigma_base, mask)
     return cl + 3 * sigma, cl - 3 * sigma
@@ -249,7 +257,7 @@ def _up_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Laney u' chart: σ'_i = √(ū/n_i) · σ_z. Laney (2002)."""
+    """Laney u' chart: σ'_i = √(ū/n_i) · σ_z, σ_z floored at 1.0. Laney (2002)."""
     sigma_base = np.sqrt(cl / np.where(n > 0, n, np.nan))
     sigma = sigma_base * _laney_sigma_z(y, cl, sigma_base, mask)
     return cl + 3 * sigma, cl - 3 * sigma

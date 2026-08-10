@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 from qikit import SPCResult, qic, paretochart, bchart
 import qikit.spc as _core
 import qikit.spc.constants as _constants
+import qikit.spc.limits as _limits
 import qikit.spc.signals as _signals
 
 
@@ -1350,6 +1351,64 @@ class TestBChart:
         r = bchart(y, target=0.1, or_ratio=2.0)
         assert "cusum_up" in r.data.columns
         assert r.target == 0.1
+
+
+class TestLaneySigmaZFloor:
+    """σ_z is floored at 1.0 so p'/u' limits never tighten below naive p/u."""
+
+    # Underdispersed: raw σ_z ≈ 0.544 (pp) and ≈ 0.416 (up).
+    UNDER_PP = ([50, 53, 50, 53, 50, 53, 50, 53, 50, 65], 1000)
+    UNDER_UP = ([10, 11, 10, 11, 10, 11, 10, 11, 10, 16], 100)
+
+    def test_sigma_z_floors_at_one(self):
+        """A constant series has a raw estimate of 0.0 and must clamp up to 1.0."""
+        y = np.full(5, 0.05)
+        sigma_base = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
+        assert _limits._laney_sigma_z(y, 0.05, sigma_base, np.ones(5, dtype=bool)) == 1.0
+
+    def test_overdispersion_passes_through_unclamped(self):
+        """It is a floor, not a clamp — overdispersed samples keep their estimate."""
+        y = np.array([50, 60, 40, 70, 30], dtype=float) / 1000
+        sigma_base = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
+        sigma_z = _limits._laney_sigma_z(y, 0.05, sigma_base, np.ones(5, dtype=bool))
+        assert sigma_z == pytest.approx(3.21576, rel=1e-4)
+
+    def test_underdispersed_pp_falls_back_to_naive_p(self):
+        """An underdispersed p' chart reproduces the ordinary p chart."""
+        y, n = self.UNDER_PP
+        ns = [n] * len(y)
+        r_pp, r_p = qic(y=y, n=ns, chart="pp"), qic(y=y, n=ns, chart="p")
+        assert r_pp.data["ucl"].tolist() == pytest.approx(r_p.data["ucl"].tolist())
+        assert r_pp.data["lcl"].tolist() == pytest.approx(r_p.data["lcl"].tolist())
+        assert r_pp.summary["signals"] is False
+
+    def test_underdispersed_up_falls_back_to_naive_u(self):
+        """Same fallback property for the u' chart."""
+        y, n = self.UNDER_UP
+        ns = [n] * len(y)
+        r_up, r_u = qic(y=y, n=ns, chart="up"), qic(y=y, n=ns, chart="u")
+        assert r_up.data["ucl"].tolist() == pytest.approx(r_u.data["ucl"].tolist())
+        assert r_up.data["lcl"].tolist() == pytest.approx(r_u.data["lcl"].tolist())
+        assert r_up.summary["signals"] is False
+
+    def test_pp_limits_never_narrower_than_p(self):
+        """Property: across under-, equal- and over-dispersed series, p' ⊇ p."""
+        series = [
+            self.UNDER_PP[0],
+            [50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
+            [50, 60, 40, 70, 30, 65, 35, 70, 30, 60],
+        ]
+        for y in series:
+            ns = [1000] * len(y)
+            r_pp, r_p = qic(y=y, n=ns, chart="pp"), qic(y=y, n=ns, chart="p")
+            assert np.all(r_pp.data["ucl"].to_numpy() >= r_p.data["ucl"].to_numpy() - 1e-12)
+            assert np.all(r_pp.data["lcl"].to_numpy() <= r_p.data["lcl"].to_numpy() + 1e-12)
+
+    def test_constant_series_gives_naive_limits(self):
+        """A flat series used to collapse the limits onto the center line."""
+        r = qic(y=[50] * 5, n=[1000] * 5, chart="pp")
+        assert r.data["ucl"].iloc[0] == pytest.approx(0.0706760731, abs=1e-9)
+        assert r.data["ucl"].iloc[0] > r.data["cl"].iloc[0]
 
 
 class TestRealWorldScenarios:

@@ -83,6 +83,9 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: false, isAttribute: false, floorLcl: true
   },
   pp: {
+    // Laney p' chart: σ'ᵢ = √(p̄(1−p̄)/nᵢ)·σ_z, σ_z = max(1, MR̄(z)/d2). Laney (2002).
+    // The floor keeps p' from coming out *narrower* than the naive p chart on an
+    // underdispersed sample — the method only ever widens.
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, n, mask) => {
       const sigmaBase = n!.map(ni => Math.sqrt(cl * (1 - cl) / ni));
@@ -92,13 +95,15 @@ export const CHARTS: Record<string, ChartSpec> = {
       if (zValid.length > 1) {
         const mrs = [];
         for (let i = 1; i < zValid.length; i++) mrs.push(Math.abs(zValid[i] - zValid[i - 1]));
-        sigmaZ = nanmean(mrs) / D2[2];
+        sigmaZ = Math.max(1.0, nanmean(mrs) / D2[2]);
       }
       return [sigmaBase.map(s => cl + 3 * s * sigmaZ), sigmaBase.map(s => cl - 3 * s * sigmaZ)];
     },
     needsN: true, isAttribute: true, floorLcl: true
   },
   up: {
+    // Laney u' chart: σ'ᵢ = √(ū/nᵢ)·σ_z, σ_z = max(1, MR̄(z)/d2). Laney (2002).
+    // Same floor as pp: an underdispersed sample falls back to the naive u limits.
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, n, mask) => {
       const sigmaBase = n!.map(ni => Math.sqrt(cl / ni));
@@ -108,7 +113,7 @@ export const CHARTS: Record<string, ChartSpec> = {
       if (zValid.length > 1) {
         const mrs = [];
         for (let i = 1; i < zValid.length; i++) mrs.push(Math.abs(zValid[i] - zValid[i - 1]));
-        sigmaZ = nanmean(mrs) / D2[2];
+        sigmaZ = Math.max(1.0, nanmean(mrs) / D2[2]);
       }
       return [sigmaBase.map(s => cl + 3 * s * sigmaZ), sigmaBase.map(s => cl - 3 * s * sigmaZ)];
     },

@@ -1279,8 +1279,8 @@ it as an optional third element; an explicit `cl=` override still wins.
 | s (unequal n) | CL + 3σ̂√(1−c₄(nᵢ)²) | max(0, CL − 3σ̂√(1−c₄(nᵢ)²)) | CL = c₄(nᵢ)·σ̂, varies per point |
 | xbar (equal n) | CL + A3(nᵢ) × S̄ | CL − A3(nᵢ) × S̄ | S̄ = mean of subgroup SDs |
 | xbar (unequal n) | CL + 3σ̂/√nᵢ | CL − 3σ̂/√nᵢ | σ̂ pooled; A3 would double-correct |
-| pp | CL + 3σ_base × σ_z | max(0, CL - 3σ_base × σ_z) | Laney: σ_z = MR̄(z)/1.128 |
-| up | CL + 3σ_base × σ_z | max(0, CL - 3σ_base × σ_z) | Laney: σ_z = MR̄(z)/1.128 |
+| pp | CL + 3σ_base × σ_z | max(0, CL - 3σ_base × σ_z) | Laney: σ_z = max(1, MR̄(z)/1.128) |
+| up | CL + 3σ_base × σ_z | max(0, CL - 3σ_base × σ_z) | Laney: σ_z = max(1, MR̄(z)/1.128) |
 | t | Back-transform i limits | Back-transform i limits | y' = y^(1/3.6), compute as i, CL'³·⁶ |
 
 ### MR Screening (Provost & Murray 2011, p.140)
