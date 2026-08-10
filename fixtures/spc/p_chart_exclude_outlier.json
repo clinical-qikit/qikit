@@ -1,0 +1,204 @@
+{
+  "id": "p_chart_exclude_outlier",
+  "reference": "exclude= ghosts a point out of signal detection entirely, not just out of the baseline \u2014 the excluded point is a sigma outlier against the limits it is excluded from, and must not be flagged. Provost & Murray (2011), \u00a75 on removing known special causes.",
+  "function": "qic",
+  "input": {
+    "y": [
+      10,
+      11,
+      9,
+      12,
+      45,
+      10,
+      11,
+      9,
+      12,
+      10
+    ],
+    "n": 100,
+    "chart": "p",
+    "exclude": [
+      5
+    ]
+  },
+  "check": {
+    "cl": [
+      0.1044444,
+      0.0001
+    ],
+    "ucl": [
+      0.1961953,
+      0.0001
+    ],
+    "signals": false
+  },
+  "snapshot": {
+    "chart_type": "p",
+    "method": "anhoej",
+    "signals": false,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 10,
+      "n_baseline": 9,
+      "signals": false,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [
+        5
+      ],
+      "n_useful": 9,
+      "longest_run": 1,
+      "n_crossings": 8,
+      "run_threshold": 10,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 0.1,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 2,
+        "y": 0.11,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 3,
+        "y": 0.09,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 4,
+        "y": 0.12,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 5,
+        "y": 0.45,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": false,
+        "excluded": true
+      },
+      {
+        "x": 6,
+        "y": 0.1,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 7,
+        "y": 0.11,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 8,
+        "y": 0.09,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 9,
+        "y": 0.12,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 10,
+        "y": 0.1,
+        "cl": 0.10444444444444445,
+        "ucl": 0.19619531486114525,
+        "lcl": 0.012693574027743654,
+        "ucl_95": 0.16561169138891163,
+        "lcl_95": 0.04327719749997726,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      }
+    ]
+  }
+}
