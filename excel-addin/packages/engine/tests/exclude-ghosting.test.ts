@@ -48,7 +48,9 @@ describe('excluded points are ghosted from signal detection', () => {
 
   test('freeze does not ghost — boundary points stay checkable', () => {
     // freeze narrows the baseline but every point is still tested against it.
-    const { data } = compute({ y: [10, 10, 10, 10, 40], chart: 'i', freeze: 4 });
+    // The baseline must vary: a perfectly flat one has no spread to estimate
+    // from, so the limits come back NaN and nothing is checkable at all.
+    const { data } = compute({ y: [10, 11, 9, 10, 40], chart: 'i', freeze: 4 });
     expect(data[4].sigma_signal).toBe(true);
   });
 });

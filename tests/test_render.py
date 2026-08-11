@@ -216,9 +216,11 @@ class TestLabelDecimals:
         assert all(len(t.split(".")[1]) == 3 for t in labels)
 
     def test_flat_series_does_not_crash(self):
-        """Zero spread has no scale to derive precision from."""
+        """Zero spread has no scale to derive precision from, and no limits either."""
         labels = self._labels(qic(y=[10.0] * 20, chart="i").plot())
-        assert len(labels) == 3
+        # A flat series yields NaN limits, so only the center line is labeled.
+        assert len(labels) == 1
+        assert labels[0].startswith("CL=")
 
 
 class TestRunChart:

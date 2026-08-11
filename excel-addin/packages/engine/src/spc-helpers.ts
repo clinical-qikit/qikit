@@ -38,7 +38,15 @@ export function screenedMeanMR(y: number[], mask: boolean[]): number {
   const mrs = movingRanges(yValid);
   const mrBar = nanmean(mrs);
   const screened = mrs.filter(m => m <= D4[2] * mrBar);
-  return screened.length > 0 ? nanmean(screened) : mrBar;
+  if (screened.length === 0) return mrBar;
+
+  // Screening drops MRs above D4·MR̄, but where most MRs are zero the threshold
+  // falls below the one informative MR and screens it out. The survivors then
+  // average to 0, collapsing the limits onto the center line and flagging every
+  // point. Fall back to the unscreened mean whenever screening leaves nothing
+  // to estimate from.
+  const screenedMean = nanmean(screened);
+  return isNaN(screenedMean) || screenedMean <= 0 ? mrBar : screenedMean;
 }
 
 /**
