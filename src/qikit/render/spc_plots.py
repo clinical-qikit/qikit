@@ -534,9 +534,9 @@ def plot_pareto(result: Any, x_angle: int | None = None, **_kwargs: Any) -> go.F
     if x_angle is not None:
         fig.update_xaxes(tickangle=x_angle)
         
-    fig.update_xaxes(showline=True, linecolor="#cccccc")
+    fig.update_xaxes(showline=True, linecolor=AXIS)
     fig.update_yaxes(showgrid=True, gridcolor=GRID, secondary_y=False)
-    
+
     return fig
 
 
@@ -615,9 +615,9 @@ def plot_bchart(result: Any, **_kwargs: Any) -> go.Figure:
             xanchor="left",
         )
     
-    fig.update_xaxes(showline=True, linecolor="#cccccc")
+    fig.update_xaxes(showline=True, linecolor=AXIS)
     fig.update_yaxes(showgrid=True, gridcolor=GRID, zeroline=False)
-    
+
     return fig
 
 
