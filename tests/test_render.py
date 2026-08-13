@@ -334,3 +334,58 @@ def test_x_format_and_y_expand():
     r = qic(y=y, chart="i", x_format="%Y", y_expand=100)
     assert r._plot_opts["x_format"] == "%Y"
     assert r._plot_opts["y_expand"] == 100
+
+
+class TestOEFunnelLimitNaming:
+    """An O/E funnel's bands are probability contours, not sigma multiples."""
+
+    @staticmethod
+    def _oe():
+        return qic(
+            y=[4, 1, 12, 6, 28, 9, 110, 92],
+            n=[2.5, 3.8, 5.0, 8.2, 12.0, 25.0, 96.0, 105.0],
+            chart="oe", funnel=True,
+        )
+
+    def test_traces_named_by_probability(self):
+        names = [t.name for t in self._oe().plot(show_95=True).data]
+        assert "99.8%+" in names and "99.8%-" in names
+        assert "95%+" in names and "95%-" in names
+        assert "UCL" not in names and "2σ+" not in names
+
+    def test_direct_labels_named_by_probability(self):
+        texts = [a.text for a in self._oe().plot().layout.annotations]
+        assert any(t.startswith("99.8%+=") for t in texts)
+        assert not any(t.startswith("UCL=") for t in texts)
+
+    def test_other_charts_keep_sigma_naming(self):
+        """The rename is scoped to oe; every other chart still reads in sigma."""
+        r = qic(y=[5, 6, 7, 8, 6, 5, 7, 9], chart="i")
+        names = [t.name for t in r.plot(show_95=True).data]
+        assert "UCL" in names and "2σ+" in names
+
+    def test_faceted_oe_also_renames(self):
+        """Catches a missed forward through _plot_faceted."""
+        df = pd.DataFrame({
+            "y": [4, 1, 12, 6, 28, 9, 110, 92] * 2,
+            "n": [2.5, 3.8, 5.0, 8.2, 12.0, 25.0, 96.0, 105.0] * 2,
+            "site": ["North"] * 8 + ["South"] * 8,
+        })
+        r = qic(data=df, y="y", n="n", chart="oe", funnel=True, facets="site")
+        names = [t.name for t in r.plot().data]
+        assert "99.8%+" in names
+        assert "UCL" not in names
+
+
+class TestOEPFunnelLimitNaming:
+    """The over-dispersed O/E funnel labels its bands by probability too."""
+
+    def test_traces_named_by_probability(self):
+        r = qic(
+            y=[23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88],
+            n=[12.0, 18.0, 25.0, 30.0, 38.0, 45.0, 55.0, 64.0, 72.0, 85.0, 96.0, 110.0],
+            chart="oep", funnel=True,
+        )
+        names = [t.name for t in r.plot(show_95=True).data]
+        assert "99.8%+" in names and "95%+" in names
+        assert "UCL" not in names and "2σ+" not in names

@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 from qikit import SPCResult, qic, paretochart, bchart
 import qikit.spc as _core
 import qikit.spc.constants as _constants
+import qikit.spc.dist as _dist
 import qikit.spc.limits as _limits
 import qikit.spc.signals as _signals
 
@@ -1966,3 +1967,354 @@ class TestUntestedFeatures:
         r = qic(data=df, y="val", chart="i", notes="my_notes")
         assert "notes" in r.data.columns
         assert list(r.data["notes"]) == ["event 1", "", "event 2"]
+
+
+# ---------------------------------------------------------------------------
+# O/E (SMR) funnel — exact Poisson limits
+# ---------------------------------------------------------------------------
+
+class TestPoissonQuantile:
+    """The hand-rolled Poisson quantile behind the O/E funnel limits."""
+
+    def test_lands_on_the_integer_at_an_exact_cdf_value(self):
+        """F(3; 5) = 0.2650259, so p at that value interpolates to exactly 3."""
+        assert _dist.poisson_quantile_interp(0.2650259152973616, 5.0) == pytest.approx(3.0)
+        assert _dist.poisson_quantile_interp(0.12465201948308113, 5.0) == pytest.approx(2.0)
+
+    def test_interpolates_between_integers(self):
+        """p inside the jump from F(2) to F(3) lands strictly between 2 and 3.
+
+        The interpolation is what keeps a funnel smooth: without it the limit would
+        only move when the integer quantile jumps, drawing a staircase.
+        """
+        q = _dist.poisson_quantile_interp(0.2, 5.0)
+        assert 2.0 < q < 3.0
+
+    def test_is_monotone_in_lambda(self):
+        prev = -1.0
+        for lam in (0.5, 1.0, 5.0, 10.0, 100.0, 1000.0):
+            q = _dist.poisson_quantile_interp(0.999, lam)
+            assert q > prev
+            prev = q
+
+    def test_clamps_at_zero_for_a_small_mean(self):
+        """A low tail on a small mean has no room below zero to interpolate into."""
+        assert _dist.poisson_quantile_interp(0.001, 0.5) == 0.0
+
+    def test_nan_for_non_positive_lambda(self):
+        assert math.isnan(_dist.poisson_quantile_interp(0.975, 0.0))
+        assert math.isnan(_dist.poisson_quantile_interp(0.975, -1.0))
+        assert math.isnan(_dist.poisson_quantile_interp(0.975, math.nan))
+
+    def test_refuses_lambda_above_the_exact_ceiling(self):
+        """Past the ceiling the caller must switch to Byar, not silently loop."""
+        with pytest.raises(ValueError, match="exact-method ceiling"):
+            _dist.poisson_quantile_interp(0.999, _dist._EXACT_MAX_LAMBDA * 2)
+
+
+class TestByarQuantile:
+    """Byar's closed-form approximation and how far it sits from the exact answer."""
+
+    def test_matches_the_closed_form_by_hand(self):
+        """λ=10, z=1.959964: (1 − 1/90 + z/(3√10))³·10 = 17.085781."""
+        assert _dist.byar_quantile(10.0, _constants.Z_95, upper=True) == pytest.approx(
+            17.085781, abs=1e-5
+        )
+        assert _dist.byar_quantile(10.0, _constants.Z_95, upper=False) == pytest.approx(
+            4.787450, abs=1e-5
+        )
+
+    def test_lower_bound_floors_at_zero(self):
+        """For a small mean the cube-root bracket goes negative; cubing it would
+        put the limit below zero rather than at it."""
+        assert _dist.byar_quantile(0.5, _constants.Z_998, upper=False) == 0.0
+
+    def test_nan_for_non_positive_lambda(self):
+        assert math.isnan(_dist.byar_quantile(0.0, _constants.Z_95, upper=True))
+        assert math.isnan(_dist.byar_quantile(math.nan, _constants.Z_95, upper=True))
+
+    def test_converges_toward_exact_as_lambda_grows(self):
+        """The gap is ~10% at λ=10 and ~0.02% at λ=10000 — which is why 'exact' is
+        the default: per-physician expected counts live at the bad end."""
+        def rel(lam):
+            e = _dist.poisson_quantile_interp(0.999, lam)
+            b = _dist.byar_quantile(lam, _constants.Z_998, upper=True)
+            return abs(e - b) / e
+
+        assert rel(10.0) > 0.05
+        assert rel(1000.0) < 5e-3
+        assert rel(10000.0) < 5e-4
+
+
+class TestOEFunnel:
+    """chart='oe' — observed vs model-expected events on a Poisson funnel."""
+
+    # Eight providers; pooled SMR = 262/257.5 = 1.017476. One high outlier at
+    # E=12 (O/E 2.33) and one low outlier at E=25 (O/E 0.36).
+    Y = [4, 1, 12, 6, 28, 9, 110, 92]
+    N = [2.5, 3.8, 5.0, 8.2, 12.0, 25.0, 96.0, 105.0]
+
+    def _funnel(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="oe", funnel=True, **kw)
+
+    def test_center_line_is_the_pooled_smr(self):
+        r = self._funnel()
+        assert r.data["cl"].iloc[0] == pytest.approx(262 / 257.5)
+
+    def test_y_is_the_oe_ratio(self):
+        r = self._funnel()
+        assert r.data["y"].iloc[0] == pytest.approx(4 / 2.5)
+
+    def test_limits_are_asymmetric_about_the_center_line(self):
+        """The point of using Poisson at low volume: at E=8.2 there is far more
+        room above the line than below it."""
+        r = self._funnel()
+        row = r.data.iloc[3]
+        above = row["ucl"] - row["cl"]
+        below = row["cl"] - row["lcl"]
+        assert above > below * 1.2
+
+    def test_funnel_narrows_as_expected_grows(self):
+        r = self._funnel()
+        spread = r.data["ucl"] - r.data["lcl"]
+        assert list(spread) == sorted(spread, reverse=True)
+
+    def test_lower_limit_lifts_off_zero_at_high_volume(self):
+        """A normal-approximation chart clips the lower limit to zero here and
+        loses better-than-expected outliers entirely."""
+        r = self._funnel()
+        assert r.data["lcl"].iloc[0] == 0.0
+        assert r.data["lcl"].iloc[-1] > 0.7
+
+    def test_flags_both_the_high_and_the_low_outlier(self):
+        r = self._funnel()
+        flagged = r.data.loc[r.data["sigma_signal"], "y"].tolist()
+        assert flagged == pytest.approx([28 / 12.0, 9 / 25.0])
+
+    def test_95_band_is_a_probability_contour_not_two_thirds_of_the_outer(self):
+        """The 2/3 shortcut is exact only for symmetric normal limits."""
+        r = self._funnel()
+        row = r.data.iloc[0]
+        shortcut = row["cl"] + (row["ucl"] - row["cl"]) * (2 / 3)
+        assert row["ucl_95"] == pytest.approx(2.270660, abs=1e-6)
+        assert abs(row["ucl_95"] - shortcut) > 0.1
+
+    def test_95_band_sits_inside_the_998_band(self):
+        r = self._funnel()
+        assert (r.data["ucl_95"] <= r.data["ucl"]).all()
+        assert (r.data["lcl_95"] >= r.data["lcl"]).all()
+
+    def test_points_are_sorted_by_expected_events(self):
+        r = self._funnel(x=[f"Dr {i}" for i in range(1, 9)])
+        # This input is already ascending in n, so the labels must come back in order.
+        assert r.data["x"].tolist() == [f"Dr {i}" for i in range(1, 9)]
+
+    def test_runs_signals_suppressed_in_funnel_mode(self):
+        r = self._funnel()
+        assert r.summary["runs_disabled"] is True
+        assert not r.data["runs_signal"].any()
+
+    def test_time_series_mode_keeps_runs_detection(self):
+        """Without funnel=True an oe chart is a legitimate time-ordered SMR chart."""
+        r = qic(y=self.Y, n=self.N, chart="oe")
+        assert "runs_disabled" not in r.summary
+
+    def test_cl_override_benchmarks_against_the_risk_model(self):
+        """cl=1.0 asks who differs from their expected count; the pooled default
+        asks who differs from their peers."""
+        r = self._funnel(cl=1.0)
+        assert (r.data["cl"] == 1.0).all()
+        # The cohort runs 1.7% above expected, so recentering tightens the limits.
+        assert r.data["ucl"].iloc[0] < self._funnel().data["ucl"].iloc[0]
+
+    def test_exclude_drops_the_point_from_the_pooled_center_line(self):
+        r = self._funnel(exclude=5)
+        assert r.data["cl"].iloc[0] == pytest.approx((262 - 28) / (257.5 - 12))
+
+    def test_byar_method_widens_the_small_volume_limits(self):
+        exact = self._funnel()
+        byar = self._funnel(limit_method="byar")
+        assert byar.data["ucl"].iloc[0] > exact.data["ucl"].iloc[0]
+        assert byar.summary["limit_method"] == "byar"
+
+    def test_limit_method_recorded_in_summary(self):
+        assert self._funnel().summary["limit_method"] == "exact"
+
+    def test_y_axis_is_a_ratio_not_a_percent(self):
+        assert self._funnel()._plot_opts["y_percent"] is False
+
+    def test_rejects_limit_method_on_other_charts(self):
+        with pytest.raises(ValueError, match="only valid for chart='oe'"):
+            qic(y=[1, 2, 3], n=[10, 10, 10], chart="p", limit_method="byar")
+
+    def test_rejects_an_unknown_limit_method(self):
+        with pytest.raises(ValueError, match="must be 'exact' or 'byar'"):
+            self._funnel(limit_method="bogus")
+
+    def test_requires_expected_events(self):
+        with pytest.raises(ValueError, match="requires denominators"):
+            qic(y=self.Y, chart="oe")
+
+    def test_rejects_zero_expected_with_observed_events(self):
+        with pytest.raises(ValueError, match="Zero denominators"):
+            qic(y=[3, 5], n=[0, 6], chart="oe")
+
+    def test_zero_expected_with_zero_observed_is_a_gap(self):
+        r = qic(y=[0, 3, 5], n=[0, 4, 6], chart="oe")
+        assert math.isnan(r.data["y"].iloc[0])
+
+
+class TestOEFunnelCalibration:
+    """Simulation check: the limits should behave like the probabilities they claim."""
+
+    @staticmethod
+    def _simulate(seed, n_providers=500):
+        rng = np.random.default_rng(seed)
+        expected = rng.uniform(2.0, 400.0, n_providers)
+        observed = rng.poisson(expected)
+        return qic(y=observed.tolist(), n=expected.tolist(), chart="oe", funnel=True)
+
+    def test_in_control_data_stays_inside_the_998_limits(self):
+        """Data generated from the model itself must not raise a crowd of alarms.
+
+        A normal-approximation funnel over-flags the low-volume tail here, which is
+        the practical failure this chart type exists to avoid.
+        """
+        flagged = sum(int(self._simulate(s).data["sigma_signal"].sum()) for s in range(5))
+        # 5 x 500 points at a two-sided 0.2% rate: ~5 expected, generous ceiling.
+        assert flagged <= 15
+
+    def test_a_genuine_outlier_still_breaks_through(self):
+        """Calibration must not have come at the cost of sensitivity."""
+        rng = np.random.default_rng(7)
+        expected = rng.uniform(20.0, 100.0, 60).tolist()
+        observed = rng.poisson(expected).tolist()
+        expected.append(30.0)
+        observed.append(75)  # O/E = 2.5 against 30 expected
+        r = qic(y=observed, n=expected, chart="oe", funnel=True)
+        assert r.data.loc[r.data["y"] > 2.0, "sigma_signal"].all()
+
+
+class TestOEOverdispersion:
+    """chart='oep' — O/E funnel with Spiegelhalter's over-dispersion adjustment."""
+
+    # Twelve providers whose ratios vary far more than Poisson allows.
+    Y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88]
+    N = [12.0, 18.0, 25.0, 30.0, 38.0, 45.0, 55.0, 64.0, 72.0, 85.0, 96.0, 110.0]
+
+    # Near-Poisson counterpart: phi must fall back to 1.0.
+    Y_TIGHT = [12, 19, 24, 31, 37, 46, 54, 66, 71, 86, 95, 111]
+
+    def _oep(self, y=None, **kw):
+        return qic(y=y or self.Y, n=self.N, chart="oep", funnel=True, **kw)
+
+    def test_detects_overdispersion(self):
+        r = self._oep()
+        assert r.summary["dispersion_adjusted"] is True
+        assert r.summary["dispersion_phi"] == pytest.approx(6.228815, abs=1e-6)
+
+    def test_widens_limits_by_root_phi(self):
+        """The adjustment is multiplicative on the standard deviation."""
+        adjusted = self._oep()
+        phi = adjusted.summary["dispersion_phi"]
+        cl = adjusted.data["cl"].iloc[0]
+        unadjusted_half = _constants.Z_998 * math.sqrt(cl / min(self.N))
+        assert adjusted.data["ucl"].iloc[0] - cl == pytest.approx(
+            unadjusted_half * math.sqrt(phi)
+        )
+
+    def test_clears_points_the_unadjusted_chart_flags(self):
+        """The point of the adjustment: 3 of 12 flagged at 99.8% is not a credible
+        rate of genuine outliers, it is unmodelled between-provider variation."""
+        plain = qic(y=self.Y, n=self.N, chart="oe", funnel=True)
+        assert plain.data["sigma_signal"].sum() == 3
+        assert self._oep().data["sigma_signal"].sum() == 0
+
+    def test_falls_back_to_unadjusted_when_within_noise(self):
+        """φ only ever widens: an under-dispersed sample must not tighten below the
+        model and manufacture signals. Same contract as Laney's σ_z."""
+        r = self._oep(y=self.Y_TIGHT)
+        assert r.summary["dispersion_phi"] == 1.0
+        assert r.summary["dispersion_adjusted"] is False
+
+        cl = r.data["cl"].iloc[0]
+        expected_ucl = [cl + _constants.Z_998 * math.sqrt(cl / e) for e in sorted(self.N)]
+        assert r.data["ucl"].tolist() == pytest.approx(expected_ucl)
+
+    def test_phi_threshold_is_two_standard_errors(self):
+        """φ̂ ≤ 1 + 2√(2/K) is treated as noise around 1."""
+        k = len(self.Y_TIGHT)
+        raw = _limits.oe_dispersion_phi(
+            1.003076923076923,
+            np.array(self.Y_TIGHT) / np.array(self.N),
+            np.array(self.N),
+            np.ones(k, dtype=bool),
+        )
+        # Clamped, so the reported value is exactly 1.0 rather than the raw estimate.
+        assert raw == 1.0
+        assert 1.0 + 2.0 * math.sqrt(2.0 / k) == pytest.approx(1.816497, abs=1e-6)
+
+    @staticmethod
+    def _phi_from(y, n, cl):
+        z = 2.0 * (np.sqrt(np.array(y, dtype=float)) - np.sqrt(cl * np.array(n)))
+        return float(np.mean(z ** 2))
+
+    def test_winsorizing_blunts_an_outlier_in_the_dispersion_estimate(self):
+        """Without it, the outliers being screened for would widen the limits past
+        themselves."""
+        y = list(self.Y_TIGHT)
+        y[5] = 300  # one absurd provider on an otherwise in-control cohort
+        cl = sum(y) / sum(self.N)
+        raw = self._phi_from(y, self.N, cl)
+        winsorized = self._oep(y=y).summary["dispersion_phi"]
+        assert raw > 30.0
+        assert winsorized < raw / 5.0
+
+    def test_a_lone_outlier_still_leaks_in_through_the_pooled_center_line(self):
+        """A documented limitation, not a defect of the winsorizing.
+
+        The pooled ΣO/ΣE is not itself robust: on a small cohort one extreme
+        provider drags the center line up, which then makes every other provider
+        look systematically low and inflates φ̂ even after their z's are clipped.
+        Anchoring the center with cl= sidesteps it entirely.
+        """
+        y = list(self.Y_TIGHT)
+        y[5] = 300
+        assert self._oep(y=y).summary["dispersion_phi"] > 3.0
+        assert self._oep(y=y, cl=1.0).summary["dispersion_phi"] == 1.0
+
+    def test_retains_sensitivity_to_a_true_extreme(self):
+        r = self._oep(y=[23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 400])
+        assert r.data.loc[r.data["y"] > 3.0, "sigma_signal"].all()
+
+    def test_center_line_is_the_pooled_smr(self):
+        assert self._oep().data["cl"].iloc[0] == pytest.approx(sum(self.Y) / sum(self.N))
+
+    def test_95_band_uses_the_same_phi(self):
+        r = self._oep()
+        cl = r.data["cl"].iloc[0]
+        phi = r.summary["dispersion_phi"]
+        expected = cl + _constants.Z_95 * math.sqrt(phi * cl / min(self.N))
+        assert r.data["ucl_95"].iloc[0] == pytest.approx(expected)
+
+    def test_limits_are_symmetric_about_the_center_line(self):
+        """Unlike exact-Poisson oe limits — a multiplicative φ forces the normal
+        approximation, since the two do not compose."""
+        r = self._oep()
+        row = r.data.iloc[-1]
+        assert row["ucl"] - row["cl"] == pytest.approx(row["cl"] - row["lcl"])
+
+    def test_rejects_limit_method(self):
+        """There is no quantile method to choose once φ forces a normal approximation."""
+        with pytest.raises(ValueError, match="not available for chart='oep'"):
+            self._oep(limit_method="exact")
+
+    def test_works_without_funnel_mode(self):
+        r = qic(y=self.Y, n=self.N, chart="oep")
+        assert r.summary["dispersion_adjusted"] is True
+        assert "runs_disabled" not in r.summary
+
+    def test_exclude_drops_the_point_from_the_dispersion_estimate(self):
+        assert self._oep(exclude=1).summary["dispersion_phi"] != pytest.approx(
+            self._oep().summary["dispersion_phi"]
+        )

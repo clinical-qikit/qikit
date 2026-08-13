@@ -105,10 +105,17 @@ def _add_chart_traces(
     connect: bool | None = None,
     runs_highlight: str = "all",
     y_percent: bool = False,
+    chart_type: str = "",
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, and notes to fig.
     """
+    # An O/E funnel's limits are probability contours, not sigma multiples, so
+    # naming them "UCL"/"2σ" would misreport what the reader is looking at.
+    if chart_type in ("oe", "oep"):
+        outer_names, inner_names = ("99.8%+", "99.8%-"), ("95%+", "95%-")
+    else:
+        outer_names, inner_names = ("UCL", "LCL"), ("2σ+", "2σ-")
     x = df["x"].tolist()
     y = df["y"].to_numpy(dtype=float)
     cl = df["cl"].to_numpy(dtype=float)
@@ -189,7 +196,7 @@ def _add_chart_traces(
 
     # UCL/LCL — light solid hairlines; the direct labels say which is which,
     # so neither a dash pattern nor a fill between them has to carry meaning.
-    for arr, name in [(ucl, "UCL"), (lcl, "LCL")]:
+    for arr, name in [(ucl, outer_names[0]), (lcl, outer_names[1])]:
         if not np.all(np.isnan(arr)):
             fig.add_trace(go.Scatter(
                 x=x, y=arr,
@@ -208,7 +215,7 @@ def _add_chart_traces(
         else:
             warn_upper = cl + (ucl - cl) * (2.0 / 3.0)
             warn_lower = cl - (ucl - cl) * (2.0 / 3.0)
-        for warn_y, name in [(warn_upper, "2σ+"), (warn_lower, "2σ-")]:
+        for warn_y, name in [(warn_upper, inner_names[0]), (warn_lower, inner_names[1])]:
             fig.add_trace(go.Scatter(
                 x=x, y=warn_y,
                 mode="lines",
@@ -231,7 +238,7 @@ def _add_chart_traces(
         ann_kwargs: dict[str, Any] = {}
         if row is not None and col is not None:
             ann_kwargs = {"row": row, "col": col}
-        for arr, label in [(cl, "CL"), (ucl, "UCL"), (lcl, "LCL")]:
+        for arr, label in [(cl, "CL"), (ucl, outer_names[0]), (lcl, outer_names[1])]:
             valid_idx = np.flatnonzero(~np.isnan(arr))
             if len(valid_idx) == 0:
                 continue
@@ -453,6 +460,7 @@ def _plot_faceted(
             connect=connect,
             runs_highlight=runs_highlight,
             y_percent=y_percent,
+            chart_type=result.chart_type,
         )
 
     _configure_layout(
@@ -687,6 +695,7 @@ def plot_result(
         connect=connect,
         runs_highlight=runs_highlight,
         y_percent=y_percent,
+        chart_type=result.chart_type,
     )
 
     _configure_layout(

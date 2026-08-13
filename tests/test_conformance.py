@@ -19,6 +19,9 @@ def test_fixture(path):
     
     if "clOverride" in inputs:
         inputs["cl"] = inputs.pop("clOverride")
+
+    if "limitMethod" in inputs:
+        inputs["limit_method"] = inputs.pop("limitMethod")
     
     # Strip TS-only keys before calling Python qic — it re-derives subgroup sizes
     # and the sigma estimate from the grouping column.

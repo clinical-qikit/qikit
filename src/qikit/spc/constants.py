@@ -4,11 +4,25 @@ constants.py — SPC constant tables for qikit.
 References
 ----------
 1. Montgomery DC. Introduction to Statistical Quality Control, 8th ed. Wiley, 2019.
+2. Spiegelhalter DJ. Funnel plots for comparing institutional performance.
+   Statistics in Medicine 2005;24(8):1185-1202.
 """
 
 from __future__ import annotations
 
 import math
+
+# ---------------------------------------------------------------------------
+# Normal deviates for the funnel probability contours (Spiegelhalter 2005).
+#
+# Funnel plots are drawn at 95% and 99.8% rather than at 2σ/3σ: 99.8% keeps the
+# expected number of false alarms near one even across a few hundred providers.
+# Only Byar's approximation consumes these — the exact method inverts the Poisson
+# CDF directly, so no Φ⁻¹ implementation is needed anywhere.
+# ---------------------------------------------------------------------------
+
+Z_95 = 1.959963984540054   # Φ⁻¹(0.975)
+Z_998 = 3.090232306167813  # Φ⁻¹(0.999)
 
 # ---------------------------------------------------------------------------
 # SPC constants  (Montgomery 2019, Appendix VI, Table VI)

@@ -1,0 +1,182 @@
+{
+  "id": "funnel_oe_target_cl",
+  "reference": "O/E funnel centered on the risk model itself (cl=1.0) rather than on the pooled SMR, same data as funnel_oe_exact. This is the benchmarking form: it asks who differs from their model-expected count, where the default pooled center line asks who differs from their peers and so absorbs any overall miscalibration of the expected-events model. Limits recenter on lambda = 1.0*E, narrowing slightly (first point ucl 3.265015 vs 3.317113) because the cohort runs 1.7% above expected.",
+  "function": "qic",
+  "input": {
+    "y": [
+      4,
+      1,
+      12,
+      6,
+      28,
+      9,
+      110,
+      92
+    ],
+    "n": [
+      2.5,
+      3.8,
+      5.0,
+      8.2,
+      12.0,
+      25.0,
+      96.0,
+      105.0
+    ],
+    "chart": "oe",
+    "funnel": true,
+    "clOverride": 1.0
+  },
+  "check": {
+    "cl": 1.0,
+    "ucl": [
+      3.265015,
+      1e-06
+    ],
+    "signals": true,
+    "runs_disabled": true,
+    "limit_method": "exact"
+  },
+  "snapshot": {
+    "chart_type": "oe",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 8,
+      "n_baseline": 8,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 8,
+      "longest_run": 1,
+      "n_crossings": 7,
+      "run_threshold": 9,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false,
+      "runs_disabled": true,
+      "note": "runs signals suppressed (funnel mode)",
+      "limit_method": "exact"
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 1.6,
+        "cl": 1.0,
+        "ucl": 3.265014584612197,
+        "lcl": 0.0,
+        "ucl_95": 2.244610269862028,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 2,
+        "y": 0.2631578947368421,
+        "cl": 1.0,
+        "ucl": 2.8144048924710985,
+        "lcl": 0.0,
+        "ucl_95": 2.006912497652086,
+        "lcl_95": 0.008139169829121896,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 3,
+        "y": 2.4,
+        "cl": 1.0,
+        "ucl": 2.5542707563280564,
+        "lcl": 0.0,
+        "ucl_95": 1.875311717532559,
+        "lcl_95": 0.10841315910257658,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 4,
+        "y": 0.7317073170731708,
+        "cl": 1.0,
+        "ucl": 2.1814038797341473,
+        "lcl": 0.03927647690857156,
+        "ucl_95": 1.6817990386005273,
+        "lcl_95": 0.3078724956967019,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 5,
+        "y": 2.3333333333333335,
+        "cl": 1.0,
+        "ucl": 1.9667229381255484,
+        "lcl": 0.18916515955410987,
+        "ucl_95": 1.5641212993701217,
+        "lcl_95": 0.4319032476826754,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 6,
+        "y": 0.36,
+        "cl": 1.0,
+        "ucl": 1.6538609389891394,
+        "lcl": 0.4199413002883986,
+        "ucl_95": 1.391068687603603,
+        "lcl_95": 0.6070062613142214,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 7,
+        "y": 1.1458333333333333,
+        "cl": 1.0,
+        "ucl": 1.324748335734595,
+        "lcl": 0.694423893292857,
+        "ucl_95": 1.1997396452977254,
+        "lcl_95": 0.7996738763707842,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 8,
+        "y": 0.8761904761904762,
+        "cl": 1.0,
+        "ucl": 1.310282133805006,
+        "lcl": 0.707403658101609,
+        "ucl_95": 1.190916112403841,
+        "lcl_95": 0.8085448078494981,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      }
+    ]
+  }
+}

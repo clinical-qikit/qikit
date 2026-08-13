@@ -1,0 +1,188 @@
+{
+  "id": "funnel_oe_exact",
+  "reference": "Spiegelhalter DJ, Statistics in Medicine 2005;24(8):1185-1202 \u2014 risk-adjusted O/E (SMR) funnel plot with exact Poisson limits. Observed deaths vs model-derived expected deaths for 8 physicians; center line is the pooled SMR (262/257.5 = 1.017476), limits are continuity-interpolated Poisson quantiles at 99.8% (ucl/lcl) and 95% (ucl_95/lcl_95), divided by expected. Two signals: a high outlier at E=12 (O/E 2.33) and a low outlier at E=25 (O/E 0.36) \u2014 the low one is only detectable because the Poisson lower limit stays above zero where a normal approximation would clip it. ucl_95 is checked because the 2/3-of-3-sigma shortcut used by symmetric charts would give 2.550567 here, not 2.270660.",
+  "function": "qic",
+  "input": {
+    "y": [
+      4,
+      1,
+      12,
+      6,
+      28,
+      9,
+      110,
+      92
+    ],
+    "n": [
+      2.5,
+      3.8,
+      5.0,
+      8.2,
+      12.0,
+      25.0,
+      96.0,
+      105.0
+    ],
+    "chart": "oe",
+    "funnel": true
+  },
+  "check": {
+    "cl": [
+      1.017476,
+      1e-06
+    ],
+    "ucl": [
+      3.317113,
+      1e-06
+    ],
+    "ucl_95": [
+      2.27066,
+      1e-06
+    ],
+    "signals": true,
+    "runs_disabled": true,
+    "limit_method": "exact"
+  },
+  "snapshot": {
+    "chart_type": "oe",
+    "method": "anhoej",
+    "signals": true,
+    "title": "",
+    "subtitle": null,
+    "caption": null,
+    "ylab": "Value",
+    "xlab": "Subgroup",
+    "summary": {
+      "n_obs": 8,
+      "n_baseline": 8,
+      "signals": true,
+      "limit_basis": "all",
+      "freeze": null,
+      "excluded": [],
+      "n_useful": 8,
+      "longest_run": 1,
+      "n_crossings": 7,
+      "run_threshold": 9,
+      "crossings_threshold": -1,
+      "run_signal": false,
+      "crossings_signal": false,
+      "runs_disabled": true,
+      "note": "runs signals suppressed (funnel mode)",
+      "limit_method": "exact"
+    },
+    "data": [
+      {
+        "x": 1,
+        "y": 1.6,
+        "cl": 1.0174757281553397,
+        "ucl": 3.3171126534186635,
+        "lcl": 0.0,
+        "ucl_95": 2.2706595702890713,
+        "lcl_95": 0.0,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 2,
+        "y": 0.2631578947368421,
+        "cl": 1.0174757281553397,
+        "ucl": 2.8402237719660905,
+        "lcl": 0.0,
+        "ucl_95": 2.0306254826490044,
+        "lcl_95": 0.013221974485422606,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 3,
+        "y": 2.4,
+        "cl": 1.0174757281553397,
+        "ucl": 2.5764891464731345,
+        "lcl": 0.0,
+        "ucl_95": 1.9023224109869825,
+        "lcl_95": 0.11986992314566627,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 4,
+        "y": 0.7317073170731708,
+        "cl": 1.0174757281553397,
+        "ucl": 2.205368113043382,
+        "lcl": 0.046801639490188056,
+        "ucl_95": 1.7008523308790104,
+        "lcl_95": 0.32062790117089035,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 5,
+        "y": 2.3333333333333335,
+        "cl": 1.0174757281553397,
+        "ucl": 1.9887223928961522,
+        "lcl": 0.1977020396164378,
+        "ucl_95": 1.5827646869921013,
+        "lcl_95": 0.4427427762520118,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 6,
+        "y": 0.36,
+        "cl": 1.0174757281553397,
+        "ucl": 1.6756361533324824,
+        "lcl": 0.4341603656967583,
+        "ucl_95": 1.412100800222553,
+        "lcl_95": 0.6202492937142243,
+        "sigma_signal": true,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 7,
+        "y": 1.1458333333333333,
+        "cl": 1.0174757281553397,
+        "ucl": 1.3449033923305034,
+        "lcl": 0.7093666142820144,
+        "ucl_95": 1.2188248422909165,
+        "lcl_95": 0.8153755107253838,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      },
+      {
+        "x": 8,
+        "y": 0.8761904761904762,
+        "cl": 1.0174757281553397,
+        "ucl": 1.3303498460554974,
+        "lcl": 0.7223966227490017,
+        "ucl_95": 1.2100647174607921,
+        "lcl_95": 0.8242057531795418,
+        "sigma_signal": false,
+        "runs_signal": false,
+        "runs_signal_localized": false,
+        "baseline": true,
+        "excluded": false
+      }
+    ]
+  }
+}

@@ -9,6 +9,10 @@ References
 1. Montgomery DC. Introduction to Statistical Quality Control, 8th ed. Wiley, 2019.
 2. Provost LP, Murray SK. The Health Care Data Guide, 2nd ed. Jossey-Bass, 2022. ISBN 978-1-119-69013-9, 978-1-119-69012-2.
 5. Laney DB. Improved control charts for attributes. Quality Engineering 14(4), 2002.
+6. Spiegelhalter DJ. Funnel plots for comparing institutional performance.
+   Statistics in Medicine 2005;24(8):1185-1202.
+7. Spiegelhalter DJ. Handling over-dispersion of performance indicators.
+   Quality & Safety in Health Care 2005;14:347-351.
 """
 
 from __future__ import annotations
@@ -19,7 +23,8 @@ from typing import Callable
 
 import numpy as np
 
-from .constants import D2, D4, a3, b3, b4, c4
+from .constants import D2, D4, Z_95, Z_998, a3, b3, b4, c4
+from .dist import _EXACT_MAX_LAMBDA, byar_quantile, poisson_quantile_interp
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -280,6 +285,145 @@ def _up_limits(
     return cl + 3 * sigma, cl - 3 * sigma
 
 
+def _oe_limit_pair(
+    cl: float, n: np.ndarray | None, p_lower: float, p_upper: float,
+    z: float, limit_method: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Funnel limits for an O/E chart at one probability contour, on the O/E scale.
+
+    With Eᵢ expected events and θ₀ the center line, the count of observed events is
+    modelled Poisson(λᵢ = θ₀·Eᵢ); the limit is that distribution's quantile divided
+    back through Eᵢ. Dividing by Eᵢ is what makes the funnel narrow as volume grows
+    while the underlying count distribution widens.
+
+    Unlike the p/u charts these limits are asymmetric about the center line, which is
+    the whole point at low volume: a physician with 3 expected deaths has a very
+    different amount of room above the line than below it, and the normal
+    approximation would give them the same and then clip the lower limit at zero.
+    """
+    e = np.asarray(n, dtype=float)
+    e = np.where(e > 0, e, np.nan)
+    lam = cl * e
+
+    ucl = np.empty(len(e), dtype=float)
+    lcl = np.empty(len(e), dtype=float)
+    exact = limit_method != "byar"
+    for i, lam_i in enumerate(lam):
+        if exact and lam_i <= _EXACT_MAX_LAMBDA:
+            ucl[i] = poisson_quantile_interp(p_upper, lam_i)
+            lcl[i] = poisson_quantile_interp(p_lower, lam_i)
+        else:
+            ucl[i] = byar_quantile(lam_i, z, upper=True)
+            lcl[i] = byar_quantile(lam_i, z, upper=False)
+
+    return ucl / e, lcl / e
+
+
+def _oe_limits(
+    cl: float, y: np.ndarray, n: np.ndarray | None,
+    mask: np.ndarray, subgroup_n: int | None = None,
+    limit_method: str = "exact", **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """O/E (SMR) chart: 99.8% Poisson funnel limits. Spiegelhalter (2005), §3.2."""
+    return _oe_limit_pair(cl, n, 0.001, 0.999, Z_998, limit_method)
+
+
+def _oe_limits_95(
+    cl: float, y: np.ndarray, n: np.ndarray | None,
+    mask: np.ndarray, subgroup_n: int | None = None,
+    limit_method: str = "exact", **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """O/E (SMR) chart: 95% Poisson funnel limits. Spiegelhalter (2005), §3.2."""
+    return _oe_limit_pair(cl, n, 0.025, 0.975, Z_95, limit_method)
+
+
+def oe_dispersion_phi(
+    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
+) -> float:
+    """
+    Winsorized multiplicative over-dispersion factor φ̂. Spiegelhalter, Quality &
+    Safety in Health Care 2005;14:347-351.
+
+    Across a few hundred providers, exact Poisson limits routinely flag far more than
+    the nominal 0.2%: real providers differ from one another for reasons the risk
+    model does not capture, so the counts are over-dispersed relative to Poisson.
+    φ̂ measures that excess and widens the limits by √φ̂.
+
+    Standardised residuals use the Poisson variance-stabilising transform
+    z = 2(√O − √(θ₀E)), which is far closer to standard normal at small expected
+    counts than the Pearson residual (O − θ₀E)/√(θ₀E). Since the whole reason this
+    chart type exists is small-volume providers, a residual that is skewed exactly
+    there would inflate φ̂ on distributional shape rather than on real dispersion.
+
+    The z's are winsorized at the 10th and 90th percentiles before squaring. Without
+    that, the genuine outliers being screened for would inflate φ̂ enough to widen the
+    limits past themselves — the estimate has to describe the background variation,
+    not the exceptions.
+
+    Returns 1.0 (no adjustment) when φ̂ is within 2 standard errors of 1 under the
+    null, i.e. φ̂ ≤ 1 + 2√(2/K). Like Laney's σ_z, this only ever widens: an
+    under-dispersed sample falls back to the unadjusted limits rather than tightening
+    below them and manufacturing signals.
+
+    Caveat on small cohorts: winsorizing protects φ̂ from an outlier's own residual,
+    but the pooled ΣO/ΣE center line is not itself robust. Across a dozen providers
+    one extreme performer drags that line toward itself, which leaves every other
+    provider sitting systematically to one side of it and inflates φ̂ anyway. Passing
+    cl= (typically 1.0, the risk model's own benchmark) anchors the center line and
+    removes the effect. With a few hundred providers it is negligible.
+    """
+    if n is None:
+        raise ValueError("Over-dispersion adjustment requires expected events (n=).")
+
+    e = np.asarray(n, dtype=float)
+    observed = np.asarray(y, dtype=float) * e  # y arrives as the O/E ratio
+    with np.errstate(invalid="ignore"):
+        z = 2.0 * (np.sqrt(observed) - np.sqrt(cl * e))
+
+    z_valid = z[mask & np.isfinite(z)]
+    k = len(z_valid)
+    if k < 2:
+        return 1.0
+
+    lo, hi = np.percentile(z_valid, [10.0, 90.0])
+    phi = float(np.mean(np.clip(z_valid, lo, hi) ** 2))
+
+    return phi if phi > 1.0 + 2.0 * math.sqrt(2.0 / k) else 1.0
+
+
+def _oep_limit_pair(
+    cl: float, n: np.ndarray | None, phi: float, z: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Over-dispersed O/E limits: θ₀ ± z·√(φ̂·θ₀/Eᵢ).
+
+    Necessarily a normal approximation — a multiplicative variance factor has no
+    counterpart in an exact Poisson quantile, so the two do not compose. This is the
+    same trade the Laney p′/u′ charts make, and the same one FunnelPlotR makes.
+    """
+    e = np.asarray(n, dtype=float)
+    e = np.where(e > 0, e, np.nan)
+    half = z * np.sqrt(phi * cl / e)
+    return cl + half, cl - half
+
+
+def _oep_limits(
+    cl: float, y: np.ndarray, n: np.ndarray | None,
+    mask: np.ndarray, subgroup_n: int | None = None, **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Over-dispersed O/E chart: 99.8% limits. Spiegelhalter (2005), QSHC 14:347-351."""
+    return _oep_limit_pair(cl, n, oe_dispersion_phi(cl, y, n, mask), Z_998)
+
+
+def _oep_limits_95(
+    cl: float, y: np.ndarray, n: np.ndarray | None,
+    mask: np.ndarray, subgroup_n: int | None = None, **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Over-dispersed O/E chart: 95% limits. Spiegelhalter (2005), QSHC 14:347-351."""
+    return _oep_limit_pair(cl, n, oe_dispersion_phi(cl, y, n, mask), Z_95)
+
+
 def _xbar_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None, s_bar: float | None = None,
@@ -320,6 +464,11 @@ class ChartSpec:
     needs_n: bool = False
     is_attribute: bool = False
     floor_lcl: bool = False
+    limits_95: Callable | None = None
+                        # Same signature as limits. Only for charts whose inner band
+                        # is a genuine probability contour rather than 2/3 of the
+                        # outer one — see compute() and _oe_limits_95. None means the
+                        # caller derives the 95% band arithmetically as before.
 
 
 CHARTS: dict[str, ChartSpec] = {
@@ -335,6 +484,10 @@ CHARTS: dict[str, ChartSpec] = {
     "pp":   ChartSpec(_cl_weighted, _pp_limits, needs_n=True, is_attribute=True, floor_lcl=True),
     "up":   ChartSpec(_cl_weighted, _up_limits, needs_n=True, is_attribute=True, floor_lcl=True),
     "xbar": ChartSpec(_cl_grand_mean, _xbar_limits),
+    "oe":   ChartSpec(_cl_weighted, _oe_limits, needs_n=True, is_attribute=True,
+                      floor_lcl=True, limits_95=_oe_limits_95),
+    "oep":  ChartSpec(_cl_weighted, _oep_limits, needs_n=True, is_attribute=True,
+                      floor_lcl=True, limits_95=_oep_limits_95),
 }
 
 VALID_CHARTS = set(CHARTS) | {"t"}

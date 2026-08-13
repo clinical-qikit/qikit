@@ -23,6 +23,7 @@ def compute(
     s_bar: float | None = None,
     exclude_mask: np.ndarray | None = None,
     sigma_hat: float | None = None,
+    limit_method: str = "exact",
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
@@ -46,10 +47,14 @@ def compute(
     exclude_mask : True = ghost this point out of signal detection entirely
                    (exclude=); None = no ghosting. Unlike `mask`, this does
                    not include freeze/part boundaries.
+    limit_method : quantile method for charts with probability-based limits
+                   ("exact" | "byar"). Ignored by every other chart type.
 
     Returns
     -------
-    dict with keys: y, cl, ucl, lcl, sigma_signal, runs_signal, summary
+    dict with keys: y, cl, ucl, lcl, sigma_signal, runs_signal, summary.
+    Charts defining spec.limits_95 (the O/E funnel) also return ucl_95/lcl_95;
+    every other chart leaves the caller to derive that band from the 3σ spread.
     """
     if chart not in CHARTS:
         raise ValueError(
@@ -91,13 +96,27 @@ def compute(
     # rather than through spec.center, which is scalar by contract. An explicit
     # cl_override always wins — the user asked for a fixed line.
     ucl_arr, lcl_arr, *cl_var = spec.limits(
-        cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat
+        cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat,
+        limit_method=limit_method,
     )
     if cl_override is None and cl_var and cl_var[0] is not None:
         cl_arr = np.asarray(cl_var[0], dtype=float)
 
     if spec.floor_lcl:
         lcl_arr = np.where(lcl_arr < 0, 0.0, lcl_arr)
+
+    # Inner band. For most charts the caller scales the 3σ spread by 2/3, which is
+    # exact when the limits are symmetric and normal. A funnel's limits are neither,
+    # so its 95% contour has to be computed from the distribution in its own right.
+    extra: dict[str, Any] = {}
+    if spec.limits_95 is not None:
+        ucl_95, lcl_95 = spec.limits_95(
+            cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat,
+            limit_method=limit_method,
+        )
+        if spec.floor_lcl:
+            lcl_95 = np.where(lcl_95 < 0, 0.0, lcl_95)
+        extra["ucl_95"], extra["lcl_95"] = ucl_95, lcl_95
 
     # Signals — ghosted (exclude=) points are hidden from detection entirely.
     # Note this uses exclude_mask, not the baseline `mask`: freeze/part boundary
@@ -118,4 +137,5 @@ def compute(
         "runs_signal": runs_sig,
         "runs_signal_localized": runs_loc,
         "summary": runs_summary,
+        **extra,
     }

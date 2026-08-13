@@ -83,3 +83,17 @@ export function b4(n: number): number {
   const spread = bSpread(n);
   return Number.isNaN(spread) ? NaN : 1 + spread;
 }
+
+// ---------------------------------------------------------------------------
+// Normal deviates for the funnel probability contours (Spiegelhalter 2005).
+//
+// Funnel plots are drawn at 95% and 99.8% rather than at 2σ/3σ: 99.8% keeps the
+// expected number of false alarms near one even across a few hundred providers.
+// Only Byar's approximation consumes these — the exact method inverts the Poisson
+// CDF directly, so no Φ⁻¹ implementation is needed anywhere.
+// ---------------------------------------------------------------------------
+
+/** Φ⁻¹(0.975) */
+export const Z_95 = 1.959963984540054;
+/** Φ⁻¹(0.999) */
+export const Z_998 = 3.090232306167813;

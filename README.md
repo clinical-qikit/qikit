@@ -41,9 +41,56 @@ All chart types are computed by the same `qic()` entry point via the `chart=` ar
 | `u` | U chart | Rate of defects, unequal opportunity |
 | `up` | U′ (Laney) chart | Rate data with overdispersion |
 | `g` | G chart | Number of opportunities between rare events |
+| `oe` | O/E (SMR) chart | Observed vs risk-model expected events, e.g. mortality O/E |
+| `oep` | O/E with over-dispersion | O/E across many providers, limits widened by √φ̂ |
 
 `qic(..., funnel=True)` renders a funnel plot instead, for cross-sectional comparison
-across p/pp/u/up charts sorted by denominator.
+across p/pp/u/up/oe/oep charts sorted by denominator.
+
+### Risk-adjusted O/E funnel plots
+
+`chart="oe"` compares observed events against model-derived expected events — the form
+used for provider-level benchmarking of mortality, readmissions, and complications.
+Pass observed counts as `y=` and expected events as `n=`:
+
+```python
+qic(x=physicians, y=observed_deaths, n=expected_deaths,
+    chart="oe", funnel=True, show_95=True)
+```
+
+Limits are exact Poisson probability contours at 95% and 99.8% rather than 3σ
+(Spiegelhalter, *Statistics in Medicine* 2005;24:1185-1202), which matters at the
+volumes individual physicians actually have: the limits are asymmetric about the center
+line, and the lower limit stays above zero where a normal approximation would clip it
+and lose better-than-expected outliers. `limit_method="byar"` selects the closed-form
+Wilson-Hilferty approximation instead; it drifts from exact below ~20 expected events.
+
+The center line defaults to the pooled ΣO/ΣE, so points are judged against their peers
+and any overall miscalibration of the risk model is absorbed. Pass `cl=1.0` to judge
+them against the risk model itself.
+
+#### Over-dispersion
+
+Across a few hundred providers, exact Poisson limits typically flag far more than the
+nominal 0.2% — real providers differ for reasons no risk model fully captures.
+`chart="oep"` applies Spiegelhalter's winsorized multiplicative adjustment
+(*QSHC* 2005;14:347-351), widening the limits by √φ̂:
+
+```python
+r = qic(y=observed, n=expected, chart="oep", funnel=True)
+r.summary["dispersion_phi"]       # 1.0 means no adjustment was warranted
+r.summary["dispersion_adjusted"]  # False when the sample is within noise of Poisson
+```
+
+φ̂ is estimated from variance-stabilized residuals winsorized at the 10th/90th
+percentiles, so the outliers being screened for cannot inflate the limits past
+themselves. Like Laney's σ_z it only ever widens: an under-dispersed sample falls back
+to the unadjusted limits. These limits are a normal approximation — a multiplicative
+variance factor has no exact-Poisson counterpart, so `limit_method=` does not apply.
+
+On a small cohort, note that one extreme provider will drag the pooled center line
+toward itself and inflate φ̂ even after its own residual is clipped; pass `cl=1.0` to
+anchor the center line if that matters.
 
 Beyond `qic()`, the package also provides:
 
