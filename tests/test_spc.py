@@ -1259,7 +1259,7 @@ class TestAnhoejThresholds:
 
     def test_crossings_threshold_less_than_half_n(self):
         """crossings_threshold should be < n/2 for all valid n >= 10."""
-        for n in [10, 20, 25, 50, 100]:
+        for n in [10, 20, 25, 50, 100, 1033, 2000]:
             ct = _core._crossings_threshold(n)
             assert ct < n / 2, f"crossings_threshold({n})={ct} is not < {n/2}"
 
@@ -1267,6 +1267,30 @@ class TestAnhoejThresholds:
         """For n < 10, crossings threshold should be -1 (no signalling)."""
         for n in [1, 5, 9]:
             assert _core._crossings_threshold(n) == -1
+
+    def test_crossings_threshold_large_n(self):
+        """
+        n >= 1033 used to raise OverflowError: the exact binomial coefficient
+        exceeded the largest float. Values match exact rational arithmetic and
+        the TypeScript engine (excel-addin/packages/engine/tests/signals.test.ts).
+        """
+        for n, expected in [(1033, 489), (1500, 717), (3000, 1453), (5000, 2440)]:
+            assert _core._crossings_threshold(n) == expected
+
+    def test_crossings_threshold_matches_exact_binomial(self):
+        """The log-space sum agrees with exact rational arithmetic."""
+        from fractions import Fraction
+
+        for n in [50, 300, 1200]:
+            trials = n - 1
+            pmf_unit = Fraction(1, 2) ** trials
+            cum = Fraction(0)
+            for k in range(trials + 1):
+                cum += math.comb(trials, k) * pmf_unit
+                if cum > Fraction(1, 20):
+                    expected = k - 1
+                    break
+            assert _core._crossings_threshold(n) == expected
 
     def test_run_threshold_below_10(self):
         """For n < 10, run threshold > n (effectively impossible to signal)."""

@@ -45,9 +45,13 @@ def _crossings_threshold(n: int) -> int:
     if n < 10:
         return -1
     trials = n - 1
+    # PMF accumulated in log space: math.comb(trials, k) is an exact int and
+    # overflows the float conversion past n ~ 1032.
+    log_pmf = -trials * math.log(2.0)  # k = 0
     cumprob = 0.0
     for k in range(trials + 1):
-        cumprob += math.comb(trials, k) * 0.5 ** trials
+        if k: log_pmf += math.log((trials - k + 1) / k)
+        cumprob += math.exp(log_pmf)
         if cumprob > 0.05:
             return k - 1
     return 0

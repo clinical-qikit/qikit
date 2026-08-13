@@ -1,5 +1,4 @@
 import { SignalMethod } from './spc-types';
-import { binomCoeff } from './spc-helpers';
 
 export function longestRunThreshold(n: number): number {
   if (n < 10) return n + 1;
@@ -9,9 +8,13 @@ export function longestRunThreshold(n: number): number {
 export function crossingsThreshold(n: number): number {
   if (n < 10) return -1;
   const trials = n - 1;
+  // PMF accumulated in log space: the binomial coefficient overflows to
+  // Infinity past n ~ 1032, which silently returned wrong thresholds.
+  let logPmf = -trials * Math.LN2; // k = 0
   let cumprob = 0;
   for (let k = 0; k <= trials; k++) {
-    cumprob += binomCoeff(trials, k) * Math.pow(0.5, trials);
+    if (k > 0) logPmf += Math.log((trials - k + 1) / k);
+    cumprob += Math.exp(logPmf);
     if (cumprob > 0.05) return k - 1;
   }
   return 0;

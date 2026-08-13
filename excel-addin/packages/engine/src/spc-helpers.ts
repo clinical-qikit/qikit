@@ -48,18 +48,3 @@ export function screenedMeanMR(y: number[], mask: boolean[]): number {
   const screenedMean = nanmean(screened);
   return isNaN(screenedMean) || screenedMean <= 0 ? mrBar : screenedMean;
 }
-
-/**
- * Binomial coefficient nCr.
- */
-export function binomCoeff(n: number, k: number): number {
-  if (k < 0 || k > n) return 0;
-  if (k === 0 || k === n) return 1;
-  if (k > n / 2) k = n - k;
-  
-  let res = 1;
-  for (let i = 1; i <= k; i++) {
-    res = res * (n - i + 1) / i;
-  }
-  return Math.round(res);
-}
