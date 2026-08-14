@@ -69,7 +69,11 @@
       "crossings_signal": false,
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
-      "limit_method": "byar"
+      "limit_method": "byar",
+      "min_detectable_oe_median": 2.764711902950198,
+      "n_underpowered": 5,
+      "underpowered": true,
+      "power_note": "5 of 8 points have too few expected events to detect even a doubling of risk (smallest detectable O/E, median: 2.8). Absence of a signal is not evidence of acceptable performance; aggregate more time periods or compare at a higher level before drawing conclusions."
     },
     "data": [
       {
@@ -84,7 +88,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 5.460290806348004,
+        "ci_95_lower": 0.4359461494505249,
+        "ci_95_upper": 4.096635470161483,
+        "observed": 4.0,
+        "expected": 2.5
       },
       {
         "x": 2,
@@ -98,7 +107,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 4.183501324380878,
+        "ci_95_lower": 0.006662581048498174,
+        "ci_95_upper": 1.4662219449839193,
+        "observed": 0.9999999999999999,
+        "expected": 3.8
       },
       {
         "x": 3,
@@ -112,7 +126,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 3.8466312801496967,
+        "ci_95_lower": 1.2401150217444457,
+        "ci_95_upper": 4.192317009635389,
+        "observed": 12.0,
+        "expected": 5.0
       },
       {
         "x": 4,
@@ -126,7 +145,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 3.0156079453784987,
+        "ci_95_lower": 0.26852368945010563,
+        "ci_95_upper": 1.5926187832339842,
+        "observed": 6.0,
+        "expected": 8.2
       },
       {
         "x": 5,
@@ -140,7 +164,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.513815860521897,
+        "ci_95_lower": 1.5504830546547943,
+        "ci_95_upper": 3.3723163286056796,
+        "observed": 28.0,
+        "expected": 12.0
       },
       {
         "x": 6,
@@ -154,7 +183,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.9785414341050171,
+        "ci_95_lower": 0.16461492389513221,
+        "ci_95_upper": 0.6833921380567677,
+        "observed": 9.0,
+        "expected": 25.0
       },
       {
         "x": 7,
@@ -168,7 +202,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.4745786526273736,
+        "ci_95_lower": 0.9417356467957824,
+        "ci_95_upper": 1.3810390315294196,
+        "observed": 110.0,
+        "expected": 96.0
       },
       {
         "x": 8,
@@ -182,7 +221,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.4468532037643291,
+        "ci_95_lower": 0.7063331882501269,
+        "ci_95_upper": 1.074569838111201,
+        "observed": 92.0,
+        "expected": 105.0
       }
     ]
   }

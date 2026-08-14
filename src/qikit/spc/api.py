@@ -20,10 +20,20 @@ import pandas as pd
 
 from .constants import c4
 from .compute import compute
-from .limits import CHARTS, VALID_CHARTS, oe_dispersion_phi
+from .limits import (
+    CHARTS,
+    VALID_CHARTS,
+    oe_detectable_ratio,
+    oe_dispersion_phi,
+    oe_point_ci,
+)
 from .options import PlotOptions, VALID_RUNS_HIGHLIGHT
 from .results import BChartResult, ParetoResult, SPCResult
 from .signals import _runs_signals, _sigma_signals
+
+# A doubling of risk-adjusted mortality is unambiguously material. If the typical
+# point cannot detect even that, the chart cannot clear anyone, and says so.
+_UNDERPOWERED_RATIO = 2.0
 
 # ---------------------------------------------------------------------------
 # qic() — main entry point
@@ -105,6 +115,12 @@ def qic(
              the risk model explains, which across a few hundred of them is the
              usual case. φ̂ is reported in summary["dispersion_phi"], and equals
              1.0 (limits untouched) when the sample is within noise of Poisson.
+             Prefer oep when comparing roughly 20 or more providers, unless the
+             risk model is trusted to capture the differences between them.
+             Both report per-point min_detectable_oe and a 95% CI, plus
+             summary["underpowered"] — at physician volumes a funnel often
+             cannot detect even a doubling of risk, and a point inside the
+             limits there means "not enough evidence", not "acceptable".
     method : run-signal detection — anhoej (default), ihi, weco, nelson
     freeze : baseline ends at this index (1-based)
     part   : index (or list) where new phases begin (1-based), or column name
@@ -449,12 +465,22 @@ def qic(
     )
 
     # ------------------------------------------------------------------
+    # 7b. Detectability + per-point intervals (O/E charts only)
+    # ------------------------------------------------------------------
+    # Computed on the raw arrays, before _assemble_final_df applies multiply. For oep
+    # this uses oep's own wider limits, which is the question a reader is asking:
+    # would this point have flagged on *this* chart.
+    oe_stats = (
+        _oe_point_stats(y_calc, n_vals, ucl_arr) if chart in ("oe", "oep") else None
+    )
+
+    # ------------------------------------------------------------------
     # 8. Assemble DataFrame
     # ------------------------------------------------------------------
     df = _assemble_final_df(
         x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
         sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-        exclude_mask=exclude_mask,
+        exclude_mask=exclude_mask, oe_stats=oe_stats,
     )
 
     # ------------------------------------------------------------------
@@ -488,6 +514,34 @@ def qic(
         phi = oe_dispersion_phi(cl_arr[0], y_calc, n_vals, mask)
         summary["dispersion_phi"] = phi
         summary["dispersion_adjusted"] = phi > 1.0
+
+    if oe_stats is not None:
+        # How much signal the chart could carry, reported alongside what it found. A
+        # funnel over small-volume providers mostly cannot detect anything, and the
+        # honest reading of "no signal" there is "not enough data", not "fine".
+        # Computed on the raw ratios: these are statements about the unscaled O/E.
+        # Ghosted (exclude=) points are hidden from signal detection, so they are not
+        # among the points this chart could flag and must not colour its power.
+        detectable_raw = oe_stats[0]
+        counted = detectable_raw if exclude_mask is None else detectable_raw[~exclude_mask]
+        finite = counted[np.isfinite(counted)]
+        if len(finite) > 0:
+            median_det = float(np.median(finite))
+            n_under = int(np.sum(finite > _UNDERPOWERED_RATIO))
+            summary["min_detectable_oe_median"] = median_det
+            summary["n_underpowered"] = n_under
+            summary["underpowered"] = median_det > _UNDERPOWERED_RATIO
+            if summary["underpowered"]:
+                # Composed here rather than left to the caller so that a consuming
+                # agent, or a report generator, can quote one sentence instead of
+                # reconstructing the interpretation from two floats.
+                summary["power_note"] = (
+                    f"{n_under} of {len(finite)} points have too few expected events "
+                    f"to detect even a doubling of risk (smallest detectable O/E, "
+                    f"median: {median_det:.1f}). Absence of a signal is not evidence "
+                    f"of acceptable performance; aggregate more time periods or "
+                    f"compare at a higher level before drawing conclusions."
+                )
 
     if print_summary:
         _print_summary(chart, summary)
@@ -779,10 +833,35 @@ def _compute_spc_arrays(
     return cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
 
 
+def _oe_point_stats(
+    y_calc: np.ndarray, n_vals: np.ndarray, ucl_arr: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Per-point detectability and confidence interval for an O/E chart.
+
+    Operates on the raw (pre-multiply) arrays: y_calc is the O/E ratio, n_vals the
+    expected events, ucl_arr the drawn upper limit. Observed counts are recovered as
+    O = ratio · E, exactly, since the ratio was formed by that division.
+    """
+    k = len(y_calc)
+    detectable = np.full(k, np.nan)
+    ci_lo = np.full(k, np.nan)
+    ci_hi = np.full(k, np.nan)
+    observed = np.asarray(y_calc, dtype=float) * np.asarray(n_vals, dtype=float)
+    expected = np.asarray(n_vals, dtype=float)
+
+    for i in range(k):
+        e = float(expected[i])
+        detectable[i] = oe_detectable_ratio(float(ucl_arr[i]) * e, e)
+        ci_lo[i], ci_hi[i] = oe_point_ci(float(observed[i]), e)
+
+    return detectable, ci_lo, ci_hi, observed, expected
+
+
 def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
     sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-    exclude_mask=None,
+    exclude_mask=None, oe_stats=None,
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
@@ -816,6 +895,20 @@ def _assemble_final_df(
             if chart == "mr": t_vals = t_vals[1:]
         else: t_vals = np.full(len(x_vals), float(target))
         df_dict["target"] = t_vals * multiply if multiply != 1.0 else t_vals
+
+    if oe_stats is not None:
+        detectable, ci_lo, ci_hi, observed, expected = oe_stats
+        # Every column on the y scale scales with multiply, same as target above.
+        scale = multiply if multiply != 1.0 else 1.0
+        df_dict["min_detectable_oe"] = detectable * scale
+        df_dict["ci_95_lower"] = ci_lo * scale
+        df_dict["ci_95_upper"] = ci_hi * scale
+        # Counts, echoed back deliberately. Funnel mode sorts by expected events, so
+        # after the sort a caller can no longer line their own inputs up against these
+        # rows without redoing the permutation — the same reason x is echoed. They are
+        # event counts, not ratios, so multiply (a y-scale rescale) does not touch them.
+        df_dict["observed"] = observed
+        df_dict["expected"] = expected
 
     if part_indices:
         n_pts = len(y_plot)

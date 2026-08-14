@@ -65,16 +65,52 @@ with tab_spc:
             
             col_x = st.selectbox("X-Axis (Time/Sequence)", cols, index=cols.index(default_x) if default_x in cols else 0, key="spc_x")
             col_y = st.selectbox("Y-Axis (Measure)", cols, index=cols.index(default_y) if default_y in cols else 0, key="spc_y")
-            col_n = st.selectbox("N (Denominator/Size)", cols, index=cols.index(default_n) if default_n in cols else 0, help="Required for P, U charts", key="spc_n")
+            col_n = st.selectbox("N (Denominator/Size)", cols, index=cols.index(default_n) if default_n in cols else 0, help="Required for P, U charts. For OE/OEP this is the model-derived *expected events*, and Y is the observed count.", key="spc_n")
             col_facets = st.selectbox("Facets (Stratification)", cols, index=0, key="spc_facets")
             col_part = st.selectbox("Part (Phases/Shifts)", cols, index=0, key="spc_part")
             col_notes = st.selectbox("Notes (Annotations)", cols, index=0, key="spc_notes")
             
             st.header("3. Chart Configuration")
-            chart_type = st.selectbox("Chart Type", ["run", "i", "mr", "xbar", "s", "t", "p", "pp", "c", "u", "up", "g"], key="spc_type")
+            chart_type = st.selectbox("Chart Type", ["run", "i", "ip", "mr", "xbar", "s", "t", "p", "pp", "c", "u", "up", "g", "oe", "oep"], key="spc_type")
             method = st.selectbox("Signal Method", ["anhoej", "ihi", "weco", "nelson"], key="spc_method")
-            
-            freeze = st.number_input("Freeze Baseline (Index)", min_value=0, value=0, key="spc_freeze")
+
+            is_oe = chart_type in ("oe", "oep")
+            # A keyed widget keeps its session value once created, so a later change to
+            # value= is ignored. Switching chart type has to write the new defaults back
+            # into session state, before the widgets are built.
+            if st.session_state.get("_spc_last_type") != chart_type:
+                st.session_state["_spc_last_type"] = chart_type
+                st.session_state["spc_funnel"] = is_oe
+                st.session_state["spc_show95"] = is_oe
+
+            funnel = st.checkbox(
+                "Funnel plot (cross-sectional)",
+                help="Sort by denominator and compare units against each other rather than over time. Disables runs rules, freeze, and part.",
+                key="spc_funnel",
+            )
+            show_95 = st.checkbox(
+                "Show inner band",
+                help="95% contour on O/E charts, 2σ elsewhere.", key="spc_show95",
+            )
+
+            limit_method = None
+            cl_override = None
+            if is_oe:
+                if chart_type == "oe":
+                    limit_method = st.selectbox(
+                        "Limit method", ["exact", "byar"],
+                        help="Exact Poisson contours, or Byar's closed-form approximation (faster, drifts below ~20 expected events).",
+                        key="spc_limit_method",
+                    )
+                center = st.radio(
+                    "Center line", ["Pooled ΣO/ΣE", "Fixed at 1.0"],
+                    help="Pooled judges providers against their peers and absorbs miscalibration of the risk model; 1.0 judges them against the model itself.",
+                    key="spc_oe_center",
+                )
+                if center == "Fixed at 1.0":
+                    cl_override = 1.0
+
+            freeze = st.number_input("Freeze Baseline (Index)", min_value=0, value=0, disabled=funnel, key="spc_freeze")
             exclude = st.text_input("Exclude (Indices)", value="", help="Comma separated", key="spc_exclude")
             
             st.header("4. Aesthetics")
@@ -102,16 +138,29 @@ with tab_spc:
                         }
                         if col_n: kwargs["n"] = col_n
                         if col_facets: kwargs["facets"] = col_facets
-                        if col_part: kwargs["part"] = col_part
                         if col_notes: kwargs["notes"] = col_notes
-                        if freeze_val is not None: kwargs["freeze"] = freeze_val
                         if exclude_val: kwargs["exclude"] = exclude_val
+                        if show_95: kwargs["show_95"] = True
+                        if limit_method: kwargs["limit_method"] = limit_method
+                        if cl_override is not None: kwargs["cl"] = cl_override
+                        # A funnel is a cross-sectional comparison; freeze and part
+                        # assume the points are in time order, so qic rejects them.
+                        if funnel:
+                            kwargs["funnel"] = True
+                        else:
+                            if col_part: kwargs["part"] = col_part
+                            if freeze_val is not None: kwargs["freeze"] = freeze_val
 
                         with st.spinner("Computing..."):
                             result = qic(**kwargs)
-                            
+
                         st.plotly_chart(result.plot(), use_container_width=True)
-                        
+
+                        # The single most misread thing about a provider funnel: an
+                        # empty chart at low volume is missing evidence, not a pass.
+                        if result.summary.get("power_note"):
+                            st.warning(result.summary["power_note"], icon="⚠️")
+
                         col_stat, col_data = st.columns(2)
                         with col_stat:
                             st.subheader("Analysis Summary")

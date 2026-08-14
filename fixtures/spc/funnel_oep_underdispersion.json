@@ -78,7 +78,10 @@
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "dispersion_phi": 1.0,
-      "dispersion_adjusted": false
+      "dispersion_adjusted": false,
+      "min_detectable_oe_median": 1.5931777613737452,
+      "n_underpowered": 2,
+      "underpowered": false
     },
     "data": [
       {
@@ -93,7 +96,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.242404152813636,
+        "ci_95_lower": 0.516714592393519,
+        "ci_95_upper": 1.7467987540147452,
+        "observed": 12.0,
+        "expected": 12.0
       },
       {
         "x": 2,
@@ -107,7 +115,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.0354469086630913,
+        "ci_95_lower": 0.635513398020371,
+        "ci_95_upper": 1.6483807539769784,
+        "observed": 19.0,
+        "expected": 18.0
       },
       {
         "x": 3,
@@ -121,7 +134,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.8507631350475002,
+        "ci_95_lower": 0.6150901141874615,
+        "ci_95_upper": 1.4284039037501282,
+        "observed": 24.0,
+        "expected": 25.0
       },
       {
         "x": 4,
@@ -135,7 +153,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.790423292002037,
+        "ci_95_lower": 0.7020998659714041,
+        "ci_95_upper": 1.4667341834416274,
+        "observed": 31.000000000000004,
+        "expected": 30.0
       },
       {
         "x": 5,
@@ -149,7 +172,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.6919276330622097,
+        "ci_95_lower": 0.6855635412396303,
+        "ci_95_upper": 1.342095424787653,
+        "observed": 37.0,
+        "expected": 38.0
       },
       {
         "x": 6,
@@ -163,7 +191,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.6160489448760684,
+        "ci_95_lower": 0.7483951424216002,
+        "ci_95_upper": 1.3635011935685788,
+        "observed": 46.0,
+        "expected": 45.0
       },
       {
         "x": 7,
@@ -177,7 +210,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.5703065778714222,
+        "ci_95_lower": 0.7375720358644574,
+        "ci_95_upper": 1.2810597526129208,
+        "observed": 54.0,
+        "expected": 55.0
       },
       {
         "x": 8,
@@ -191,7 +229,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.5129242069834747,
+        "ci_95_lower": 0.7975686752912665,
+        "ci_95_upper": 1.3120028506641659,
+        "observed": 66.0,
+        "expected": 64.0
       },
       {
         "x": 9,
@@ -205,7 +248,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.4897518311145774,
+        "ci_95_lower": 0.7701609590902444,
+        "ci_95_upper": 1.2438449875986184,
+        "observed": 71.0,
+        "expected": 72.0
       },
       {
         "x": 10,
@@ -219,7 +267,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.4455900495906098,
+        "ci_95_lower": 0.80928116757845,
+        "ci_95_upper": 1.2495211809640878,
+        "observed": 86.0,
+        "expected": 85.0
       },
       {
         "x": 11,
@@ -233,7 +286,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.4205666896002036,
+        "ci_95_lower": 0.8006320110763392,
+        "ci_95_upper": 1.2097143085787032,
+        "observed": 95.0,
+        "expected": 96.0
       },
       {
         "x": 12,
@@ -247,7 +305,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.3904989160830294,
+        "ci_95_lower": 0.8301211624561871,
+        "ci_95_upper": 1.2152057490045087,
+        "observed": 111.0,
+        "expected": 110.0
       }
     ]
   }

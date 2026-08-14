@@ -77,7 +77,11 @@
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "dispersion_phi": 6.2288146737490635,
-      "dispersion_adjusted": true
+      "dispersion_adjusted": true,
+      "min_detectable_oe_median": 2.297265271440497,
+      "n_underpowered": 9,
+      "underpowered": true,
+      "power_note": "9 of 12 points have too few expected events to detect even a doubling of risk (smallest detectable O/E, median: 2.3). Absence of a signal is not evidence of acceptable performance; aggregate more time periods or compare at a higher level before drawing conclusions."
     },
     "data": [
       {
@@ -92,7 +96,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 3.7668895221762484,
+        "ci_95_lower": 1.2150022530870581,
+        "ci_95_upper": 2.875941074569423,
+        "observed": 23.0,
+        "expected": 12.0
       },
       {
         "x": 2,
@@ -106,7 +115,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 3.21953380170942,
+        "ci_95_lower": 0.19187956537491632,
+        "ci_95_upper": 0.8757327344551842,
+        "observed": 8.0,
+        "expected": 18.0
       },
       {
         "x": 3,
@@ -120,7 +134,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.8668028162842387,
+        "ci_95_lower": 0.9418395353828882,
+        "ci_95_upper": 1.9004636838081237,
+        "observed": 34.0,
+        "expected": 25.0
       },
       {
         "x": 4,
@@ -134,7 +153,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.7041909220821605,
+        "ci_95_lower": 0.3813080388122226,
+        "ci_95_upper": 0.989028452386187,
+        "observed": 19.0,
+        "expected": 30.0
       },
       {
         "x": 5,
@@ -148,7 +172,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.493085666389603,
+        "ci_95_lower": 1.1819350954919294,
+        "ci_95_upper": 2.0027816148046242,
+        "observed": 59.0,
+        "expected": 38.0
       },
       {
         "x": 6,
@@ -162,7 +191,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.3604368298773246,
+        "ci_95_lower": 0.46806657731426937,
+        "ci_95_upper": 0.977822788961085,
+        "observed": 31.0,
+        "expected": 45.0
       },
       {
         "x": 7,
@@ -176,7 +210,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.2340937130036695,
+        "ci_95_lower": 1.0242830125488946,
+        "ci_95_upper": 1.6485833462665085,
+        "observed": 72.0,
+        "expected": 55.0
       },
       {
         "x": 8,
@@ -190,7 +229,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.1470581295040096,
+        "ci_95_lower": 0.42017283820619067,
+        "ci_95_upper": 0.8149682643634311,
+        "observed": 38.0,
+        "expected": 64.0
       },
       {
         "x": 9,
@@ -204,7 +248,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 2.0812308600381524,
+        "ci_95_lower": 1.1802157820851142,
+        "ci_95_upper": 1.7501862082639672,
+        "observed": 104.0,
+        "expected": 72.0
       },
       {
         "x": 10,
@@ -218,7 +267,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.9820018881192896,
+        "ci_95_lower": 0.5798564534851073,
+        "ci_95_upper": 0.9614890730457057,
+        "observed": 64.0,
+        "expected": 85.0
       },
       {
         "x": 11,
@@ -232,7 +286,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.9270149649832253,
+        "ci_95_lower": 1.0363742252702508,
+        "ci_95_upper": 1.4946935975974203,
+        "observed": 120.0,
+        "expected": 96.0
       },
       {
         "x": 12,
@@ -246,7 +305,12 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable_oe": 1.869224556206387,
+        "ci_95_lower": 0.6416233933736208,
+        "ci_95_upper": 0.9856223749314029,
+        "observed": 88.0,
+        "expected": 110.0
       }
     ]
   }

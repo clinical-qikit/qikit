@@ -389,3 +389,54 @@ class TestOEPFunnelLimitNaming:
         names = [t.name for t in r.plot(show_95=True).data]
         assert "99.8%+" in names and "95%+" in names
         assert "UCL" not in names and "2σ+" not in names
+
+
+class TestOEHoverAndCaption:
+    """An O/E chart has to be readable by a department chair, not just a statistician:
+    counts before ratios, and the power caveat attached to the picture."""
+
+    Y = [12, 8, 8, 3, 20, 14, 31, 26, 55, 48, 72, 110]
+    N = [5.0, 3.2, 6.5, 4.1, 12.0, 15.5, 28.0, 30.0, 52.0, 60.0, 70.0, 62.0]
+
+    def _fig(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="oe", funnel=True, **kw).plot()
+
+    def test_hover_leads_with_counts_then_interval_then_detectability(self):
+        trace = self._fig().data[0]
+        tpl = trace.hovertemplate
+        assert "Observed %{customdata[1]}" in tpl
+        assert "95% CI: %{customdata[2]}" in tpl
+        assert "Smallest detectable O/E: %{customdata[3]}" in tpl
+        assert tpl.index("Observed") < tpl.index("95% CI") < tpl.index("Smallest")
+
+    def test_hover_values_are_preformatted_strings(self):
+        """Plotly renders a NaN through a d3 number format literally, so the values
+        are strings by the time they reach the template."""
+        row = self._fig().data[0].customdata[0]
+        assert row[1] == "8 / expected 3.2"
+        assert row[2] == "1.08–4.93"
+        assert row[3] == "4.27"
+
+    def test_missing_expected_reads_as_na_not_nan(self):
+        fig = qic(y=[0, 5, 8], n=[0.0, 4.0, 6.0], chart="oe").plot()
+        assert fig.data[0].customdata[0][3] == "n/a"
+
+    def test_underpowered_chart_captions_itself(self):
+        """summary["underpowered"] does not travel with a screenshot."""
+        texts = [a.text for a in self._fig().layout.annotations]
+        assert any("not evidence of acceptable performance" in t for t in texts)
+
+    def test_user_caption_wins(self):
+        texts = [a.text for a in self._fig(caption="Source: Vizient Q4 2025").layout.annotations]
+        assert any("Vizient" in t for t in texts)
+        assert not any("not evidence" in t for t in texts)
+
+    def test_well_powered_chart_has_no_auto_caption(self):
+        fig = qic(y=[400] * 12, n=[400.0] * 12, chart="oe", funnel=True).plot()
+        assert not any("not evidence" in (a.text or "") for a in fig.layout.annotations)
+
+    def test_other_charts_keep_the_plain_hover(self):
+        fig = qic(y=[3, 2, 6, 2], n=[90, 113, 105, 102], chart="u").plot()
+        tpl = fig.data[0].hovertemplate
+        assert "%{customdata}<extra></extra>" in tpl
+        assert "95% CI" not in tpl

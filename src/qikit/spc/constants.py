@@ -24,6 +24,10 @@ import math
 Z_95 = 1.959963984540054   # Φ⁻¹(0.975)
 Z_998 = 3.090232306167813  # Φ⁻¹(0.999)
 
+# Power convention for the detectability column, not a limit: Φ⁻¹(0.8). Used only
+# by the large-count normal fallback in oe_detectable_ratio.
+Z_80 = 0.8416212335729143  # Φ⁻¹(0.8)
+
 # ---------------------------------------------------------------------------
 # SPC constants  (Montgomery 2019, Appendix VI, Table VI)
 # ---------------------------------------------------------------------------

@@ -11,10 +11,20 @@
  * 1. Spiegelhalter DJ. Funnel plots for comparing institutional performance.
  *    Statistics in Medicine 2005;24(8):1185-1202. (Appendix A.1.1)
  * 2. Breslow NE, Day NE. Statistical Methods in Cancer Research, Vol II. IARC, 1987.
+ * 3. Garwood F. Fiducial limits for the Poisson distribution. Biometrika 1936;28:437-442.
  */
 
 /** Above this mean the exact loop stops earning its cost; Byar is within 1e-4 relative. */
 export const EXACT_MAX_LAMBDA = 1e5;
+
+/**
+ * Ceiling for the mean-inversion solves. Distinct from EXACT_MAX_LAMBDA because
+ * bisection multiplies the sweep cost by its iteration count.
+ */
+export const MEAN_SOLVE_MAX_K = 1e4;
+
+/** Fixed so both ports perform an identical sequence of operations. */
+const BISECT_ITERS = 50;
 
 const LANCZOS_G = 7;
 const LANCZOS_C = [
@@ -68,6 +78,55 @@ export function byarQuantile(lam: number, z: number, upper: boolean): number {
  * Returns NaN for a non-positive or non-finite λ. Callers must fall back to
  * byarQuantile above EXACT_MAX_LAMBDA.
  */
+/**
+ * Poisson CDF F(k; λ) = P(X ≤ k), summed ascending in k.
+ * Twin of poisson_cdf in dist.py — same term expression as the quantile loop below.
+ */
+export function poissonCdf(k: number, lam: number): number {
+  if (Number.isNaN(lam) || lam < 0) return NaN;
+  if (k < 0) return 0.0;
+  if (lam === 0) return 1.0; // all mass at zero
+
+  const logLam = Math.log(lam);
+  let cdf = 0.0;
+  const kk = Math.floor(k);
+  for (let j = 0; j <= kk; j++) {
+    cdf += Math.exp(j * logLam - lam - lgamma(j + 1.0));
+  }
+  return Math.min(1.0, cdf);
+}
+
+/**
+ * The Poisson mean μ satisfying F(k; μ) = p, by bisection. Twin of
+ * poisson_mean_for_cdf in dist.py.
+ *
+ * F(k; μ) is strictly decreasing in μ, so the root is unique. The bracket
+ * [0, k + 10√(k+1) + 20] holds it for every p used here (F(k; hi) < 1e-10).
+ * Throws above MEAN_SOLVE_MAX_K; callers pre-check and use a closed form.
+ */
+export function poissonMeanForCdf(k: number, p: number): number {
+  if (Number.isNaN(p) || !(p > 0 && p < 1)) return NaN;
+  if (k < 0) return NaN;
+  if (k > MEAN_SOLVE_MAX_K) {
+    throw new Error(
+      `poissonMeanForCdf: k=${k} exceeds the solve ceiling (${MEAN_SOLVE_MAX_K}); ` +
+      `the caller should use a closed-form approximation.`
+    );
+  }
+
+  let lo = 0.0;
+  let hi = k + 10.0 * Math.sqrt(k + 1.0) + 20.0;
+  for (let i = 0; i < BISECT_ITERS; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (poissonCdf(k, mid) > p) {
+      lo = mid; // still too much mass at or below k — the mean must rise
+    } else {
+      hi = mid;
+    }
+  }
+  return 0.5 * (lo + hi);
+}
+
 export function poissonQuantileInterp(p: number, lam: number): number {
   if (!(lam > 0) || Number.isNaN(lam)) return NaN;
   if (lam > EXACT_MAX_LAMBDA) {

@@ -97,3 +97,8 @@ export function b4(n: number): number {
 export const Z_95 = 1.959963984540054;
 /** Φ⁻¹(0.999) */
 export const Z_998 = 3.090232306167813;
+/**
+ * Φ⁻¹(0.8) — the power convention for the detectability column, not a limit.
+ * Used only by the large-count normal fallback in oeDetectableRatio.
+ */
+export const Z_80 = 0.8416212335729143;

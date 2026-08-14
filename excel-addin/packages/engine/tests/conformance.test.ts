@@ -63,7 +63,14 @@ describe('SPC Conformance Tests', () => {
         if (dict.data.length > 0) {
             dict.data.forEach((row: any, i: number) => {
                 const expRow = expected.data[i];
-                ['y', 'cl', 'ucl', 'lcl', 'sigma_signal', 'runs_signal', 'runs_signal_localized'].forEach(col => {
+                // Columns absent from a row are skipped by the guard below, so listing
+                // O/E-only columns here costs nothing on other charts and is the only
+                // thing that actually proves their cross-language parity.
+                [
+                  'y', 'cl', 'ucl', 'lcl', 'ucl_95', 'lcl_95',
+                  'sigma_signal', 'runs_signal', 'runs_signal_localized',
+                  'min_detectable_oe', 'ci_95_lower', 'ci_95_upper',
+                ].forEach(col => {
                     if (col in row && col in expRow) {
                         if (typeof row[col] === 'number' && row[col] !== null) {
                             expect(row[col]).toBeCloseTo(expRow[col], 5);

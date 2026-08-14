@@ -20,3 +20,31 @@ This folder contains public domain healthcare datasets ideal for demonstrating S
 ### 4. CAUTI Infections (`cauti_infections.csv`)
 * **Source:** Synthetic Data (Modeled after CDC National Healthcare Safety Network parameters)
 * **Description:** Monthly data tracking Catheter-Associated Urinary Tract Infections (CAUTI). Includes the number of cases and the total catheter days (exposure time).
+
+### 5. Physician Mortality O/E (`physician_mortality_oe.csv`)
+* **Source:** Synthetic Data (modeled after Vizient-style risk-adjusted mortality reporting)
+* **Description:** 24 surgeons × 3 years (2023–2025), with observed deaths and model-derived
+  expected deaths per surgeon-year. Built for the **risk-adjusted O/E funnel**
+  (`chart="oe"`) and specifically to demonstrate why physician-level comparison needs
+  aggregation: **no surgeon flags in any single year** — all three annual funnels report
+  `summary["underpowered"] == True` — but summing the three years makes the chart
+  well-powered and surfaces three real signals, including one high performer flagging
+  *below* the lower limit. `SURG-07` is the credentialing trap: consistently ~2.2×
+  expected mortality on ~5 expected deaths a year, invisible annually.
+
+```python
+import pandas as pd
+from qikit import qic
+
+df = pd.read_csv("data/examples/physician_mortality_oe.csv")
+
+# One year: nothing flags, and the summary says why.
+y2025 = df[df.year == 2025]
+qic(x="physician", y="observed_deaths", n="expected_deaths", data=y2025,
+    chart="oe", funnel=True).summary["power_note"]
+
+# Three years pooled: the chart now has the resolution to find them.
+agg = df.groupby("physician", as_index=False)[["observed_deaths", "expected_deaths"]].sum()
+qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
+    chart="oe", funnel=True).plot()
+```

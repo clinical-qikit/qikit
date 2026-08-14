@@ -2318,3 +2318,294 @@ class TestOEOverdispersion:
         assert self._oep(exclude=1).summary["dispersion_phi"] != pytest.approx(
             self._oep().summary["dispersion_phi"]
         )
+
+
+class TestPoissonMeanInversion:
+    """dist.poisson_cdf / poisson_mean_for_cdf — the primitive behind both O/E
+    detectability and the per-point intervals."""
+
+    def test_cdf_known_values(self):
+        assert _dist.poisson_cdf(3, 5) == pytest.approx(0.2650259, abs=1e-7)
+        assert _dist.poisson_cdf(2, 5) == pytest.approx(0.1246520, abs=1e-7)
+        assert _dist.poisson_cdf(0, 1) == pytest.approx(math.exp(-1))
+
+    def test_cdf_edges(self):
+        assert _dist.poisson_cdf(-1, 5) == 0.0
+        assert _dist.poisson_cdf(3, 0) == 1.0  # all mass at zero
+        assert math.isnan(_dist.poisson_cdf(3, float("nan")))
+        assert math.isnan(_dist.poisson_cdf(3, -1))
+
+    @pytest.mark.parametrize("k", [0, 1, 3, 10, 50, 200])
+    @pytest.mark.parametrize("p", [0.025, 0.2, 0.5, 0.975])
+    def test_mean_for_cdf_inverts(self, k, p):
+        assert _dist.poisson_cdf(k, _dist.poisson_mean_for_cdf(k, p)) == pytest.approx(p)
+
+    def test_mean_for_cdf_monotone_in_p(self):
+        """More probability at or below k means a smaller mean."""
+        means = [_dist.poisson_mean_for_cdf(10, p) for p in (0.025, 0.2, 0.5, 0.975)]
+        assert means == sorted(means, reverse=True)
+
+    def test_mean_for_cdf_rejects_above_ceiling(self):
+        with pytest.raises(ValueError, match="solve ceiling"):
+            _dist.poisson_mean_for_cdf(int(_dist._MEAN_SOLVE_MAX_K) + 1, 0.5)
+
+
+class TestOEPointCI:
+    """limits.oe_point_ci — exact Garwood interval on a point's own O/E."""
+
+    def test_garwood_anchor(self):
+        """Published exact Poisson interval for 10 observed events."""
+        lo, hi = _limits.oe_point_ci(10, 1.0)
+        assert lo == pytest.approx(4.795, abs=1e-3)
+        assert hi == pytest.approx(18.390, abs=1e-3)
+
+    def test_zero_observed(self):
+        """No events gives a lower bound of exactly zero, upper of −ln(0.025)/E."""
+        lo, hi = _limits.oe_point_ci(0, 5.0)
+        assert lo == 0.0
+        assert hi == pytest.approx(-math.log(0.025) / 5.0)
+
+    def test_scales_by_expected(self):
+        lo1, hi1 = _limits.oe_point_ci(10, 1.0)
+        lo5, hi5 = _limits.oe_point_ci(10, 5.0)
+        assert (lo5, hi5) == pytest.approx((lo1 / 5.0, hi1 / 5.0))
+
+    def test_interval_contains_the_point_estimate(self):
+        for o, e in [(1, 1.0), (5, 4.0), (12, 3.2), (100, 90.0)]:
+            lo, hi = _limits.oe_point_ci(o, e)
+            assert lo <= o / e <= hi
+
+    def test_byar_fallback_for_non_integer_counts(self):
+        """An averaged aggregate is not a Poisson count; fall back rather than round."""
+        lo, hi = _limits.oe_point_ci(20.5, 10.0)
+        exact_lo, exact_hi = _limits.oe_point_ci(20, 10.0)
+        assert lo == pytest.approx(exact_lo, rel=0.05)
+        assert hi == pytest.approx(exact_hi, rel=0.05)
+
+    def test_nan_without_usable_expected(self):
+        assert all(math.isnan(v) for v in _limits.oe_point_ci(3, 0.0))
+        assert all(math.isnan(v) for v in _limits.oe_point_ci(-1, 5.0))
+
+
+class TestOEDetectability:
+    """limits.oe_detectable_ratio — the smallest true O/E worth calling detectable."""
+
+    @pytest.mark.parametrize("e", [2, 5, 10, 20, 50, 200])
+    def test_achieves_exactly_80_percent_power(self, e):
+        """The returned ratio is the one at which power is 0.8 — not an approximation
+        of it. Verified against the same event the chart actually signals on."""
+        t = _dist.poisson_quantile_interp(0.999, e)
+        rho = _limits.oe_detectable_ratio(t, e)
+        power = 1.0 - _dist.poisson_cdf(math.floor(t), rho * e)
+        assert power == pytest.approx(0.8)
+
+    def test_signal_event_matches_sigma_signal_semantics(self):
+        """_sigma_signals flags strictly y > ucl, so the detectability event must be
+        O >= floor(T)+1. Pin both halves against the real signal path."""
+        e = 8.0
+        r = qic(y=[8], n=[e], chart="oe", cl=1.0)
+        t = float(r.data["ucl"].iloc[0]) * e
+        m = math.floor(t)
+
+        at_threshold = qic(y=[m], n=[e], chart="oe", cl=1.0)
+        just_over = qic(y=[m + 1], n=[e], chart="oe", cl=1.0)
+        assert not bool(at_threshold.data["sigma_signal"].iloc[0])
+        assert bool(just_over.data["sigma_signal"].iloc[0])
+
+    def test_power_curve_matches_measured_values(self):
+        """Regression on the numbers quoted in the README: a funnel needs roughly
+        E=20 before a true doubling is reliably caught."""
+        def det(e):
+            return _limits.oe_detectable_ratio(_dist.poisson_quantile_interp(0.999, e), e)
+
+        assert det(10) > 2.0     # 44% power at O/E 2.0 — a coin flip at best
+        assert det(50) < 2.0     # ~99.8% power — a doubling here is unmissable
+        assert det(20) == pytest.approx(2.0, abs=0.05)
+
+    def test_monotone_non_increasing_in_expected(self):
+        vals = [
+            _limits.oe_detectable_ratio(_dist.poisson_quantile_interp(0.999, e), e)
+            for e in (2, 5, 10, 20, 50, 100, 400)
+        ]
+        assert vals == sorted(vals, reverse=True)
+
+    def test_normal_fallback_is_continuous_with_the_exact_path(self):
+        cap = _dist._MEAN_SOLVE_MAX_K
+        below = _limits.oe_detectable_ratio(cap - 1, cap)
+        above = _limits.oe_detectable_ratio(cap + 1, cap)
+        assert below == pytest.approx(above, rel=1e-3)
+
+    def test_nan_without_usable_expected(self):
+        assert math.isnan(_limits.oe_detectable_ratio(5.0, 0.0))
+        assert math.isnan(_limits.oe_detectable_ratio(float("inf"), 5.0))
+
+
+class TestOEPowerReporting:
+    """The columns, summary keys, and caption that make an underpowered O/E chart
+    say so instead of reading as a clean bill of health."""
+
+    # Twelve physicians. The smallest-volume one sits at 2.5x expected mortality and
+    # still does not flag; the largest flags at 1.77x. That inversion is the point.
+    Y = [12, 8, 8, 3, 20, 14, 31, 26, 55, 48, 72, 110]
+    N = [5.0, 3.2, 6.5, 4.1, 12.0, 15.5, 28.0, 30.0, 52.0, 60.0, 70.0, 62.0]
+    COLS = ("min_detectable_oe", "ci_95_lower", "ci_95_upper", "observed", "expected")
+
+    def _r(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="oe", funnel=True, **kw)
+
+    def test_the_trap_point_reports_why_it_did_not_flag(self):
+        row = self._r().data.iloc[0]
+        assert row["y"] == pytest.approx(2.5)
+        assert not row["sigma_signal"]
+        assert row["min_detectable_oe"] == pytest.approx(4.2659, abs=1e-4)
+        assert row["ci_95_lower"] == pytest.approx(1.0793, abs=1e-4)
+        assert row["ci_95_upper"] == pytest.approx(4.9260, abs=1e-4)
+
+    def test_lower_ratio_can_flag_where_a_higher_one_does_not(self):
+        """The whole logic of a funnel, and the thing readers misread."""
+        d = self._r().data
+        flagged = d[d["sigma_signal"]]
+        assert len(flagged) == 1
+        assert flagged["y"].iloc[0] < d["y"].iloc[0]          # 1.77 vs 2.50
+        assert flagged["expected"].iloc[0] > d["expected"].iloc[0]
+
+    def test_summary_reports_power(self):
+        s = self._r().summary
+        assert s["underpowered"] is True
+        assert s["n_underpowered"] == 8
+        assert s["min_detectable_oe_median"] == pytest.approx(2.2514, abs=1e-4)
+
+    def test_power_note_is_quotable(self):
+        note = self._r().summary["power_note"]
+        assert "8 of 12" in note
+        assert "not evidence of acceptable performance" in note
+        assert "aggregate" in note
+
+    def test_well_powered_chart_stays_quiet(self):
+        n = [400.0] * 12
+        r = qic(y=[400] * 12, n=n, chart="oe", funnel=True)
+        assert r.summary["underpowered"] is False
+        assert "power_note" not in r.summary
+
+    def test_no_console_warning(self):
+        """Reported through the summary and the caption, deliberately not by
+        interrupting every call."""
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self._r()
+
+    def test_columns_present_without_funnel_mode(self):
+        d = qic(y=self.Y, n=self.N, chart="oe").data
+        assert all(c in d.columns for c in self.COLS)
+
+    def test_columns_absent_on_other_charts(self):
+        d = qic(y=[3, 2, 6, 2], n=[90, 113, 105, 102], chart="u").data
+        assert not any(c in d.columns for c in self.COLS)
+        assert "underpowered" not in qic(y=[3, 2, 6], n=[90, 113, 105], chart="u").summary
+
+    def test_oep_uses_its_own_wider_limits(self):
+        """Detectability answers 'would this point flag on *this* chart', so the
+        over-dispersed chart must report a harder bar than the unadjusted one."""
+        y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88]
+        n = [12.0, 18.0, 25.0, 30.0, 38.0, 45.0, 55.0, 64.0, 72.0, 85.0, 96.0, 110.0]
+        oe = qic(y=y, n=n, chart="oe", funnel=True).data["min_detectable_oe"]
+        oep = qic(y=y, n=n, chart="oep", funnel=True).data["min_detectable_oe"]
+        assert (oep >= oe).all()
+        assert (oep > oe).any()
+
+    def test_counts_survive_the_funnel_sort(self):
+        """The reason the counts are echoed at all: after sorting, a caller cannot
+        rejoin their own inputs by position."""
+        d = self._r().data
+        assert d["expected"].tolist() == sorted(self.N)
+        for _, row in d.iterrows():
+            assert row["observed"] == pytest.approx(row["y"] * row["expected"])
+
+    def test_multiply_scales_ratios_but_not_counts_or_thresholds(self):
+        base, x100 = self._r(), self._r(multiply=100)
+        assert x100.data["min_detectable_oe"].iloc[0] == pytest.approx(
+            base.data["min_detectable_oe"].iloc[0] * 100
+        )
+        assert x100.data["ci_95_upper"].iloc[0] == pytest.approx(
+            base.data["ci_95_upper"].iloc[0] * 100
+        )
+        # Counts are events, not ratios; thresholds describe the unscaled ratio.
+        assert x100.data["observed"].tolist() == base.data["observed"].tolist()
+        assert x100.summary["n_underpowered"] == base.summary["n_underpowered"]
+        assert x100.summary["min_detectable_oe_median"] == pytest.approx(
+            base.summary["min_detectable_oe_median"]
+        )
+
+    def test_nan_columns_where_expected_is_zero(self):
+        r = qic(y=[0, 5, 8], n=[0.0, 4.0, 6.0], chart="oe")
+        assert math.isnan(r.data["min_detectable_oe"].iloc[0])
+        assert math.isnan(r.data["ci_95_lower"].iloc[0])
+        assert r.to_dict()["data"][0]["min_detectable_oe"] is None
+
+    def test_ghosted_points_are_left_out_of_the_power_aggregate(self):
+        """A point excluded from signal detection is not one the chart could flag, so
+        counting its detectability would misdescribe the chart's reach."""
+        base, excl = self._r(), self._r(exclude=1)
+        assert excl.summary["n_underpowered"] < base.summary["n_underpowered"]
+        # The remaining points are still all present in the frame.
+        assert len(excl.data) == len(base.data)
+        assert excl.data["excluded"].sum() == 1
+
+
+class TestPhysicianExampleWorkflow:
+    """The README's physician workflow, pinned against the bundled dataset. If this
+    breaks, the documentation is wrong."""
+
+    @staticmethod
+    def _df():
+        import pathlib
+        path = pathlib.Path("data/examples/physician_mortality_oe.csv")
+        if not path.exists():
+            pytest.skip("example data not present")
+        return pd.read_csv(path)
+
+    @staticmethod
+    def _funnel(frame):
+        return qic(x="physician", y="observed_deaths", n="expected_deaths",
+                   data=frame, chart="oe", funnel=True)
+
+    @pytest.mark.parametrize("year", [2023, 2024, 2025])
+    def test_no_single_year_can_find_anyone(self, year):
+        df = self._df()
+        r = self._funnel(df[df.year == year].reset_index(drop=True))
+        assert r.summary["underpowered"] is True
+        assert not r.data["sigma_signal"].any()
+
+    def test_pooling_three_years_gives_the_chart_reach(self):
+        df = self._df()
+        agg = df.groupby("physician", as_index=False)[
+            ["observed_deaths", "expected_deaths"]
+        ].sum()
+        r = self._funnel(agg)
+        assert r.summary["underpowered"] is False
+        flagged = set(r.data.loc[r.data["sigma_signal"], "x"])
+        assert {"SURG-07", "SURG-15", "SURG-21"} == flagged
+
+    def test_the_high_performer_flags_below_the_lower_limit(self):
+        """Exact Poisson keeps the lower limit off zero at volume, so genuinely good
+        performance is detectable and not just clipped away."""
+        df = self._df()
+        agg = df.groupby("physician", as_index=False)[
+            ["observed_deaths", "expected_deaths"]
+        ].sum()
+        row = self._funnel(agg).data.set_index("x").loc["SURG-21"]
+        assert row["y"] < row["lcl"]
+        assert row["lcl"] > 0
+        assert row["ci_95_upper"] < 1.0
+
+    def test_the_trap_surgeon_is_invisible_annually(self):
+        """SURG-07 runs ~2.2x expected every year on ~5 expected deaths and never
+        signals until the years are pooled — the case the power reporting exists for."""
+        df = self._df()
+        for year in (2023, 2024, 2025):
+            r = self._funnel(df[df.year == year].reset_index(drop=True))
+            row = r.data.set_index("x").loc["SURG-07"]
+            assert row["y"] > 2.0                      # plainly elevated
+            assert not row["sigma_signal"]             # and plainly undetectable
+            assert row["min_detectable_oe"] > row["y"]  # the chart says so itself
