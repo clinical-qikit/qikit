@@ -26,6 +26,12 @@ export const MEAN_SOLVE_MAX_K = 1e4;
 /** Fixed so both ports perform an identical sequence of operations. */
 const BISECT_ITERS = 50;
 
+/**
+ * Grid the bisection result is quantized to, so it does not depend on the host's
+ * libm. See poissonMeanForCdf.
+ */
+const SOLVE_DECIMALS = 9;
+
 const LANCZOS_G = 7;
 const LANCZOS_C = [
   0.99999999999980993, 676.5203681218851, -1259.1392167224028,
@@ -103,6 +109,11 @@ export function poissonCdf(k: number, lam: number): number {
  * F(k; μ) is strictly decreasing in μ, so the root is unique. The bracket
  * [0, k + 10√(k+1) + 20] holds it for every p used here (F(k; hi) < 1e-10).
  * Throws above MEAN_SOLVE_MAX_K; callers pre-check and use a closed form.
+ *
+ * The result is quantized to SOLVE_DECIMALS for the same reason as the Python twin:
+ * lgamma's last ulp is platform-dependent and bisection amplifies it into a ~1e-13
+ * difference, which the byte-exact fixture snapshots will not tolerate. 1e-9 is far
+ * below anything displayed and far above the noise it erases.
  */
 export function poissonMeanForCdf(k: number, p: number): number {
   if (Number.isNaN(p) || !(p > 0 && p < 1)) return NaN;
@@ -124,7 +135,8 @@ export function poissonMeanForCdf(k: number, p: number): number {
       hi = mid;
     }
   }
-  return 0.5 * (lo + hi);
+  const scale = Math.pow(10, SOLVE_DECIMALS);
+  return Math.round(0.5 * (lo + hi) * scale) / scale;
 }
 
 export function poissonQuantileInterp(p: number, lam: number): number {

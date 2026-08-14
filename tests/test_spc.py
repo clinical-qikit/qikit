@@ -2340,6 +2340,13 @@ class TestPoissonMeanInversion:
     def test_mean_for_cdf_inverts(self, k, p):
         assert _dist.poisson_cdf(k, _dist.poisson_mean_for_cdf(k, p)) == pytest.approx(p)
 
+    def test_solve_is_quantized_for_cross_platform_reproducibility(self):
+        """lgamma's last ulp is platform-dependent and bisection amplifies it, but the
+        fixture snapshots demand byte equality. The grid is what makes them portable."""
+        val = _dist.poisson_mean_for_cdf(9, 0.975)
+        assert val == round(val, _dist._SOLVE_DECIMALS)
+        assert val == pytest.approx(4.795388, abs=1e-6)  # still the Garwood bound
+
     def test_mean_for_cdf_monotone_in_p(self):
         """More probability at or below k means a smaller mean."""
         means = [_dist.poisson_mean_for_cdf(10, p) for p in (0.025, 0.2, 0.5, 0.975)]

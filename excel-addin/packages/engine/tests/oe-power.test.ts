@@ -26,9 +26,11 @@ describe('poissonCdf', () => {
 
 describe('poissonMeanForCdf', () => {
   test('inverts the CDF', () => {
+    // 8 rather than more: the solve is quantized to 1e-9 for cross-platform
+    // reproducibility, which shows up here as ~2e-10 of slack.
     for (const k of [0, 1, 3, 10, 50, 200]) {
       for (const p of [0.025, 0.2, 0.5, 0.975]) {
-        expect(poissonCdf(k, poissonMeanForCdf(k, p))).toBeCloseTo(p, 9);
+        expect(poissonCdf(k, poissonMeanForCdf(k, p))).toBeCloseTo(p, 8);
       }
     }
   });

@@ -37,6 +37,11 @@ _MEAN_SOLVE_MAX_K = 1e4
 # resolves to ~1e-11.
 _BISECT_ITERS = 50
 
+# Grid the bisection result is quantized to, so it does not depend on the host's libm.
+# See poisson_mean_for_cdf for why bisection needs this and the quantile function,
+# which breaks once and interpolates locally, does not.
+_SOLVE_DECIMALS = 9
+
 
 def byar_quantile(lam: float, z: float, upper: bool) -> float:
     """
@@ -89,6 +94,17 @@ def poisson_mean_for_cdf(k: int, p: float) -> float:
     The bracket [0, k + 10√(k+1) + 20] holds the root for every p this module uses:
     F(k; hi) < 1e-10 at that upper end, well below the smallest p (0.025).
 
+    The result is quantized to _SOLVE_DECIMALS. math.lgamma is a libm function whose
+    last ulp differs between platforms, and bisection amplifies that: a 1-ulp
+    difference in the CDF near a decision boundary flips a comparison, sends the
+    bracket down a different path, and lands ~1e-13 away. The committed fixture
+    snapshots require byte equality, so an unrounded result makes them reproduce only
+    on the machine that generated them. Rounding to 1e-9 is four orders of magnitude
+    tighter than the fixture check tolerance and seven beyond anything displayed,
+    while sitting far above the platform noise it erases. Callers divide this by a
+    bit-identical expected count, and IEEE division is exactly rounded, so quantizing
+    here makes every value derived from it portable too.
+
     Raises ValueError above _MEAN_SOLVE_MAX_K; callers pre-check and fall back to a
     closed form, mirroring how _EXACT_MAX_LAMBDA is handled.
     """
@@ -110,7 +126,7 @@ def poisson_mean_for_cdf(k: int, p: float) -> float:
             lo = mid  # still too much mass at or below k — the mean must rise
         else:
             hi = mid
-    return 0.5 * (lo + hi)
+    return round(0.5 * (lo + hi), _SOLVE_DECIMALS)
 
 
 def poisson_quantile_interp(p: float, lam: float) -> float:
