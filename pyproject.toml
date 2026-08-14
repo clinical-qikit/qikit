@@ -1,5 +1,9 @@
 [build-system]
-requires = ["hatchling"]
+# Pinned below 1.28: from that release hatchling emits Metadata-Version 2.5, which
+# the current packaging/twine stack rejects as unknown ("'2.5' is not a valid
+# metadata version"), so an unpinned build cannot be uploaded. Every published
+# release so far carries 2.4. Lift the ceiling once the ecosystem accepts 2.5.
+requires = ["hatchling<1.28"]
 build-backend = "hatchling.build"
 
 [project]
