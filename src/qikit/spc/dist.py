@@ -37,10 +37,20 @@ _MEAN_SOLVE_MAX_K = 1e4
 # resolves to ~1e-11.
 _BISECT_ITERS = 50
 
-# Grid the bisection result is quantized to, so it does not depend on the host's libm.
-# See poisson_mean_for_cdf for why bisection needs this and the quantile function,
-# which breaks once and interpolates locally, does not.
-_SOLVE_DECIMALS = 9
+# Grid every lgamma-derived result is quantized to.
+#
+# math.lgamma is a libm function whose last ulp differs between platforms (macOS/arm64
+# vs linux/x86_64 disagree around the 14th significant digit). Both routines below
+# accumulate many lgamma terms, so both inherit that: the quantile lands ~1e-13 away
+# and the bisection, which can flip a comparison near a decision boundary and take a
+# different path, lands ~1e-13 away too. The committed fixture snapshots require byte
+# equality, so unrounded results reproduce only on the machine that generated them.
+#
+# 1e-9 is four orders of magnitude tighter than the fixture check tolerances and seven
+# beyond anything displayed, while sitting far above the noise it erases. Callers
+# divide these by bit-identical denominators and IEEE division is exactly rounded, so
+# quantizing at the source makes every derived column portable too.
+_QUANTIZE_DECIMALS = 9
 
 
 def byar_quantile(lam: float, z: float, upper: bool) -> float:
@@ -94,7 +104,7 @@ def poisson_mean_for_cdf(k: int, p: float) -> float:
     The bracket [0, k + 10√(k+1) + 20] holds the root for every p this module uses:
     F(k; hi) < 1e-10 at that upper end, well below the smallest p (0.025).
 
-    The result is quantized to _SOLVE_DECIMALS. math.lgamma is a libm function whose
+    The result is quantized to _QUANTIZE_DECIMALS. math.lgamma is a libm function whose
     last ulp differs between platforms, and bisection amplifies that: a 1-ulp
     difference in the CDF near a decision boundary flips a comparison, sends the
     bracket down a different path, and lands ~1e-13 away. The committed fixture
@@ -126,7 +136,7 @@ def poisson_mean_for_cdf(k: int, p: float) -> float:
             lo = mid  # still too much mass at or below k — the mean must rise
         else:
             hi = mid
-    return round(0.5 * (lo + hi), _SOLVE_DECIMALS)
+    return round(0.5 * (lo + hi), _QUANTIZE_DECIMALS)
 
 
 def poisson_quantile_interp(p: float, lam: float) -> float:
@@ -142,6 +152,10 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
     so q lies in [r−1, r] and varies smoothly with λ. Note this is *not* what R's
     qpois returns (that is r, uninterpolated); an external cross-check should
     bracket our value between r−1 and r.
+
+    The result is quantized to _QUANTIZE_DECIMALS, for the reason given there: the
+    accumulated lgamma terms differ in their last ulp between platforms, and the
+    fixture snapshots are compared byte for byte.
 
     Returns NaN for a non-positive or non-finite λ.
     """
@@ -176,4 +190,4 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
 
     jump = cdf - prev
     delta = (cdf - p) / jump if jump > 0 else 0.0
-    return max(0.0, k - delta)
+    return round(max(0.0, k - delta), _QUANTIZE_DECIMALS)

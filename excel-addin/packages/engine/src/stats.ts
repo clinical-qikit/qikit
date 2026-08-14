@@ -27,10 +27,19 @@ export const MEAN_SOLVE_MAX_K = 1e4;
 const BISECT_ITERS = 50;
 
 /**
- * Grid the bisection result is quantized to, so it does not depend on the host's
- * libm. See poissonMeanForCdf.
+ * Grid every lgamma-derived result is quantized to, so it does not depend on the
+ * host's libm. Both routines below accumulate many lgamma terms and inherit their
+ * last-ulp platform differences; the committed fixture snapshots are compared byte
+ * for byte. 1e-9 is far below anything displayed and far above the noise it erases.
+ * Mirrors _QUANTIZE_DECIMALS in dist.py.
  */
-const SOLVE_DECIMALS = 9;
+const QUANTIZE_DECIMALS = 9;
+
+/** Round to the QUANTIZE_DECIMALS grid. */
+function quantize(v: number): number {
+  const scale = Math.pow(10, QUANTIZE_DECIMALS);
+  return Math.round(v * scale) / scale;
+}
 
 const LANCZOS_G = 7;
 const LANCZOS_C = [
@@ -110,10 +119,9 @@ export function poissonCdf(k: number, lam: number): number {
  * [0, k + 10√(k+1) + 20] holds it for every p used here (F(k; hi) < 1e-10).
  * Throws above MEAN_SOLVE_MAX_K; callers pre-check and use a closed form.
  *
- * The result is quantized to SOLVE_DECIMALS for the same reason as the Python twin:
- * lgamma's last ulp is platform-dependent and bisection amplifies it into a ~1e-13
- * difference, which the byte-exact fixture snapshots will not tolerate. 1e-9 is far
- * below anything displayed and far above the noise it erases.
+ * The result is quantized (see QUANTIZE_DECIMALS): lgamma's last ulp is
+ * platform-dependent and bisection amplifies it into a ~1e-13 difference, which the
+ * byte-exact fixture snapshots will not tolerate.
  */
 export function poissonMeanForCdf(k: number, p: number): number {
   if (Number.isNaN(p) || !(p > 0 && p < 1)) return NaN;
@@ -135,8 +143,7 @@ export function poissonMeanForCdf(k: number, p: number): number {
       hi = mid;
     }
   }
-  const scale = Math.pow(10, SOLVE_DECIMALS);
-  return Math.round(0.5 * (lo + hi) * scale) / scale;
+  return quantize(0.5 * (lo + hi));
 }
 
 export function poissonQuantileInterp(p: number, lam: number): number {
@@ -167,5 +174,5 @@ export function poissonQuantileInterp(p: number, lam: number): number {
 
   const jump = cdf - prev;
   const delta = jump > 0 ? (cdf - p) / jump : 0;
-  return Math.max(0, k - delta);
+  return quantize(Math.max(0, k - delta));
 }
