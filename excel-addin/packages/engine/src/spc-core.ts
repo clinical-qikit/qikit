@@ -1,7 +1,239 @@
-import { ChartSpec, SPCInput, SPCResult } from './spc-types';
+import { ChartSpec, LimitMethod, SPCInput, SPCResult } from './spc-types';
 import { nanmean, nanmedian, nansum, screenedMeanMR } from './spc-helpers';
-import { D2, D4, a3, b3, b4, c4 } from './constants';
+import { D2, D4, Z_80, Z_95, Z_998, a3, b3, b4, c4 } from './constants';
+import {
+  EXACT_MAX_LAMBDA,
+  MEAN_SOLVE_MAX_K,
+  byarQuantile,
+  poissonMeanForCdf,
+  poissonQuantileInterp,
+} from './stats';
 import { detectSignals } from './signals';
+
+/**
+ * Funnel limits for an O/E chart at one probability contour, on the O/E scale.
+ *
+ * With Eᵢ expected events and θ₀ the center line, the count of observed events is
+ * modelled Poisson(λᵢ = θ₀·Eᵢ); the limit is that distribution's quantile divided
+ * back through Eᵢ. Dividing by Eᵢ is what makes the funnel narrow as volume grows
+ * while the underlying count distribution widens.
+ *
+ * Unlike the p/u charts these limits are asymmetric about the center line, which is
+ * the whole point at low volume: a physician with 3 expected deaths has a very
+ * different amount of room above the line than below it, and the normal
+ * approximation would give them the same and then clip the lower limit at zero.
+ *
+ * Mirrors _oe_limit_pair in src/qikit/spc/limits.py.
+ */
+function oeLimitPair(
+  cl: number, n: number[] | undefined, pLower: number, pUpper: number,
+  z: number, limitMethod: LimitMethod
+): [number[], number[]] {
+  const e = (n ?? []).map(v => (v > 0 ? v : NaN));
+  const exact = limitMethod !== 'byar';
+  const ucl: number[] = [];
+  const lcl: number[] = [];
+  for (const ei of e) {
+    const lam = cl * ei;
+    if (exact && lam <= EXACT_MAX_LAMBDA) {
+      ucl.push(poissonQuantileInterp(pUpper, lam) / ei);
+      lcl.push(poissonQuantileInterp(pLower, lam) / ei);
+    } else {
+      ucl.push(byarQuantile(lam, z, true) / ei);
+      lcl.push(byarQuantile(lam, z, false) / ei);
+    }
+  }
+  return [ucl, lcl];
+}
+
+/** Linear-interpolated percentile, matching numpy.percentile's default method. */
+function percentile(sorted: number[], p: number): number {
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+/**
+ * Winsorized multiplicative over-dispersion factor φ̂. Spiegelhalter, Quality &
+ * Safety in Health Care 2005;14:347-351. Mirrors oe_dispersion_phi in limits.py.
+ *
+ * Across a few hundred providers, exact Poisson limits routinely flag far more than
+ * the nominal 0.2%: real providers differ for reasons the risk model does not
+ * capture. φ̂ measures that excess and widens the limits by √φ̂.
+ *
+ * Residuals use the Poisson variance-stabilising transform z = 2(√O − √(θ₀E)),
+ * much closer to standard normal at small expected counts than the Pearson residual;
+ * winsorizing at the 10th/90th percentiles stops the outliers being screened for from
+ * inflating the estimate past themselves. Returns 1.0 when φ̂ is within two standard
+ * errors of 1 under the null, so the adjustment only ever widens.
+ *
+ * Caveat on small cohorts: the pooled ΣO/ΣE center line is not itself robust, so
+ * across a dozen providers one extreme performer drags that line toward itself and
+ * inflates φ̂ even after its own residual is clipped. clOverride anchors the center
+ * line and removes the effect; with a few hundred providers it is negligible.
+ */
+/**
+ * Smallest true O/E this point has an 80% chance of flagging. Twin of
+ * oe_detectable_ratio in limits.py.
+ *
+ * A funnel at physician volumes is mostly a test with no power: a physician with 5
+ * expected deaths who is genuinely twice as deadly is flagged about a fifth of the
+ * time, and the other four fifths a reader concludes performance was acceptable.
+ * This makes that limit visible per point.
+ *
+ * tCount is the drawn upper limit on the count scale (ucl · E). Signals fire strictly
+ * on y > ucl, so an integer count flags iff O ≥ floor(tCount) + 1, and power at true
+ * ratio ρ is P(X > floor(tCount); ρE). Setting that to 0.8 and inverting the CDF in
+ * its mean gives the answer exactly. 80% is fixed, not a parameter.
+ */
+export function oeDetectableRatio(tCount: number, e: number): number {
+  if (!(e > 0) || Number.isNaN(e) || !Number.isFinite(tCount)) return NaN;
+
+  const m = Math.floor(tCount);
+  if (m < 0) return NaN;
+
+  let lamStar: number;
+  if (m <= MEAN_SOLVE_MAX_K) {
+    lamStar = poissonMeanForCdf(m, 0.2);
+  } else {
+    // Normal approximation with continuity correction, solving λ − Z_80·√λ = m + 0.5
+    // as a quadratic in √λ. Only reachable where the two agree to ~1e-5 relative.
+    const s = (Z_80 + Math.sqrt(Z_80 * Z_80 + 4.0 * (m + 0.5))) / 2.0;
+    lamStar = s * s;
+  }
+  return lamStar / e;
+}
+
+/**
+ * Exact (Garwood) 95% CI for this point's own O/E. Twin of oe_point_ci in limits.py.
+ *
+ * Distinct from the funnel band: the band asks where this point would fall if the risk
+ * model were right and the provider average, while this interval asks what range of
+ * true O/E is consistent with what the provider actually did. The band is a property
+ * of the null; the interval is a property of the point and does not move with θ₀.
+ *
+ * Falls back to Byar's closed form for non-integer counts (an averaged aggregate) or
+ * counts large enough that bisection stops being worth its cost.
+ */
+export function oePointCi(o: number, e: number): [number, number] {
+  if (!(e > 0) || Number.isNaN(e) || Number.isNaN(o) || o < 0) return [NaN, NaN];
+
+  const oR = Math.round(o);
+  const integral = Math.abs(o - oR) <= 1e-9 * Math.max(1.0, Math.abs(o));
+
+  let muLower: number;
+  let muUpper: number;
+  if (integral && oR <= MEAN_SOLVE_MAX_K) {
+    muLower = oR === 0 ? 0.0 : poissonMeanForCdf(oR - 1, 0.975);
+    muUpper = poissonMeanForCdf(oR, 0.025);
+  } else {
+    muLower = o <= 0
+      ? 0.0
+      : o * Math.pow(Math.max(0.0, 1 - 1 / (9 * o) - Z_95 / (3 * Math.sqrt(o))), 3);
+    muUpper = (o + 1) * Math.pow(
+      1 - 1 / (9 * (o + 1)) + Z_95 / (3 * Math.sqrt(o + 1)), 3
+    );
+  }
+  return [muLower / e, muUpper / e];
+}
+
+/**
+ * A doubling of risk-adjusted mortality is unambiguously material. If the typical
+ * point cannot detect even that, the chart cannot clear anyone, and says so.
+ */
+const UNDERPOWERED_RATIO = 2.0;
+
+/**
+ * Power aggregates for the summary. Twin of the oe_stats block in api.py — thresholds
+ * are statements about the unscaled ratio, so multiply is divided back out.
+ */
+function oePowerSummary(
+  detArr: number[], multiply: number, excludeMask: boolean[]
+): Record<string, unknown> {
+  const finite = detArr
+    // Ghosted (exclude=) points are hidden from signal detection, so they are not
+    // among the points this chart could flag and must not colour its power.
+    .filter((_, i) => !excludeMask[i])
+    .map(d => d / multiply)
+    .filter(d => Number.isFinite(d))
+    .sort((a, b) => a - b);
+  if (finite.length === 0) return {};
+
+  const mid = Math.floor(finite.length / 2);
+  const median = finite.length % 2 === 0
+    ? (finite[mid - 1] + finite[mid]) / 2
+    : finite[mid];
+  const nUnder = finite.filter(d => d > UNDERPOWERED_RATIO).length;
+  const underpowered = median > UNDERPOWERED_RATIO;
+
+  return {
+    min_detectable_oe_median: median,
+    n_underpowered: nUnder,
+    underpowered,
+    // Composed here rather than left to the caller so a consuming agent, or a report
+    // generator, can quote one sentence instead of reconstructing the interpretation.
+    ...(underpowered ? {
+      power_note:
+        `${nUnder} of ${finite.length} points have too few expected events to detect ` +
+        `even a doubling of risk (smallest detectable O/E, median: ${median.toFixed(1)}). ` +
+        `Absence of a signal is not evidence of acceptable performance; aggregate more ` +
+        `time periods or compare at a higher level before drawing conclusions.`,
+    } : {}),
+  };
+}
+
+export function oeDispersionPhi(
+  cl: number, y: number[], n: number[] | undefined, mask: boolean[]
+): number {
+  if (!n) throw new Error('Over-dispersion adjustment requires expected events (n).');
+
+  const z: number[] = [];
+  for (let i = 0; i < y.length; i++) {
+    if (!mask[i]) continue;
+    const observed = y[i] * n[i]; // y arrives as the O/E ratio
+    const zi = 2 * (Math.sqrt(observed) - Math.sqrt(cl * n[i]));
+    if (Number.isFinite(zi)) z.push(zi);
+  }
+
+  const k = z.length;
+  if (k < 2) return 1.0;
+
+  const sorted = [...z].sort((a, b) => a - b);
+  const lo = percentile(sorted, 10);
+  const hi = percentile(sorted, 90);
+
+  let total = 0;
+  for (const zi of z) {
+    const w = Math.min(hi, Math.max(lo, zi));
+    total += w * w;
+  }
+  const phi = total / k;
+
+  return phi > 1 + 2 * Math.sqrt(2 / k) ? phi : 1.0;
+}
+
+/**
+ * Over-dispersed O/E limits: θ₀ ± z·√(φ̂·θ₀/Eᵢ).
+ *
+ * Necessarily a normal approximation — a multiplicative variance factor has no
+ * counterpart in an exact Poisson quantile, so the two do not compose. Same trade the
+ * Laney p′/u′ charts make.
+ */
+function oepLimitPair(
+  cl: number, n: number[] | undefined, phi: number, z: number
+): [number[], number[]] {
+  const ucl: number[] = [];
+  const lcl: number[] = [];
+  for (const ni of n ?? []) {
+    const e = ni > 0 ? ni : NaN;
+    const half = z * Math.sqrt((phi * cl) / e);
+    ucl.push(cl + half);
+    lcl.push(cl - half);
+  }
+  return [ucl, lcl];
+}
 
 /**
  * Per-point subgroup sizes, preferring the n array over the scalar fallback.
@@ -175,11 +407,48 @@ export const CHARTS: Record<string, ChartSpec> = {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, _n, mask) => iLimits(cl, y, mask),
     needsN: true, isAttribute: true, floorLcl: false
+  },
+  oe: {
+    // Pooled ΣO/ΣE. isAttribute divides y by n upstream, so yBase is already the
+    // per-point ratio and this weights it back by expected volume.
+    center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
+    limits: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, limitMethod) =>
+      oeLimitPair(cl, n, 0.001, 0.999, Z_998, limitMethod ?? 'exact'),
+    limits95: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, limitMethod) =>
+      oeLimitPair(cl, n, 0.025, 0.975, Z_95, limitMethod ?? 'exact'),
+    needsN: true, isAttribute: true, floorLcl: true
+  },
+  oep: {
+    center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
+    limits: (cl, y, n, mask) =>
+      oepLimitPair(cl, n, oeDispersionPhi(cl, y, n, mask), Z_998),
+    limits95: (cl, y, n, mask) =>
+      oepLimitPair(cl, n, oeDispersionPhi(cl, y, n, mask), Z_95),
+    needsN: true, isAttribute: true, floorLcl: true
   }
 };
 
 export function compute(input: SPCInput): SPCResult {
   let { y, n, chart, method = 'anhoej', freeze, part, exclude = [], clOverride, multiply = 1.0, sBar, sigmaHat, subgroupN, funnel = false } = input;
+
+  if (input.limitMethod !== undefined && chart === 'oep') {
+    throw new Error(
+      'limitMethod is not available for chart "oep". A multiplicative over-dispersion ' +
+      'factor has no counterpart in an exact Poisson quantile, so the adjusted limits ' +
+      'are always a normal approximation. Use chart "oe" for exact or Byar limits ' +
+      'without the over-dispersion adjustment.'
+    );
+  }
+  if (input.limitMethod !== undefined && chart !== 'oe') {
+    throw new Error(
+      `limitMethod is only valid for chart "oe". Got chart "${chart}". ` +
+      `Other charts use 3σ limits, which have no quantile method to choose.`
+    );
+  }
+  const limitMethod: LimitMethod = input.limitMethod ?? 'exact';
+  if (chart === 'oe' && limitMethod !== 'exact' && limitMethod !== 'byar') {
+    throw new Error(`limitMethod must be "exact" or "byar", got "${limitMethod}".`);
+  }
 
   // Resolved display hints (mirrors Python qic() semantics)
   const yPercent = input.yPercent ?? (chart === 'p' || chart === 'pp');
@@ -209,8 +478,8 @@ export function compute(input: SPCInput): SPCResult {
   // Funnel mode: cross-sectional comparison — order points by denominator ascending.
   // Mirrors src/qikit/spc/api.py; proven by fixtures/spc/funnel_*.json on both sides.
   if (funnel) {
-    if (!['p', 'pp', 'u', 'up'].includes(chart)) {
-      throw new Error(`funnel=true is only valid for attribute charts with denominators (p, pp, u, up). Got chart "${chart}".`);
+    if (!['p', 'pp', 'u', 'up', 'oe', 'oep'].includes(chart)) {
+      throw new Error(`funnel=true is only valid for attribute charts with denominators (p, pp, u, up, oe, oep). Got chart "${chart}".`);
     }
     if (!nCalc) {
       throw new Error('funnel=true requires denominators (n).');
@@ -365,7 +634,13 @@ export function compute(input: SPCInput): SPCResult {
     
     // Limits
     // Important: for t-chart, we need to pass clVal which is in transformed space
-    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat);
+    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod);
+
+    // A chart whose limits come from a distribution supplies its own 95% band; the
+    // 2/3-of-3σ shortcut below holds only for symmetric, normal limits.
+    const band95 = spec.limits95
+      ? spec.limits95(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod)
+      : undefined;
 
     for (let j = 0; j < e - s; j++) {
       // clSeg is present only for charts whose center line varies per point; an
@@ -374,9 +649,17 @@ export function compute(input: SPCInput): SPCResult {
       clArr[s + j] = clHere;
       uclArr[s + j] = uclSeg[j];
       lclArr[s + j] = spec.floorLcl ? Math.max(0, lclSeg[j]) : lclSeg[j];
-      const spread = uclSeg[j] - clHere;
-      ucl95Arr[s + j] = clHere + spread * (2 / 3);
-      const l95 = clHere - spread * (2 / 3);
+      let u95: number;
+      let l95: number;
+      if (band95) {
+        u95 = band95[0][j];
+        l95 = band95[1][j];
+      } else {
+        const spread = uclSeg[j] - clHere;
+        u95 = clHere + spread * (2 / 3);
+        l95 = clHere - spread * (2 / 3);
+      }
+      ucl95Arr[s + j] = u95;
       lcl95Arr[s + j] = spec.floorLcl ? Math.max(0, l95) : l95;
     }
 
@@ -403,6 +686,24 @@ export function compute(input: SPCInput): SPCResult {
     }
   }
 
+  // Detectability + per-point intervals (O/E charts only), computed from the RAW
+  // arrays before multiply rescales them. For oep this uses oep's own wider limits:
+  // the question is whether the point would flag on *this* chart.
+  const isOe = chart === 'oe' || chart === 'oep';
+  const rawCl0 = clArr[0];
+  const detArr: number[] = [];
+  const ciLoArr: number[] = [];
+  const ciHiArr: number[] = [];
+  if (isOe) {
+    for (let i = 0; i < nPts; i++) {
+      const e = nCalc ? nCalc[i] : NaN;
+      detArr.push(oeDetectableRatio(uclArr[i] * e, e));
+      const [lo, hi] = oePointCi(yCalc[i] * e, e);
+      ciLoArr.push(lo);
+      ciHiArr.push(hi);
+    }
+  }
+
   // Multiply
   if (multiply !== 1.0) {
     for (let i = 0; i < nPts; i++) {
@@ -411,6 +712,12 @@ export function compute(input: SPCInput): SPCResult {
       lclArr[i]  *= multiply;
       ucl95Arr[i] *= multiply;
       lcl95Arr[i] *= multiply;
+      if (isOe) {
+        // Every column on the y scale scales, same rule as the limits above.
+        detArr[i]   *= multiply;
+        ciLoArr[i]  *= multiply;
+        ciHiArr[i]  *= multiply;
+      }
     }
   }
 
@@ -423,7 +730,17 @@ export function compute(input: SPCInput): SPCResult {
     lcl_95: lcl95Arr[i],
     sigma_signal: sigmaSig[i],
     runs_signal: runsSig[i],
-    runs_signal_localized: runsLoc[i]
+    runs_signal_localized: runsLoc[i],
+    ...(isOe ? {
+      min_detectable_oe: detArr[i],
+      ci_95_lower: ciLoArr[i],
+      ci_95_upper: ciHiArr[i],
+      // Counts, echoed back deliberately: funnel mode sorts by expected events, so
+      // after the sort a caller cannot line their own inputs up against these rows.
+      // Event counts, not ratios, so multiply does not touch them.
+      observed: yCalc[i] * (nCalc ? nCalc[i] : NaN),
+      expected: nCalc ? nCalc[i] : NaN,
+    } : {}),
   }));
 
   // Runs rules assume temporal ordering; suppress them for cross-sectional funnel plots.
@@ -442,6 +759,25 @@ export function compute(input: SPCInput): SPCResult {
     signals,
     n_obs: yCalc.filter(v => !isNaN(v)).length,
     ...(funnel ? { runs_disabled: true, note: 'runs signals suppressed (funnel mode)' } : {}),
+    // Which quantile method drew the limits is not recoverable from the numbers
+    // alone, and an O/E funnel is the kind of chart that ends up in a credentialing
+    // file. Record it.
+    ...(chart === 'oe' ? { limit_method: limitMethod } : {}),
+    // Whether the over-dispersion adjustment actually engaged, and by how much, is
+    // the first thing a reviewer asks of one of these charts. φ̂ = 1.0 means the
+    // sample was within noise of Poisson and the limits were left alone.
+    // rawCl0, not clArr[0]: the multiply loop above has already scaled the latter,
+    // while yCalc is still raw, and mixing the two silently corrupts φ̂.
+    ...(chart === 'oep'
+      ? (() => {
+          const phi = oeDispersionPhi(rawCl0, yCalc, nCalc, mask);
+          return { dispersion_phi: phi, dispersion_adjusted: phi > 1.0 };
+        })()
+      : {}),
+    // How much signal the chart could carry, reported alongside what it found. A
+    // funnel over small-volume providers mostly cannot detect anything, and the
+    // honest reading of "no signal" there is "not enough data", not "fine".
+    ...(isOe ? oePowerSummary(detArr, multiply, excludeMask) : {}),
   };
 
   return {
@@ -460,14 +796,21 @@ export function compute(input: SPCInput): SPCResult {
         summary: this.summary,
         connect: this.connect,
         y_percent: this.y_percent,
-        data: this.data.map(d => ({
-          ...d,
-          cl:     isNaN(d.cl)     ? null : d.cl,
-          ucl:    isNaN(d.ucl)    ? null : d.ucl,
-          lcl:    isNaN(d.lcl)    ? null : d.lcl,
-          ucl_95: isNaN(d.ucl_95) ? null : d.ucl_95,
-          lcl_95: isNaN(d.lcl_95) ? null : d.lcl_95,
-        }))
+        data: this.data.map(d => {
+          const row: Record<string, unknown> = {
+            ...d,
+            cl:     isNaN(d.cl)     ? null : d.cl,
+            ucl:    isNaN(d.ucl)    ? null : d.ucl,
+            lcl:    isNaN(d.lcl)    ? null : d.lcl,
+            ucl_95: isNaN(d.ucl_95) ? null : d.ucl_95,
+            lcl_95: isNaN(d.lcl_95) ? null : d.lcl_95,
+          };
+          // O/E-only columns; absent on every other chart, so guard by presence.
+          for (const col of ['min_detectable_oe', 'ci_95_lower', 'ci_95_upper']) {
+            if (col in row && isNaN(row[col] as number)) row[col] = null;
+          }
+          return row;
+        })
       };
     }
   };

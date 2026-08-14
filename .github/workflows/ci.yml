@@ -18,16 +18,13 @@ jobs:
       - run: uv sync --extra dev
       - run: uv run ruff check .
       - run: uv run pytest tests/
-      # Guard: regenerate the golden snapshots from the engine and fail if they
-      # differ from what is committed, so fixtures cannot silently go stale.
-      - run: uv run python scripts/update_snapshots.py
+      # Guard: recompute the golden snapshots from the engine and fail if the
+      # committed ones have gone stale. Compares numerically rather than byte for
+      # byte — some snapshot values come from math.lgamma, whose last ulp differs
+      # between platforms, so a byte comparison fails on the machine rather than on
+      # the content. See the module docstring in the script.
       - name: Fail if snapshots are stale
-        run: |
-          git diff --exit-code -- fixtures/ || {
-            echo "::error::Committed fixtures/*.json snapshots do not match the engine output."
-            echo "Run 'uv run python scripts/update_snapshots.py' locally and commit the result."
-            exit 1
-          }
+        run: uv run python scripts/update_snapshots.py --check
 
   node:
     runs-on: ubuntu-latest

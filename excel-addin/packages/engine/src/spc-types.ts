@@ -1,6 +1,9 @@
 export type ChartType =
   | 'run' | 'i' | 'ip' | 'mr' | 's' | 'p' | 'u' | 'c' | 'g'
-  | 'pp' | 'up' | 'xbar' | 't';
+  | 'pp' | 'up' | 'xbar' | 't' | 'oe' | 'oep';
+
+/** Quantile method for the oe chart's Poisson funnel limits. */
+export type LimitMethod = 'exact' | 'byar';
 
 export type SignalMethod = 'anhoej' | 'ihi' | 'weco' | 'nelson';
 
@@ -27,8 +30,13 @@ export interface SPCInput {
   /** Fallback subgroup size, used only when no per-point n array is available.
    *  Not a constraint — any size >= 2 is valid. */
   subgroupN?: number;
-  /** Funnel plot mode (p/pp/u/up only): sort by denominator ascending, sigma signals only. */
+  /** Funnel plot mode (p/pp/u/up/oe only): sort by denominator ascending, sigma signals only. */
   funnel?: boolean;
+  /** Quantile method for the oe chart's funnel limits, and valid only there.
+   *  "exact" (default) inverts the Poisson CDF with Spiegelhalter's continuity
+   *  interpolation; "byar" is the closed-form Wilson-Hilferty approximation, which
+   *  drifts below expected counts of ~20 — exactly where per-provider volumes live. */
+  limitMethod?: LimitMethod;
   /** Point connectivity: true = lines+markers, false = markers only.
    *  Undefined = renderer infers from the x-axis. Funnel mode forces false. */
   connect?: boolean;
@@ -58,7 +66,16 @@ export interface ChartSpec {
    */
   limits: (cl: number, y: number[], n: number[] | undefined,
            mask: boolean[], subgroupN?: number, sBar?: number,
-           sigmaHat?: number) => [number[], number[]] | [number[], number[], number[]];
+           sigmaHat?: number, limitMethod?: LimitMethod) => [number[], number[]] | [number[], number[], number[]];
+  /**
+   * The 95% band, for charts whose inner band is a genuine probability contour
+   * rather than two thirds of the outer one — see the oe chart. Undefined means the
+   * caller derives that band arithmetically from the 3σ spread, which is exact only
+   * because those limits are symmetric about the center line.
+   */
+  limits95?: (cl: number, y: number[], n: number[] | undefined,
+              mask: boolean[], subgroupN?: number, sBar?: number,
+              sigmaHat?: number, limitMethod?: LimitMethod) => [number[], number[]];
   needsN: boolean;
   isAttribute: boolean;
   floorLcl: boolean;

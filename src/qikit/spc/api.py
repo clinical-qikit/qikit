@@ -20,10 +20,20 @@ import pandas as pd
 
 from .constants import c4
 from .compute import compute
-from .limits import CHARTS, VALID_CHARTS
+from .limits import (
+    CHARTS,
+    VALID_CHARTS,
+    oe_detectable_ratio,
+    oe_dispersion_phi,
+    oe_point_ci,
+)
 from .options import PlotOptions, VALID_RUNS_HIGHLIGHT
 from .results import BChartResult, ParetoResult, SPCResult
 from .signals import _runs_signals, _sigma_signals
+
+# A doubling of risk-adjusted mortality is unambiguously material. If the typical
+# point cannot detect even that, the chart cannot clear anyone, and says so.
+_UNDERPOWERED_RATIO = 2.0
 
 # ---------------------------------------------------------------------------
 # qic() — main entry point
@@ -46,6 +56,7 @@ def qic(
     target: float | list[float] | str | None = None,
     cl: float | None = None,
     funnel: bool = False,
+    limit_method: str | None = None,
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -94,14 +105,33 @@ def qic(
     data   : optional DataFrame
     facets : column name to split into faceted subplots
     notes  : list of annotations, or column name
-    chart  : chart type — run|i|mr|s|t|xbar|p|pp|c|u|up|g
+    chart  : chart type — run|i|mr|s|t|xbar|p|pp|c|u|up|g|oe|oep
+             oe is the risk-adjusted O/E (SMR) chart: y= is observed events and
+             n= is the model-derived expected events, so each point is a ratio
+             and the center line is the pooled ΣO/ΣE. Limits are Poisson
+             probability contours rather than 3σ — see limit_method.
+             oep is the same chart with Spiegelhalter's over-dispersion
+             adjustment: limits widen by √φ̂ when providers vary by more than
+             the risk model explains, which across a few hundred of them is the
+             usual case. φ̂ is reported in summary["dispersion_phi"], and equals
+             1.0 (limits untouched) when the sample is within noise of Poisson.
+             Prefer oep when comparing roughly 20 or more providers, unless the
+             risk model is trusted to capture the differences between them.
+             Both report per-point min_detectable_oe and a 95% CI, plus
+             summary["underpowered"] — at physician volumes a funnel often
+             cannot detect even a doubling of risk, and a point inside the
+             limits there means "not enough evidence", not "acceptable".
     method : run-signal detection — anhoej (default), ihi, weco, nelson
     freeze : baseline ends at this index (1-based)
     part   : index (or list) where new phases begin (1-based), or column name
     exclude: index (or list) to ghost from baseline (1-based), or column name.
              Ghosted points are dropped from the limits *and* hidden from signal
              detection; freeze=/part= only narrow the baseline.
-    cl     : user-supplied fixed center line
+    cl     : user-supplied fixed center line. On an oe chart this is how you
+             benchmark against the risk model itself rather than against the
+             cohort: cl=1.0 asks "who differs from their expected count?", while
+             the default pooled ΣO/ΣE asks "who differs from their peers?" and so
+             absorbs any overall miscalibration of the expected-events model.
     multiply : multiply y values by this factor; note that y_percent=True (default
                for p/pp charts) already handles percent display — combining both
                will produce unexpectedly large values and raises a UserWarning
@@ -109,11 +139,19 @@ def qic(
                sorts data by denominator (n) ascending, disables runs-signal
                detection (only sigma signals are meaningful cross-sectionally),
                and renders markers only with all x-axis labels shown.
-               Valid only for charts with denominators (p, pp, u, up).
+               Valid only for charts with denominators (p, pp, u, up, oe, oep).
                notes=, a list-valued target= and exclude= are given in *input*
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
                part= are rejected — they assume the points are in time order.
+    limit_method : quantile method for the oe chart's funnel limits, and valid
+               only there. "exact" (default) inverts the Poisson CDF with
+               Spiegelhalter's continuity interpolation; "byar" uses the
+               closed-form Wilson-Hilferty approximation, which is a shade
+               faster and agrees closely once expected counts reach ~20 but
+               drifts below that — exactly where per-physician volumes live.
+               The two limit levels are fixed at 95% (ucl_95/lcl_95, drawn with
+               show_95=True) and 99.8% (ucl/lcl, which drive sigma_signal).
     show_x_labels : when False, hide the x-axis tick labels while keeping the
                full label in the hover tooltip. Intended for funnel plots over
                hundreds of categorical units, where the axis text is unreadable
@@ -155,11 +193,30 @@ def qic(
             stacklevel=2,
         )
 
-    if funnel and chart not in ("p", "pp", "u", "up"):
+    if funnel and chart not in ("p", "pp", "u", "up", "oe", "oep"):
         raise ValueError(
             f"funnel=True is only valid for attribute charts with denominators "
-            f"(p, pp, u, up). Got chart={chart!r}."
+            f"(p, pp, u, up, oe, oep). Got chart={chart!r}."
         )
+
+    if limit_method is not None and chart == "oep":
+        raise ValueError(
+            "limit_method= is not available for chart='oep'. A multiplicative "
+            "over-dispersion factor has no counterpart in an exact Poisson quantile, "
+            "so the adjusted limits are always a normal approximation. Use chart='oe' "
+            "for exact or Byar limits without the over-dispersion adjustment."
+        )
+    if limit_method is not None and chart != "oe":
+        raise ValueError(
+            f"limit_method= is only valid for chart='oe'. Got chart={chart!r}. "
+            f"Other charts use 3σ limits, which have no quantile method to choose."
+        )
+    if chart == "oe":
+        limit_method = "exact" if limit_method is None else limit_method.lower().strip()
+        if limit_method not in ("exact", "byar"):
+            raise ValueError(
+                f"limit_method must be 'exact' or 'byar', got {limit_method!r}."
+            )
 
     if funnel and (freeze is not None or part is not None):
         raise ValueError(
@@ -234,6 +291,7 @@ def qic(
                 title=str(fv), ylab=ylab, xlab=xlab,
                 agg_fun=agg_fun,
                 funnel=funnel,
+                limit_method=limit_method if chart == "oe" else None,
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
                 target=_subset_per_facet(target, facet_rows, n_rows),
                 x_period=x_period,
@@ -403,6 +461,17 @@ def qic(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
         s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
         funnel=funnel, exclude_mask=exclude_mask,
+        limit_method=limit_method or "exact",
+    )
+
+    # ------------------------------------------------------------------
+    # 7b. Detectability + per-point intervals (O/E charts only)
+    # ------------------------------------------------------------------
+    # Computed on the raw arrays, before _assemble_final_df applies multiply. For oep
+    # this uses oep's own wider limits, which is the question a reader is asking:
+    # would this point have flagged on *this* chart.
+    oe_stats = (
+        _oe_point_stats(y_calc, n_vals, ucl_arr) if chart in ("oe", "oep") else None
     )
 
     # ------------------------------------------------------------------
@@ -411,7 +480,7 @@ def qic(
     df = _assemble_final_df(
         x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
         sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-        exclude_mask=exclude_mask,
+        exclude_mask=exclude_mask, oe_stats=oe_stats,
     )
 
     # ------------------------------------------------------------------
@@ -431,6 +500,48 @@ def qic(
         "excluded": exclude_list,
         **runs_summary,
     }
+
+    if chart == "oe":
+        # Which quantile method drew the limits is not recoverable from the numbers
+        # alone, and an O/E funnel is the kind of chart that ends up in a credentialing
+        # file. Record it.
+        summary["limit_method"] = limit_method
+
+    if chart == "oep":
+        # Whether the over-dispersion adjustment actually engaged, and by how much,
+        # is the first thing a reviewer asks of one of these charts. φ̂ = 1.0 means
+        # the sample was within noise of Poisson and the limits were left alone.
+        phi = oe_dispersion_phi(cl_arr[0], y_calc, n_vals, mask)
+        summary["dispersion_phi"] = phi
+        summary["dispersion_adjusted"] = phi > 1.0
+
+    if oe_stats is not None:
+        # How much signal the chart could carry, reported alongside what it found. A
+        # funnel over small-volume providers mostly cannot detect anything, and the
+        # honest reading of "no signal" there is "not enough data", not "fine".
+        # Computed on the raw ratios: these are statements about the unscaled O/E.
+        # Ghosted (exclude=) points are hidden from signal detection, so they are not
+        # among the points this chart could flag and must not colour its power.
+        detectable_raw = oe_stats[0]
+        counted = detectable_raw if exclude_mask is None else detectable_raw[~exclude_mask]
+        finite = counted[np.isfinite(counted)]
+        if len(finite) > 0:
+            median_det = float(np.median(finite))
+            n_under = int(np.sum(finite > _UNDERPOWERED_RATIO))
+            summary["min_detectable_oe_median"] = median_det
+            summary["n_underpowered"] = n_under
+            summary["underpowered"] = median_det > _UNDERPOWERED_RATIO
+            if summary["underpowered"]:
+                # Composed here rather than left to the caller so that a consuming
+                # agent, or a report generator, can quote one sentence instead of
+                # reconstructing the interpretation from two floats.
+                summary["power_note"] = (
+                    f"{n_under} of {len(finite)} points have too few expected events "
+                    f"to detect even a doubling of risk (smallest detectable O/E, "
+                    f"median: {median_det:.1f}). Absence of a signal is not evidence "
+                    f"of acceptable performance; aggregate more time periods or "
+                    f"compare at a higher level before drawing conclusions."
+                )
 
     if print_summary:
         _print_summary(chart, summary)
@@ -625,10 +736,30 @@ def _agg(series_grouped, agg_fun):
     raise ValueError(f"agg_fun must be 'mean', 'median', or 'sum', got {agg_fun!r}.")
 
 
+def _inner_band(res, spec):
+    """
+    The 95%/2σ band for one compute() result.
+
+    A chart whose limits come from a distribution returns the band directly —
+    compute() already floored it. Everything else gets the classical 2σ line, two
+    thirds of the way out to the 3σ limit, which holds because those limits are
+    symmetric about the center line.
+    """
+    if "ucl_95" in res:
+        return res["ucl_95"], res["lcl_95"]
+
+    s3 = res["ucl"] - res["cl"]
+    ucl_95 = res["cl"] + s3 * (2/3)
+    lcl_95 = res["cl"] - s3 * (2/3)
+    if spec.floor_lcl:
+        lcl_95 = np.where(lcl_95 < 0, 0.0, lcl_95)
+    return ucl_95, lcl_95
+
+
 def _compute_spc_arrays(
     chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
     s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
-    funnel: bool = False, exclude_mask=None,
+    funnel: bool = False, exclude_mask=None, limit_method: str = "exact",
 ):
     n_pts = len(y_calc)
     if exclude_mask is None:
@@ -651,12 +782,11 @@ def _compute_spc_arrays(
                 mask=seg_mask, cl_override=cl, method=method, s_bar=s_bar_val,
                 sigma_hat=sigma_hat_val, subgroup_n=subgroup_n_val,
                 exclude_mask=exclude_mask[start:end],
+                limit_method=limit_method,
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
-            s3 = seg_raw["ucl"] - seg_raw["cl"]
-            ucl_95_arr[start:end] = seg_raw["cl"] + s3 * (2/3)
-            l95 = seg_raw["cl"] - s3 * (2/3)
-            lcl_95_arr[start:end] = np.where(l95 < 0, 0.0, l95) if spec.floor_lcl else l95
+            seg_u95, seg_l95 = _inner_band(seg_raw, spec)
+            ucl_95_arr[start:end], lcl_95_arr[start:end] = seg_u95, seg_l95
             sigma_sig[start:end], runs_sig[start:end] = seg_raw["sigma_signal"], seg_raw["runs_signal"]
             runs_loc[start:end] = seg_raw["runs_signal_localized"]
             per_part_summaries.append({"part": seg_i + 1, **seg_raw["summary"]})
@@ -679,12 +809,10 @@ def _compute_spc_arrays(
         res = compute(
             chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
             sigma_hat=sigma_hat_val, exclude_mask=exclude_mask,
+            limit_method=limit_method,
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
-        s3 = ucl_arr - cl_arr
-        ucl_95_arr = cl_arr + s3 * (2/3)
-        l95 = cl_arr - s3 * (2/3)
-        lcl_95_arr = np.where(l95 < 0, 0.0, l95) if spec.floor_lcl else l95
+        ucl_95_arr, lcl_95_arr = _inner_band(res, spec)
         if chart == "t":
             cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
@@ -705,10 +833,35 @@ def _compute_spc_arrays(
     return cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
 
 
+def _oe_point_stats(
+    y_calc: np.ndarray, n_vals: np.ndarray, ucl_arr: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Per-point detectability and confidence interval for an O/E chart.
+
+    Operates on the raw (pre-multiply) arrays: y_calc is the O/E ratio, n_vals the
+    expected events, ucl_arr the drawn upper limit. Observed counts are recovered as
+    O = ratio · E, exactly, since the ratio was formed by that division.
+    """
+    k = len(y_calc)
+    detectable = np.full(k, np.nan)
+    ci_lo = np.full(k, np.nan)
+    ci_hi = np.full(k, np.nan)
+    observed = np.asarray(y_calc, dtype=float) * np.asarray(n_vals, dtype=float)
+    expected = np.asarray(n_vals, dtype=float)
+
+    for i in range(k):
+        e = float(expected[i])
+        detectable[i] = oe_detectable_ratio(float(ucl_arr[i]) * e, e)
+        ci_lo[i], ci_hi[i] = oe_point_ci(float(observed[i]), e)
+
+    return detectable, ci_lo, ci_hi, observed, expected
+
+
 def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
     sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-    exclude_mask=None,
+    exclude_mask=None, oe_stats=None,
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
@@ -742,6 +895,20 @@ def _assemble_final_df(
             if chart == "mr": t_vals = t_vals[1:]
         else: t_vals = np.full(len(x_vals), float(target))
         df_dict["target"] = t_vals * multiply if multiply != 1.0 else t_vals
+
+    if oe_stats is not None:
+        detectable, ci_lo, ci_hi, observed, expected = oe_stats
+        # Every column on the y scale scales with multiply, same as target above.
+        scale = multiply if multiply != 1.0 else 1.0
+        df_dict["min_detectable_oe"] = detectable * scale
+        df_dict["ci_95_lower"] = ci_lo * scale
+        df_dict["ci_95_upper"] = ci_hi * scale
+        # Counts, echoed back deliberately. Funnel mode sorts by expected events, so
+        # after the sort a caller can no longer line their own inputs up against these
+        # rows without redoing the permutation — the same reason x is echoed. They are
+        # event counts, not ratios, so multiply (a y-scale rescale) does not touch them.
+        df_dict["observed"] = observed
+        df_dict["expected"] = expected
 
     if part_indices:
         n_pts = len(y_plot)

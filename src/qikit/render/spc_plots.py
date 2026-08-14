@@ -105,10 +105,17 @@ def _add_chart_traces(
     connect: bool | None = None,
     runs_highlight: str = "all",
     y_percent: bool = False,
+    chart_type: str = "",
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, and notes to fig.
     """
+    # An O/E funnel's limits are probability contours, not sigma multiples, so
+    # naming them "UCL"/"2σ" would misreport what the reader is looking at.
+    if chart_type in ("oe", "oep"):
+        outer_names, inner_names = ("99.8%+", "99.8%-"), ("95%+", "95%-")
+    else:
+        outer_names, inner_names = ("UCL", "LCL"), ("2σ+", "2σ-")
     x = df["x"].tolist()
     y = df["y"].to_numpy(dtype=float)
     cl = df["cl"].to_numpy(dtype=float)
@@ -146,8 +153,40 @@ def _add_chart_traces(
     hovertemplate = "%{x}: %{y}"
     if text:
         hovertemplate += "<br>%{text}"
-    hovertemplate += "%{customdata}<extra></extra>"
-    customdata = [f" ({n})" if n else "" for n in ghost_note]
+
+    if chart_type in ("oe", "oep") and "ci_95_lower" in df.columns:
+        # An O/E ratio on its own tells a reader very little: 2.5 could be five deaths
+        # against two expected or five hundred against two hundred, and only one of
+        # those is worth a conversation. Lead with the counts, then the interval this
+        # point's own data supports, then what it would have taken to flag — so a point
+        # inside the limits reads as "not enough evidence" rather than "cleared".
+        # Pre-formatted strings, because a d3 number format renders NaN literally.
+        def _fmt(v: float, places: int) -> str:
+            return "n/a" if v is None or np.isnan(v) else f"{v:.{places}f}"
+
+        customdata = [
+            [
+                f" ({g})" if g else "",
+                f"{_fmt(o, 0)} / expected {_fmt(e, 1)}",
+                f"{_fmt(lo, 2)}–{_fmt(hi, 2)}",
+                _fmt(d, 2),
+            ]
+            for g, o, e, lo, hi, d in zip(
+                ghost_note,
+                df["observed"], df["expected"],
+                df["ci_95_lower"], df["ci_95_upper"], df["min_detectable_oe"],
+            )
+        ]
+        hovertemplate += (
+            "%{customdata[0]}"
+            "<br>Observed %{customdata[1]}"
+            "<br>95% CI: %{customdata[2]}"
+            "<br>Smallest detectable O/E: %{customdata[3]}"
+            "<extra></extra>"
+        )
+    else:
+        hovertemplate += "%{customdata}<extra></extra>"
+        customdata = [f" ({n})" if n else "" for n in ghost_note]
 
     fig.add_trace(go.Scatter(
         x=x, y=y,
@@ -189,7 +228,7 @@ def _add_chart_traces(
 
     # UCL/LCL — light solid hairlines; the direct labels say which is which,
     # so neither a dash pattern nor a fill between them has to carry meaning.
-    for arr, name in [(ucl, "UCL"), (lcl, "LCL")]:
+    for arr, name in [(ucl, outer_names[0]), (lcl, outer_names[1])]:
         if not np.all(np.isnan(arr)):
             fig.add_trace(go.Scatter(
                 x=x, y=arr,
@@ -208,7 +247,7 @@ def _add_chart_traces(
         else:
             warn_upper = cl + (ucl - cl) * (2.0 / 3.0)
             warn_lower = cl - (ucl - cl) * (2.0 / 3.0)
-        for warn_y, name in [(warn_upper, "2σ+"), (warn_lower, "2σ-")]:
+        for warn_y, name in [(warn_upper, inner_names[0]), (warn_lower, inner_names[1])]:
             fig.add_trace(go.Scatter(
                 x=x, y=warn_y,
                 mode="lines",
@@ -231,7 +270,7 @@ def _add_chart_traces(
         ann_kwargs: dict[str, Any] = {}
         if row is not None and col is not None:
             ann_kwargs = {"row": row, "col": col}
-        for arr, label in [(cl, "CL"), (ucl, "UCL"), (lcl, "LCL")]:
+        for arr, label in [(cl, "CL"), (ucl, outer_names[0]), (lcl, outer_names[1])]:
             valid_idx = np.flatnonzero(~np.isnan(arr))
             if len(valid_idx) == 0:
                 continue
@@ -286,6 +325,25 @@ def _add_chart_traces(
                     ax=0, ay=-25,
                     **add_kwargs
                 )
+
+
+# Shown under an underpowered O/E funnel when the caller supplied no caption of their
+# own. summary["underpowered"] is enough for code, but these charts get screenshotted
+# into credentialing packets, and no summary key travels with the image — the caveat
+# has to be part of the picture.
+_UNDERPOWERED_CAPTION = (
+    "Most points lack the volume to detect a doubling of risk; absence of a signal "
+    "is not evidence of acceptable performance."
+)
+
+
+def _effective_caption(result: Any) -> str | None:
+    """The caller's caption, or the underpowered warning when they gave none."""
+    caption = getattr(result, "caption", None)
+    if caption:
+        return caption
+    summary = getattr(result, "summary", None) or {}
+    return _UNDERPOWERED_CAPTION if summary.get("underpowered") else None
 
 
 def _configure_layout(
@@ -352,9 +410,10 @@ def _configure_layout(
         **size_kwargs,
     )
 
-    if hasattr(result, "caption") and result.caption:
+    caption = _effective_caption(result)
+    if caption:
         fig.add_annotation(
-            text=result.caption, xref="paper", yref="paper",
+            text=caption, xref="paper", yref="paper",
             x=0, y=-0.2, showarrow=False,
             font=dict(size=10, color=TEXT_FAINT), xanchor="left",
         )
@@ -453,6 +512,7 @@ def _plot_faceted(
             connect=connect,
             runs_highlight=runs_highlight,
             y_percent=y_percent,
+            chart_type=result.chart_type,
         )
 
     _configure_layout(
@@ -687,6 +747,7 @@ def plot_result(
         connect=connect,
         runs_highlight=runs_highlight,
         y_percent=y_percent,
+        chart_type=result.chart_type,
     )
 
     _configure_layout(
