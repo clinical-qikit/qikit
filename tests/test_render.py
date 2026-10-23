@@ -8,6 +8,8 @@ import pandas as pd
 import pytest
 import plotly.graph_objects as go
 from qikit import qic
+from qikit.render.spc_plots import _signal_label_offsets
+from qikit.render.utils import NORMAL, RUNS, SIGMA
 
 
 
@@ -445,9 +447,6 @@ class TestOEHoverAndCaption:
 # ---------------------------------------------------------------------------
 # Funnel ergonomics: warn tier, signal labels, rank spacing, labels and hover
 # ---------------------------------------------------------------------------
-
-from qikit.render.spc_plots import _signal_label_offsets
-from qikit.render.utils import NORMAL, RUNS, SIGMA
 
 
 class TestFunnelLabeling:
