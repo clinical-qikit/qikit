@@ -27,13 +27,31 @@ from .limits import (
     oe_dispersion_phi,
     oe_point_ci,
 )
-from .options import PlotOptions, VALID_RUNS_HIGHLIGHT
+from .options import (
+    PlotOptions, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, VALID_X_SPACING,
+)
 from .results import BChartResult, ParetoResult, SPCResult
-from .signals import _runs_signals, _sigma_signals
+from .signals import _runs_signals, _sigma_signals, _warn_signals
 
 # A doubling of risk-adjusted mortality is unambiguously material. If the typical
 # point cannot detect even that, the chart cannot clear anyone, and says so.
 _UNDERPOWERED_RATIO = 2.0
+
+# Columns qic() itself may write to result.data. hover_extra= columns are copied in
+# under their own names, so one of these would silently overwrite engine output.
+_RESERVED_COLUMNS = frozenset({
+    "x", "y", "cl", "ucl", "lcl", "ucl_95", "lcl_95",
+    "sigma_signal", "warn_signal", "runs_signal", "runs_signal_localized",
+    "baseline", "excluded", "notes", "label", "target", "part", "facet",
+    "min_detectable_oe", "ci_95_lower", "ci_95_upper", "observed", "expected",
+})
+
+# Charts whose result.data carries warn_signal. An O/E chart's 95% band is a genuine
+# probability contour; the other denominator charts get the tier only as a funnel,
+# where a single point past the 95% line is the conventional cross-sectional alert.
+# On a time-ordered chart one point beyond 2σ is not a signal on its own.
+_WARN_CHARTS = ("oe", "oep")
+_WARN_FUNNEL_CHARTS = ("p", "pp", "u", "up")
 
 # ---------------------------------------------------------------------------
 # qic() — main entry point
@@ -46,6 +64,8 @@ def qic(
     data: pd.DataFrame | None = None,
     facets: str | None = None,
     notes: Any = None,
+    point_labels: Any = None,
+    hover_extra: Any = None,
     chart: str = "run",
     agg_fun: str = "mean",
     method: str = "anhoej",
@@ -89,6 +109,8 @@ def qic(
     y_percent_accuracy: int | None = None,
     connect: bool | None = None,
     runs_highlight: str = "localized",
+    label_signals: str | None = None,
+    x_spacing: str | None = None,
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
@@ -235,6 +257,27 @@ def qic(
         raise ValueError(
             f"runs_highlight must be one of {VALID_RUNS_HIGHLIGHT}, got {runs_highlight!r}."
         )
+    if label_signals not in VALID_LABEL_SIGNALS:
+        raise ValueError(
+            f"label_signals must be one of {VALID_LABEL_SIGNALS}, got {label_signals!r}."
+        )
+    if label_signals in ("warn", "both") and not _has_warn_tier(chart, funnel):
+        raise ValueError(
+            f"label_signals={label_signals!r} needs the 95% warn tier, which only "
+            f"chart='oe'/'oep' and funnel=True p/pp/u/up charts have. "
+            f"Use label_signals='outlier' here."
+        )
+    if x_spacing not in VALID_X_SPACING:
+        raise ValueError(
+            f"x_spacing must be one of {VALID_X_SPACING}, got {x_spacing!r}."
+        )
+    if x_spacing == "rank" and x_order is not None:
+        raise ValueError(
+            "x_order= cannot be combined with x_spacing='rank': rank spacing plots "
+            "points in their row order, so there is no category order left to set."
+        )
+
+    hover_extra_names = _hover_extra_names(hover_extra, data)
 
     # ------------------------------------------------------------------
     # Resolve spec early
@@ -256,6 +299,8 @@ def qic(
         part_labels=part_labels,
         height=height, width=width,
         connect=connect, runs_highlight=runs_highlight,
+        label_signals=label_signals, x_spacing=x_spacing, funnel=funnel,
+        hover_extra=hover_extra_names,
     )
 
     # ------------------------------------------------------------------
@@ -293,6 +338,8 @@ def qic(
                 funnel=funnel,
                 limit_method=limit_method if chart == "oe" else None,
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
+                point_labels=_subset_per_facet(point_labels, facet_rows, n_rows),
+                hover_extra=hover_extra,
                 target=_subset_per_facet(target, facet_rows, n_rows),
                 x_period=x_period,
                 part_labels=part_labels,
@@ -343,6 +390,9 @@ def qic(
     ) = _resolve_and_aggregate(
         data, x, y, n, notes, part, exclude, part_labels, chart, agg_fun, x_period, spec
     )
+    point_labels, hover_extra = _resolve_point_extras(
+        data, x, x_period, point_labels, hover_extra,
+    )
 
     if len(y_arr) == 0:
         raise ValueError("y= contains no values.")
@@ -368,6 +418,15 @@ def qic(
         if isinstance(notes, (list, np.ndarray, pd.Series)) and len(notes) == len(sort_order):
             notes_vals = list(notes)
             notes = [notes_vals[i] for i in sort_order]
+
+        if point_labels is not None and len(point_labels) == len(sort_order):
+            point_labels = [point_labels[i] for i in sort_order]
+
+        if hover_extra:
+            hover_extra = {
+                k: [v[i] for i in sort_order] if len(v) == len(sort_order) else v
+                for k, v in hover_extra.items()
+            }
 
         if isinstance(target, (list, np.ndarray, pd.Series)) and len(target) == len(sort_order):
             target = np.asarray(target, dtype=float)[sort_order]
@@ -475,12 +534,23 @@ def qic(
     )
 
     # ------------------------------------------------------------------
+    # 7c. Warn tier: past the 95% band but inside the outer limits
+    # ------------------------------------------------------------------
+    # Ghosted points are blanked exactly as compute() blanks them for sigma_signal.
+    # On the raw scale, so multiply cannot move a point between tiers.
+    warn_sig = None
+    if _has_warn_tier(chart, funnel):
+        y_warn = np.where(exclude_mask, np.nan, y_calc)
+        warn_sig = _warn_signals(y_warn, ucl_95_arr, lcl_95_arr, sigma_sig)
+
+    # ------------------------------------------------------------------
     # 8. Assemble DataFrame
     # ------------------------------------------------------------------
     df = _assemble_final_df(
         x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
         sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-        exclude_mask=exclude_mask, oe_stats=oe_stats,
+        exclude_mask=exclude_mask, oe_stats=oe_stats, warn_sig=warn_sig,
+        point_labels=point_labels, hover_extra=hover_extra,
     )
 
     # ------------------------------------------------------------------
@@ -500,6 +570,11 @@ def qic(
         "excluded": exclude_list,
         **runs_summary,
     }
+
+    if warn_sig is not None:
+        # Deliberately not folded into "signals": at one false alarm in twenty per
+        # point, a funnel of a few hundred providers would always report a signal.
+        summary["n_warn"] = int(np.sum(warn_sig))
 
     if chart == "oe":
         # Which quantile method drew the limits is not recoverable from the numbers
@@ -567,6 +642,97 @@ def qic(
         xlab=xlab,
         _plot_opts=plot_opts,
     )
+
+
+def _has_warn_tier(chart: str, funnel: bool) -> bool:
+    """Whether this chart's result.data carries warn_signal; see _WARN_CHARTS."""
+    return chart in _WARN_CHARTS or (funnel and chart in _WARN_FUNNEL_CHARTS)
+
+
+def _hover_extra_names(hover_extra, data) -> list[str]:
+    """
+    Validate hover_extra= and return the column names it will add to result.data.
+
+    With data= it is a column name or list of them, so it groups and facets along
+    with everything else. Without data= there is nothing to name, so it is a
+    mapping (or DataFrame) of per-point values instead.
+    """
+    if hover_extra is None:
+        return []
+    if data is not None:
+        names = [hover_extra] if isinstance(hover_extra, str) else hover_extra
+        if not isinstance(names, (list, tuple)) or not all(isinstance(c, str) for c in names):
+            raise ValueError(
+                "When data= is supplied, hover_extra= must be a column name or a list "
+                "of column names."
+            )
+        missing = [c for c in names if c not in data.columns]
+        if missing:
+            raise ValueError(f"hover_extra column(s) not found in data: {missing}.")
+    else:
+        if not isinstance(hover_extra, (dict, pd.DataFrame)):
+            raise ValueError(
+                "Without data=, hover_extra= must be a dict (or DataFrame) of "
+                "per-point values keyed by the name to show in the tooltip."
+            )
+        names = [str(c) for c in hover_extra.keys()]
+    clash = sorted(set(names) & _RESERVED_COLUMNS)
+    if clash:
+        raise ValueError(
+            f"hover_extra name(s) {clash} collide with columns qic() writes to "
+            f"result.data. Rename them before passing."
+        )
+    return list(names)
+
+
+def _resolve_point_extras(data, x, x_period, point_labels, hover_extra):
+    """
+    Resolve point_labels= and hover_extra= to per-point lists, before the funnel sort.
+
+    Grouped data (x= a column) takes the first value per group: a display name or a
+    practice group is constant within a provider, and anything that is not should
+    be aggregated by the caller first. Returns (labels | None, {name: values}).
+    """
+    if data is None:
+        if isinstance(point_labels, str):
+            raise ValueError(
+                "point_labels= is a column name only when data= is supplied; "
+                "otherwise pass a list with one label per point."
+            )
+        labels = list(point_labels) if point_labels is not None else None
+        extras = (
+            {str(k): list(v) for k, v in hover_extra.items()}
+            if hover_extra is not None else {}
+        )
+        return labels, extras
+
+    extra_cols = [hover_extra] if isinstance(hover_extra, str) else list(hover_extra or [])
+    cols = list(extra_cols)
+    if isinstance(point_labels, str):
+        if point_labels not in data.columns:
+            raise ValueError(f"Column {point_labels!r} not found in data.")
+        cols.append(point_labels)
+
+    if isinstance(x, str):
+        # Must group identically to _resolve_and_aggregate so the rows line up.
+        if x_period is not None:
+            frame = data.copy()
+            if not pd.api.types.is_datetime64_any_dtype(frame[x]):
+                frame[x] = pd.to_datetime(frame[x])
+            period_map = {"day": "D", "week": "W", "month": "MS", "quarter": "QS", "year": "YS"}
+            freq = period_map.get(x_period.lower(), x_period)
+            grouped = frame.groupby(pd.Grouper(key=x, freq=freq))
+        else:
+            grouped = data.groupby(x, sort=False)
+        resolved = {c: grouped[c].first().tolist() for c in cols}
+    else:
+        resolved = {c: data[c].tolist() for c in cols}
+
+    if isinstance(point_labels, str):
+        labels = resolved[point_labels]
+    else:
+        labels = list(point_labels) if point_labels is not None else None
+    return labels, {c: resolved[c] for c in extra_cols}
 
 
 def _subset_per_facet(value, facet_rows: np.ndarray, n_rows: int):
@@ -861,7 +1027,8 @@ def _oe_point_stats(
 def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
     sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-    exclude_mask=None, oe_stats=None,
+    exclude_mask=None, oe_stats=None, warn_sig=None,
+    point_labels=None, hover_extra=None,
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
@@ -874,7 +1041,9 @@ def _assemble_final_df(
     df_dict = {
         "x": x_vals, "y": y_plot, "cl": cl_arr, "ucl": ucl_arr, "lcl": lcl_arr,
         "ucl_95": ucl_95_arr, "lcl_95": lcl_95_arr,
-        "sigma_signal": sigma_sig, "runs_signal": runs_sig,
+        "sigma_signal": sigma_sig,
+        **({"warn_signal": warn_sig} if warn_sig is not None else {}),
+        "runs_signal": runs_sig,
         "runs_signal_localized": runs_loc, "baseline": mask,
         "excluded": exclude_mask,
     }
@@ -888,6 +1057,20 @@ def _assemble_final_df(
             raise ValueError(f"Length of notes ({len(notes_vals)}) must match length of x-axis ({len(x_vals)}).")
 
         df_dict["notes"] = ["" if (v is None or (isinstance(v, float) and np.isnan(v))) else str(v) for v in notes_vals]
+
+    if point_labels is not None:
+        labels = list(point_labels)
+        if chart == "mr": labels = labels[1:]
+        if len(labels) != len(x_vals):
+            raise ValueError(f"Length of point_labels ({len(labels)}) must match length of x-axis ({len(x_vals)}).")
+        df_dict["label"] = ["" if (v is None or (isinstance(v, float) and np.isnan(v))) else str(v) for v in labels]
+
+    for name, vals in (hover_extra or {}).items():
+        vals = list(vals)
+        if chart == "mr": vals = vals[1:]
+        if len(vals) != len(x_vals):
+            raise ValueError(f"Length of hover_extra[{name!r}] ({len(vals)}) must match length of x-axis ({len(x_vals)}).")
+        df_dict[name] = vals
 
     if target is not None:
         if isinstance(target, (list, np.ndarray, pd.Series)):

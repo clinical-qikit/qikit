@@ -26,6 +26,18 @@ def _sigma_signals(
     return above | below
 
 
+def _warn_signals(
+    y: np.ndarray, ucl_95: np.ndarray, lcl_95: np.ndarray, sigma_sig: np.ndarray,
+) -> np.ndarray:
+    """
+    Per-point boolean: beyond the inner 95% band but not already a sigma signal.
+
+    The two tiers are disjoint by construction, so a caller can colour or count
+    them independently without double-counting the outliers.
+    """
+    return _sigma_signals(y, ucl_95, lcl_95) & ~np.asarray(sigma_sig, dtype=bool)
+
+
 def _longest_run_threshold(n: int) -> int:
     """
     Minimum run length signalling non-randomness (p < 0.05).

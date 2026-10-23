@@ -686,6 +686,19 @@ export function compute(input: SPCInput): SPCResult {
     }
   }
 
+  // Warn tier: past the 95% band but inside the outer limits. Only where that band
+  // means something on its own: an O/E chart's probability contour, or any funnel's
+  // cross-sectional 95% line. Raw arrays, so multiply cannot move a point between
+  // tiers; ghosted points are blanked as for sigmaSig. Mirrors api.py step 7c.
+  const hasWarn = chart === 'oe' || chart === 'oep'
+    || (funnel && ['p', 'pp', 'u', 'up'].includes(chart));
+  const warnSig: boolean[] = hasWarn
+    ? yCalc.map((v, i) => {
+        if (excludeMask[i] || sigmaSig[i]) return false;
+        return (!isNaN(ucl95Arr[i]) && v > ucl95Arr[i]) || (!isNaN(lcl95Arr[i]) && v < lcl95Arr[i]);
+      })
+    : [];
+
   // Detectability + per-point intervals (O/E charts only), computed from the RAW
   // arrays before multiply rescales them. For oep this uses oep's own wider limits:
   // the question is whether the point would flag on *this* chart.
@@ -729,6 +742,7 @@ export function compute(input: SPCInput): SPCResult {
     ucl_95: ucl95Arr[i],
     lcl_95: lcl95Arr[i],
     sigma_signal: sigmaSig[i],
+    ...(hasWarn ? { warn_signal: warnSig[i] } : {}),
     runs_signal: runsSig[i],
     runs_signal_localized: runsLoc[i],
     ...(isOe ? {
@@ -759,6 +773,9 @@ export function compute(input: SPCInput): SPCResult {
     signals,
     n_obs: yCalc.filter(v => !isNaN(v)).length,
     ...(funnel ? { runs_disabled: true, note: 'runs signals suppressed (funnel mode)' } : {}),
+    // Not folded into `signals`: at one false alarm in twenty per point, a funnel of
+    // a few hundred providers would always report one.
+    ...(hasWarn ? { n_warn: warnSig.filter(Boolean).length } : {}),
     // Which quantile method drew the limits is not recoverable from the numbers
     // alone, and an O/E funnel is the kind of chart that ends up in a credentialing
     // file. Record it.

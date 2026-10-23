@@ -68,7 +68,7 @@ describe('SPC Conformance Tests', () => {
                 // thing that actually proves their cross-language parity.
                 [
                   'y', 'cl', 'ucl', 'lcl', 'ucl_95', 'lcl_95',
-                  'sigma_signal', 'runs_signal', 'runs_signal_localized',
+                  'sigma_signal', 'warn_signal', 'runs_signal', 'runs_signal_localized',
                   'min_detectable_oe', 'ci_95_lower', 'ci_95_upper',
                 ].forEach(col => {
                     if (col in row && col in expRow) {
