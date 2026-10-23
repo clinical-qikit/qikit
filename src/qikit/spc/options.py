@@ -14,6 +14,18 @@ from dataclasses import dataclass, field
 #   none      — no runs coloring; sigma outliers are unaffected
 VALID_RUNS_HIGHLIGHT = ("all", "localized", "none")
 
+# Which flagged points get a text label next to them.
+#   outlier — points beyond the outer limits (sigma_signal)
+#   warn    — points in the 95% tier only (warn_signal)
+#   both    — either
+#   None    — no point labels (the CL/limit labels are governed by show_labels)
+VALID_LABEL_SIGNALS = (None, "outlier", "warn", "both")
+
+# How points are spaced along x.
+#   None — by x value: categorical for strings, numeric/date otherwise
+#   rank — evenly, in row order, with the x values (or point_labels) as tick text
+VALID_X_SPACING = (None, "rank")
+
 
 @dataclass(frozen=True)
 class PlotOptions:
@@ -44,4 +56,8 @@ class PlotOptions:
     width: int | None = None
     connect: bool | None = None
     runs_highlight: str = "localized"
+    label_signals: str | None = None
+    x_spacing: str | None = None
+    hover_extra: list[str] = field(default_factory=list)
+    funnel: bool = False
     x_nticks_all: bool = False

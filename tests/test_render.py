@@ -8,6 +8,8 @@ import pandas as pd
 import pytest
 import plotly.graph_objects as go
 from qikit import qic
+from qikit.render.spc_plots import _signal_label_offsets
+from qikit.render.utils import NORMAL, RUNS, SIGMA
 
 
 
@@ -440,3 +442,145 @@ class TestOEHoverAndCaption:
         tpl = fig.data[0].hovertemplate
         assert "%{customdata}<extra></extra>" in tpl
         assert "95% CI" not in tpl
+
+
+# ---------------------------------------------------------------------------
+# Funnel ergonomics: warn tier, signal labels, rank spacing, labels and hover
+# ---------------------------------------------------------------------------
+
+
+class TestFunnelLabeling:
+    Y = [9, 6, 7, 11, 13, 17, 37, 29, 66, 40]
+    N = [4.0, 6.0, 8.0, 10.0, 14.0, 18.0, 24.0, 30.0, 40.0, 55.0]
+    # 10-digit, numeric-looking IDs: the coercion trap x_spacing="rank" exists for.
+    X = [str(1234567890 + i) for i in range(10)]
+    NAMES = [f"Dr {c}" for c in "ABCDEFGHIJ"]
+
+    def _r(self, **kw):
+        return qic(x=self.X, y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0, **kw)
+
+    def test_warn_points_amber_with_show_95(self):
+        r = self._r(show_95=True)
+        colors = r.plot().data[0].marker.color
+        d = r.data
+        assert [c for c, w in zip(colors, d["warn_signal"]) if w] == [RUNS] * 3
+        assert [c for c, s in zip(colors, d["sigma_signal"]) if s] == [SIGMA]
+
+    def test_warn_points_plain_without_show_95(self):
+        r = self._r()
+        colors = r.plot().data[0].marker.color
+        assert all(c == NORMAL for c, w in zip(colors, r.data["warn_signal"]) if w)
+
+    def test_non_funnel_oe_keeps_runs_coloring(self):
+        r = qic(y=self.Y, n=self.N, chart="oe", cl=1.0, show_95=True)
+        colors = r.plot().data[0].marker.color
+        # Runs, not the warn tier, own amber on a time-ordered chart.
+        amber = [c == RUNS for c in colors]
+        assert amber == list(r.data["runs_signal_localized"] & ~r.data["sigma_signal"])
+
+    def _signal_annotations(self, fig):
+        return [a for a in fig.layout.annotations if a.showarrow and a.arrowhead == 0]
+
+    @pytest.mark.parametrize("mode,count", [("outlier", 1), ("warn", 3), ("both", 4)])
+    def test_label_signals_counts(self, mode, count):
+        fig = self._r(label_signals=mode).plot()
+        assert len(self._signal_annotations(fig)) == count
+
+    def test_labels_use_point_labels_and_tier_color(self):
+        fig = self._r(label_signals="both", point_labels=self.NAMES).plot()
+        anns = {a.text: a for a in self._signal_annotations(fig)}
+        assert set(anns) == {"Dr A", "Dr G", "Dr I", "Dr J"}
+        assert anns["Dr I"].font.color == SIGMA
+        assert anns["Dr A"].font.color == RUNS
+        assert anns["Dr A"].ay < 0 and anns["Dr J"].ay > 0   # above up, below down
+
+    def test_label_absorbs_note(self):
+        notes = [""] * 8 + ["reviewed", ""]
+        fig = self._r(label_signals="outlier", notes=notes).plot()
+        texts = [a.text for a in fig.layout.annotations]
+        assert f"{self.X[8]} — reviewed" in texts
+        assert "reviewed" not in texts
+
+    def test_label_signals_plot_override_and_guard(self):
+        r = self._r()
+        assert len(self._signal_annotations(r.plot(label_signals="warn"))) == 3
+        with pytest.raises(ValueError, match="warn tier"):
+            qic(y=[1.0, 2.0, 3.0, 4.0], chart="i").plot(label_signals="warn")
+
+    def test_label_signals_outlier_on_any_chart(self):
+        r = qic(y=[10, 11, 9, 10, 30, 10, 11, 9, 10, 10], chart="i", label_signals="outlier")
+        assert len(self._signal_annotations(r.plot())) == 1
+
+    def test_offsets_stagger_neighbours_and_reset_after_a_gap(self):
+        offs = _signal_label_offsets([0, 1, 2, 3, 10], [True] * 5, min_gap=1)
+        assert [ay for _, ay in offs] == [-22, -38, -54, -22, -22]
+        assert offs[1][0] != offs[2][0]
+
+    def test_offsets_gap_is_inclusive(self):
+        offs = _signal_label_offsets([0, 2, 5], [True] * 3, min_gap=2)
+        assert [ay for _, ay in offs] == [-22, -38, -22]
+
+    def test_offsets_sides_are_independent(self):
+        offs = _signal_label_offsets([0, 1], [True, False], min_gap=5)
+        assert offs == [(0, -22), (0, 22)]
+
+    def test_rank_spacing_emits_only_numeric_x(self):
+        fig = self._r(x_spacing="rank", show_95=True, label_signals="both",
+                      notes=["x"] + [""] * 9).plot()
+        for trace in fig.data:
+            assert all(isinstance(v, (int, np.integer)) for v in trace.x), trace.name
+        for a in fig.layout.annotations:
+            if a.xref in (None, "x"):
+                assert isinstance(a.x, (int, float)), a.text
+        assert fig.layout.xaxis.type == "linear"
+        assert list(fig.layout.xaxis.tickvals) == list(range(1, 11))
+        assert list(fig.layout.xaxis.ticktext) == self.X
+        assert fig.layout.hovermode == "closest"
+
+    def test_rank_ticktext_uses_labels(self):
+        fig = self._r(x_spacing="rank", point_labels=self.NAMES).plot()
+        assert list(fig.layout.xaxis.ticktext) == self.NAMES
+
+    def test_rank_as_plot_override_and_x_order_guard(self):
+        r = self._r()
+        assert r.plot(x_spacing="rank").layout.xaxis.type == "linear"
+        with pytest.raises(ValueError, match="x_order"):
+            r.plot(x_spacing="rank", x_order=self.X)
+
+    def test_labels_on_categorical_axis(self):
+        fig = self._r(point_labels=self.NAMES).plot()
+        assert list(fig.layout.xaxis.ticktext) == self.NAMES
+        assert fig.data[0].x[0] == self.X[0]
+
+    def test_hover_names_the_point_and_lists_extras(self):
+        fig = self._r(point_labels=self.NAMES,
+                      hover_extra={"Encounters": list(range(100, 110)),
+                                   "Practice": ["East"] * 10}).plot()
+        trace = fig.data[0]
+        tpl = trace.hovertemplate
+        row = trace.customdata[0]
+        # O/E fields keep their indices; extras then header are appended.
+        assert "Observed %{customdata[1]}" in tpl
+        assert "<br>Encounters: %{customdata[4]}" in tpl
+        assert "<br>Practice: %{customdata[5]}" in tpl
+        assert tpl.startswith("%{customdata[6]}: %{y}")
+        assert row[4] == "100" and row[5] == "East"
+        assert row[6] == f"Dr A ({self.X[0]})"
+
+    def test_hover_extra_on_plain_chart(self):
+        fig = qic(y=[1.0, 2.0, 3.0], chart="i",
+                  hover_extra={"k": [1.5, float("nan"), 3.0]}).plot()
+        trace = fig.data[0]
+        assert trace.hovertemplate.startswith("%{x}: %{y}")
+        assert [r[1] for r in trace.customdata] == ["1.5", "n/a", "3"]
+
+    def test_faceted_rank_and_labels(self):
+        df = pd.DataFrame({
+            "o": self.Y * 2, "e": self.N * 2, "name": self.NAMES * 2,
+            "site": ["A"] * 10 + ["B"] * 10,
+        })
+        fig = qic(y="o", n="e", data=df, chart="oe", funnel=True, cl=1.0,
+                  facets="site", point_labels="name", x_spacing="rank",
+                  label_signals="both").plot()
+        assert list(fig.layout.xaxis2.ticktext) == self.NAMES
+        assert len(self._signal_annotations(fig)) == 8

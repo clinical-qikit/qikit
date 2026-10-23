@@ -165,6 +165,35 @@ qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
     chart="oe", funnel=True).plot()
 ```
 
+#### Labeling flagged providers
+
+When x is an ID (an NPI, say) and the reader needs names, keep the ID as the key and
+pass the display text separately:
+
+```python
+r = qic(x="npi", y="observed_deaths", n="expected_deaths", data=agg,
+        chart="oep", funnel=True, show_95=True,
+        point_labels="physician_name",          # hover, tick text, signal labels
+        hover_extra=["encounters", "practice"], # extra tooltip lines
+        label_signals="both",                   # label 99.8% and 95% points
+        x_spacing="rank")                       # even spacing in funnel order
+r.data[["x", "label", "sigma_signal", "warn_signal"]]
+```
+
+- **`warn_signal`** marks points past the 95% contour that are not already
+  `sigma_signal`, so the two tiers never overlap. It is present on every `oe`/`oep`
+  chart and on `p`/`pp`/`u`/`up` funnels, counted in `summary["n_warn"]`, and kept out
+  of `signals`: at one chance alarm in twenty, a large funnel would always report one.
+  With `show_95=True` these points are drawn amber.
+- **`label_signals=`** takes `"outlier"`, `"warn"`, `"both"` or `None`. Labels above the
+  center line point up and those below point down, and neighbours are staggered.
+- **`x_spacing="rank"`** plots positions 1…k with the labels as tick text. Every trace
+  and annotation uses the same positions, so numeric-looking IDs are never coerced into
+  a stretched axis.
+- Trace names (`"data"`, `"CL"`, `"99.8%+"`, `"95%-"`, …) are a stable contract for
+  restyling. The tooltip's `customdata` layout is not, so use the parameters above
+  rather than editing it.
+
 A last caution for anyone reading these in a credentialing context: at 5 expected
 deaths, a confidence interval that contains 1.0 means *insufficient information*, not
 exoneration. The honest report of a low-volume physician is the interval, not a verdict.
