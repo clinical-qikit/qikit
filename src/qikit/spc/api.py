@@ -127,6 +127,18 @@ def qic(
     data   : optional DataFrame
     facets : column name to split into faceted subplots
     notes  : list of annotations, or column name
+    point_labels : display text per point — a list, or a column name with data=.
+             x stays the grouping and sort key (so two providers may share a
+             name); the label is what the reader sees in the hover, on the tick
+             text of a categorical or rank-spaced axis, and on label_signals=
+             annotations. Grouped data takes the first value per group. Lands in
+             result.data["label"].
+    hover_extra : extra tooltip lines. With data=, a column name or list of
+             them (grouped data takes the first value per group, so aggregate
+             first anything that varies within a group); without data=, a dict
+             of per-point sequences keyed by the name to show. Values are copied
+             into result.data under those names, which must not collide with a
+             column qic() writes.
     chart  : chart type — run|i|mr|s|t|xbar|p|pp|c|u|up|g|oe|oep
              oe is the risk-adjusted O/E (SMR) chart: y= is observed events and
              n= is the model-derived expected events, so each point is a ratio
@@ -139,6 +151,8 @@ def qic(
              1.0 (limits untouched) when the sample is within noise of Poisson.
              Prefer oep when comparing roughly 20 or more providers, unless the
              risk model is trusted to capture the differences between them.
+             summary["dispersion_adjusted"] says whether φ̂ engaged; see the
+             SPCResult docstring for every O/E summary key.
              Both report per-point min_detectable_oe and a 95% CI, plus
              summary["underpowered"] — at physician volumes a funnel often
              cannot detect even a doubling of risk, and a point inside the
@@ -166,6 +180,10 @@ def qic(
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
                part= are rejected — they assume the points are in time order.
+               result.data gains warn_signal: points past the 95% band that
+               are not already sigma signals (also always present on oe/oep).
+               With show_95=True those points are drawn amber, the color runs
+               signals use on a time-ordered chart.
     limit_method : quantile method for the oe chart's funnel limits, and valid
                only there. "exact" (default) inverts the Poisson CDF with
                Spiegelhalter's continuity interpolation; "byar" uses the
@@ -195,6 +213,19 @@ def qic(
                Sigma outliers stay red in all three modes, and the crossings
                result is always reported in summary["crossings_signal"].
                Overridable per-call via result.plot(runs_highlight=...).
+    label_signals : text labels on flagged points — "outlier" (sigma_signal),
+               "warn" (warn_signal), "both", or None (default). Labels read
+               point_labels= where given, else x; points above the center line
+               are labeled upward and those below downward, and neighbours are
+               staggered so their labels do not overlap. "warn" and "both" need
+               a chart with warn_signal (oe/oep, or a p/pp/u/up funnel).
+               Overridable per-call via result.plot(label_signals=...).
+    x_spacing : None (default) spaces points by x value. "rank" spaces them
+               evenly in row order — for a funnel, by increasing denominator —
+               with point_labels= (or x) as tick text. Use it when x is an ID:
+               numeric-looking IDs on a category axis can otherwise be coerced
+               to numbers. Cannot be combined with x_order=. Overridable
+               per-call via result.plot(x_spacing=...).
 
     Returns
     -------

@@ -20,11 +20,59 @@ class SPCResult:
 
     Fields
     ------
-    data       : DataFrame with columns x, y, cl, ucl, lcl, sigma_signal,
-                 runs_signal, baseline, excluded
+    data       : one row per plotted point. Always present:
+                   x, y                  — the point (y after multiply=)
+                   cl, ucl, lcl          — center line and outer limits (3σ; the
+                                           99.8% contour on oe/oep)
+                   ucl_95, lcl_95        — inner band (2σ; the 95% contour on oe/oep)
+                   sigma_signal          — beyond ucl/lcl
+                   runs_signal           — flagged by the runs method (all False on
+                                           a funnel)
+                   runs_signal_localized — runs_signal without the Anhoej crossings
+                                           whole-series blanket
+                   baseline              — point is in the limit baseline
+                   excluded              — point was ghosted by exclude=
+                 Present only when relevant:
+                   warn_signal           — beyond ucl_95/lcl_95 but not a
+                                           sigma_signal, so the two tiers never
+                                           overlap; excluded points are always
+                                           False. On oe/oep, and on p/pp/u/up with
+                                           funnel=True. Not counted in `signals`.
+                   notes, label, target, part, facet — from the matching qic()
+                                           argument (label from point_labels=)
+                   <hover_extra names>   — copied from hover_extra=
+                   min_detectable_oe     — oe/oep: smallest O/E this point could
+                                           have flagged at 80% power (y scale)
+                   ci_95_lower, ci_95_upper — oe/oep: exact Garwood 95% CI on the
+                                           point's own O/E (y scale)
+                   observed, expected    — oe/oep: event counts, echoed in plotted
+                                           (post-funnel-sort) order
     chart_type : "run", "i", "mr", "p", "u", "c", etc.
     method     : run-signal detection method ("anhoej", "ihi", "weco", "nelson")
-    summary    : audit dict — n_obs, longest_run, n_crossings, thresholds, etc.
+    summary    : audit dict. Always: n_obs, n_baseline, signals, limit_basis,
+                 freeze, excluded, plus the runs method's own keys (longest_run,
+                 n_crossings, thresholds, …; runs_disabled/note on a funnel).
+                 n_warn — count of warn_signal points, wherever that column exists.
+                 O/E charts add:
+                   limit_method        — oe only: "exact" or "byar"
+                   dispersion_phi      — oep only: Spiegelhalter's winsorized
+                                         multiplicative over-dispersion factor φ̂.
+                                         Dimensionless (a variance ratio against
+                                         Poisson). Set to 1.0 when the sample is
+                                         within 2 SE of Poisson; never below 1.0.
+                                         The limits are widened by √φ̂.
+                   dispersion_adjusted — oep only: φ̂ > 1.0, i.e. the limits were
+                                         actually widened
+                   min_detectable_oe_median — median of min_detectable_oe over
+                                         non-excluded points (raw O/E scale)
+                   n_underpowered      — points that could not detect a doubling
+                                         of risk (min_detectable_oe > 2.0)
+                   underpowered        — min_detectable_oe_median > 2.0: a blank
+                                         funnel here means "not enough data"
+                   power_note          — one-sentence caveat, present only when
+                                         underpowered
+                 The last four are omitted when no point has a finite expected
+                 count.
     signals    : True if any non-random variation detected
     title      : chart title
     subtitle   : optional subtitle
@@ -46,7 +94,16 @@ class SPCResult:
     _plot_opts: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def plot(self, **overrides: Any) -> go.Figure:
-        """Render as a Plotly Figure. Keyword args override stored display options."""
+        """
+        Render as a Plotly Figure. Keyword args override stored display options.
+
+        Trace names are a stable public contract, for callers who restyle the
+        figure: "data" (the points), "Target", "CL", the outer limits "UCL"/"LCL"
+        ("99.8%+"/"99.8%-" on oe/oep), and the inner band, drawn with
+        show_95=True, "2σ+"/"2σ-" ("95%+"/"95%-" on oe/oep). The layout of the
+        data trace's customdata and hovertemplate is not part of that contract;
+        use point_labels= and hover_extra= on qic() to change what the tooltip says.
+        """
         from qikit.render.spc_plots import plot_result
 
         opts = {**self._plot_opts, **overrides}
@@ -74,10 +131,15 @@ class SPCResult:
             else:
                 signals.append("")
 
+        if "warn_signal" in df.columns:
+            signals = ["Warn" if (w and not sig) else sig for w, sig in zip(df["warn_signal"], signals)]
+
         df["signal_type"] = signals
 
         # Reorder and pick key columns
         cols = ["x", "y", "cl", "ucl", "lcl", "signal_type"]
+        if "label" in df.columns:
+            cols.insert(1, "label")
         if "part" in df.columns:
             cols.insert(1, "part")
         if "notes" in df.columns:

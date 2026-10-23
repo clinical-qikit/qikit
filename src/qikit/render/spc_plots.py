@@ -20,7 +20,9 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from qikit.spc.options import VALID_RUNS_HIGHLIGHT
+from qikit.spc.options import (
+    VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, VALID_X_SPACING,
+)
 
 from .utils import (
     apply_tufte_theme,
@@ -69,6 +71,53 @@ def _point_sizes(sigma_sig: np.ndarray, runs_sig: np.ndarray, point_size: float)
     ]
 
 
+# Vertical offsets, in px, for the stacked levels of signal labels. Three levels
+# clear a cluster of adjacent flagged points without a label drifting far enough
+# from its point that the arrow has to do all the work.
+_LABEL_LEVELS = (22, 38, 54)
+
+
+def _signal_label_offsets(
+    positions: list[float], above: list[bool], min_gap: float,
+) -> list[tuple[int, int]]:
+    """
+    Arrow offsets (ax, ay) for signal labels, aligned with the inputs.
+
+    Labels above the center line point up and those below point down, so the two
+    sides never compete. Along each side, a label at most min_gap positions from
+    the previous one steps to the next level (and alternates a small horizontal nudge);
+    a gap resets it to the first level. Plotly cannot measure text, so this is a
+    stagger rather than true collision detection — enough to keep a cluster of
+    flagged neighbours legible.
+    """
+    out: list[tuple[int, int]] = [(0, 0)] * len(positions)
+    for side in (True, False):
+        idx = sorted(
+            (i for i in range(len(positions)) if bool(above[i]) == side),
+            key=lambda i: positions[i],
+        )
+        level, prev = 0, None
+        for i in idx:
+            close = prev is not None and positions[i] - prev <= min_gap
+            level = (level + 1) % len(_LABEL_LEVELS) if close else 0
+            ax = 0 if level == 0 else (12 if level % 2 else -12)
+            ay = _LABEL_LEVELS[level]
+            out[i] = (ax, -ay if side else ay)
+            prev = positions[i]
+    return out
+
+
+def _fmt_hover(v: Any) -> str:
+    """One hover_extra value as display text; pre-formatted for the same NaN reason as the O/E fields."""
+    if v is None or (isinstance(v, (float, np.floating)) and np.isnan(v)):
+        return "n/a"
+    if isinstance(v, (bool, np.bool_)):
+        return str(bool(v))
+    if isinstance(v, (float, np.floating)):
+        return str(int(v)) if float(v).is_integer() else f"{float(v):g}"
+    return str(v)
+
+
 def _label_decimals(*arrays: np.ndarray) -> int:
     """
     Pick decimal places for the CL/UCL/LCL labels from the spread they span.
@@ -106,9 +155,14 @@ def _add_chart_traces(
     runs_highlight: str = "all",
     y_percent: bool = False,
     chart_type: str = "",
+    funnel: bool = False,
+    label_signals: str | None = None,
+    x_spacing: str | None = None,
+    hover_extra: list[str] | None = None,
+    x_order: list | str | None = None,
 ) -> None:
     """
-    Add data/CL/UCL/LCL traces, part boundaries, and notes to fig.
+    Add data/CL/UCL/LCL traces, part boundaries, notes and signal labels to fig.
     """
     # An O/E funnel's limits are probability contours, not sigma multiples, so
     # naming them "UCL"/"2σ" would misreport what the reader is looking at.
@@ -116,17 +170,37 @@ def _add_chart_traces(
         outer_names, inner_names = ("99.8%+", "99.8%-"), ("95%+", "95%-")
     else:
         outer_names, inner_names = ("UCL", "LCL"), ("2σ+", "2σ-")
-    x = df["x"].tolist()
+    x_raw = df["x"].tolist()
+    labels = df["label"].tolist() if "label" in df.columns else None
+    # What a reader should see for each point: its label when one was given, else x.
+    display = [
+        (labels[i] if labels and labels[i] else str(v)) for i, v in enumerate(x_raw)
+    ]
+    # Rank spacing swaps every x this function emits for a position, so no raw x
+    # value (a 10-digit ID, say) ever reaches the figure for Plotly to coerce.
+    rank = x_spacing == "rank"
+    x = list(range(1, len(x_raw) + 1)) if rank else x_raw
     y = df["y"].to_numpy(dtype=float)
     cl = df["cl"].to_numpy(dtype=float)
     ucl = df["ucl"].to_numpy(dtype=float)
     lcl = df["lcl"].to_numpy(dtype=float)
 
     sigma_sig = df["sigma_signal"].to_numpy()
-    runs_sig = _resolve_runs_signal(df, runs_highlight)
-    colors = _point_colors(sigma_sig, runs_sig)
-    symbols = _point_symbols(sigma_sig, runs_sig)
-    sizes = _point_sizes(sigma_sig, runs_sig, point_size)
+    warn_sig = (
+        df["warn_signal"].to_numpy() if "warn_signal" in df.columns
+        else np.zeros(len(df), dtype=bool)
+    )
+    # A funnel has no time order, so runs carry nothing there (and are zeroed
+    # upstream); the amber tier goes to the 95% band instead. Only while that band
+    # is drawn, though: amber with no line to explain it would be color without a
+    # referent.
+    if funnel and show_95 and "warn_signal" in df.columns:
+        amber = warn_sig
+    else:
+        amber = _resolve_runs_signal(df, runs_highlight)
+    colors = _point_colors(sigma_sig, amber)
+    symbols = _point_symbols(sigma_sig, amber)
+    sizes = _point_sizes(sigma_sig, amber, point_size)
 
     # Ghost points excluded via exclude=: faded and not counted toward
     # limits or signals (handled upstream in qikit.spc.compute/api).
@@ -150,7 +224,18 @@ def _add_chart_traces(
     # Data trace — zorder=2 keeps it above all reference ink
     text = df["notes"].tolist() if "notes" in df.columns else None
     ghost_note = ["excluded" if ex else "" for ex in excluded]
-    hovertemplate = "%{x}: %{y}"
+    extras = [c for c in (hover_extra or []) if c in df.columns]
+
+    # Rank mode plots positions, and labels replace the key, so either way %{x}
+    # no longer names the point; the header is carried in customdata instead.
+    # Appended last, so the O/E fields keep their customdata indices.
+    header = None
+    if rank or labels:
+        header = [
+            f"{lab} ({v})" if (labels and lab) else str(v)
+            for lab, v in zip(labels or [""] * len(x_raw), x_raw)
+        ]
+    hovertemplate = "{header}: %{y}"
     if text:
         hovertemplate += "<br>%{text}"
 
@@ -182,11 +267,30 @@ def _add_chart_traces(
             "<br>Observed %{customdata[1]}"
             "<br>95% CI: %{customdata[2]}"
             "<br>Smallest detectable O/E: %{customdata[3]}"
-            "<extra></extra>"
         )
     else:
-        hovertemplate += "%{customdata}<extra></extra>"
-        customdata = [f" ({n})" if n else "" for n in ghost_note]
+        customdata = [[f" ({n})" if n else ""] for n in ghost_note]
+        hovertemplate += "%{customdata[0]}"
+
+    for name in extras:
+        k = len(customdata[0]) if customdata else 0
+        for row_cd, v in zip(customdata, df[name]):
+            row_cd.append(_fmt_hover(v))
+        hovertemplate += f"<br>{name}: %{{customdata[{k}]}}"
+
+    if header is not None:
+        k = len(customdata[0]) if customdata else 0
+        for row_cd, h in zip(customdata, header):
+            row_cd.append(h)
+        hovertemplate = hovertemplate.replace("{header}", f"%{{customdata[{k}]}}", 1)
+    else:
+        hovertemplate = hovertemplate.replace("{header}", "%{x}", 1)
+
+    if customdata and len(customdata[0]) == 1:
+        # The plain single-field form, unchanged from before multi-field hovers.
+        customdata = [row_cd[0] for row_cd in customdata]
+        hovertemplate = hovertemplate.replace("%{customdata[0]}", "%{customdata}")
+    hovertemplate += "<extra></extra>"
 
     fig.add_trace(go.Scatter(
         x=x, y=y,
@@ -311,13 +415,49 @@ def _add_chart_traces(
                     **add_kwargs
                 )
 
+    # Signal labels. A labeled point's note joins its label rather than getting an
+    # annotation of its own, so the two can never land on top of each other.
+    notes_list = [str(v) for v in df["notes"]] if "notes" in df.columns else [""] * len(x)
+    labeled: set[int] = set()
+    if label_signals is not None and len(x) > 0:
+        flagged = np.zeros(len(x), dtype=bool)
+        if label_signals in ("outlier", "both"):
+            flagged |= sigma_sig.astype(bool)
+        if label_signals in ("warn", "both"):
+            flagged |= warn_sig.astype(bool)
+        idx = [int(i) for i in np.flatnonzero(flagged) if np.isfinite(y[i])]
+        if isinstance(x_order, list) and not rank:
+            order_pos = {v: k for k, v in enumerate(x_order)}
+            positions = [order_pos.get(x_raw[i], i) for i in idx]
+        else:
+            positions = idx
+        above = [bool(np.isnan(cl[i]) or y[i] >= cl[i]) for i in idx]
+        # A label is roughly a fifteenth of a typical plot's width, so neighbours
+        # closer than that, in points, would print over each other on one level.
+        min_gap = max(1, math.ceil(len(x) / 15))
+        offsets = _signal_label_offsets(positions, above, min_gap)
+        ann_kwargs = {"row": row, "col": col} if (row is not None and col is not None) else {}
+        for i, (ax, ay) in zip(idx, offsets):
+            note = notes_list[i].strip()
+            fig.add_annotation(
+                x=x[i], y=y[i],
+                text=f"{display[i]} — {note}" if note else display[i],
+                showarrow=True, arrowhead=0,
+                arrowcolor=AXIS, arrowwidth=1,
+                font=dict(size=10, color=SIGMA if sigma_sig[i] else RUNS),
+                ax=ax, ay=ay,
+                **ann_kwargs,
+            )
+            labeled.add(i)
+
     # Note annotations
     if "notes" in df.columns:
-        for _, row_data in df.iterrows():
-            note = str(row_data.get("notes", ""))
+        for i, note in enumerate(notes_list):
+            if i in labeled:
+                continue
             if note.strip():
                 fig.add_annotation(
-                    x=row_data["x"], y=row_data["y"],
+                    x=x[i], y=y[i],
                     text=note,
                     showarrow=True, arrowhead=1,
                     arrowcolor=AXIS, arrowwidth=1,
@@ -325,6 +465,11 @@ def _add_chart_traces(
                     ax=0, ay=-25,
                     **add_kwargs
                 )
+
+    # Tick text: positions need names, and given labels outrank the raw key on a
+    # categorical axis. A numeric or date axis keeps its own scale.
+    if rank or (labels and all(isinstance(v, str) for v in x_raw)):
+        fig.update_xaxes(tickvals=x, ticktext=display, **add_kwargs)
 
 
 # Shown under an underpowered O/E funnel when the caller supplied no caption of their
@@ -361,6 +506,7 @@ def _configure_layout(
     width: int | None = None,
     x_nticks_all: bool = False,
     show_x_labels: bool = True,
+    x_spacing: str | None = None,
 ) -> None:
     """Shared layout and axis styling for single and faceted plots."""
     apply_tufte_theme(fig)
@@ -368,7 +514,13 @@ def _configure_layout(
     # Categorical x-axis: explicit type + optional ordering
     x_vals = result.data["x"].tolist()
     is_categorical = all(isinstance(v, str) for v in x_vals)
-    if is_categorical:
+    if x_spacing == "rank":
+        # Positions, not categories. The unified hover would title itself with the
+        # position number, so hover the nearest point and let it name itself.
+        is_categorical = False
+        fig.update_xaxes(type="linear")
+        fig.update_layout(hovermode="closest")
+    elif is_categorical:
         fig.update_xaxes(type="category")
         if x_order is not None:
             if isinstance(x_order, list):
@@ -468,6 +620,10 @@ def _plot_faceted(
     x_nticks_all: bool = False,
     runs_highlight: str = "all",
     show_x_labels: bool = True,
+    funnel: bool = False,
+    label_signals: str | None = None,
+    x_spacing: str | None = None,
+    hover_extra: list[str] | None = None,
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -513,13 +669,18 @@ def _plot_faceted(
             runs_highlight=runs_highlight,
             y_percent=y_percent,
             chart_type=result.chart_type,
+            funnel=funnel,
+            label_signals=label_signals,
+            x_spacing=x_spacing,
+            hover_extra=hover_extra,
+            x_order=x_order,
         )
 
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
-        show_x_labels=show_x_labels,
+        show_x_labels=show_x_labels, x_spacing=x_spacing,
     )
 
     # Shared axes hide the tick labels on inner panels; the tick marks left
@@ -707,15 +868,38 @@ def plot_result(
     x_nticks_all: bool = False,
     runs_highlight: str = "all",
     show_x_labels: bool = True,
+    funnel: bool = False,
+    label_signals: str | None = None,
+    x_spacing: str | None = None,
+    hover_extra: list[str] | None = None,
     **_kwargs: Any,
 ) -> go.Figure:
     """
     Render an SPCResult as a Plotly Figure.
     """
-    # plot(**overrides) bypasses qic(), so this is the only guard on that path.
+    # plot(**overrides) bypasses qic(), so these are the only guards on that path.
     if runs_highlight not in VALID_RUNS_HIGHLIGHT:
         raise ValueError(
             f"runs_highlight must be one of {VALID_RUNS_HIGHLIGHT}, got {runs_highlight!r}."
+        )
+    if label_signals not in VALID_LABEL_SIGNALS:
+        raise ValueError(
+            f"label_signals must be one of {VALID_LABEL_SIGNALS}, got {label_signals!r}."
+        )
+    if label_signals in ("warn", "both") and "warn_signal" not in result.data.columns:
+        raise ValueError(
+            f"label_signals={label_signals!r} needs the 95% warn tier, which only "
+            f"chart='oe'/'oep' and funnel=True p/pp/u/up charts have. "
+            f"Use label_signals='outlier' here."
+        )
+    if x_spacing not in VALID_X_SPACING:
+        raise ValueError(
+            f"x_spacing must be one of {VALID_X_SPACING}, got {x_spacing!r}."
+        )
+    if x_spacing == "rank" and x_order is not None:
+        raise ValueError(
+            "x_order= cannot be combined with x_spacing='rank': rank spacing plots "
+            "points in their row order, so there is no category order left to set."
         )
 
     if "facet" in result.data.columns:
@@ -730,6 +914,8 @@ def plot_result(
             connect=connect, x_nticks_all=x_nticks_all,
             runs_highlight=runs_highlight,
             show_x_labels=show_x_labels,
+            funnel=funnel, label_signals=label_signals,
+            x_spacing=x_spacing, hover_extra=hover_extra,
         )
 
     df = result.data
@@ -748,13 +934,18 @@ def plot_result(
         runs_highlight=runs_highlight,
         y_percent=y_percent,
         chart_type=result.chart_type,
+        funnel=funnel,
+        label_signals=label_signals,
+        x_spacing=x_spacing,
+        hover_extra=hover_extra,
+        x_order=x_order,
     )
 
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
-        show_x_labels=show_x_labels,
+        show_x_labels=show_x_labels, x_spacing=x_spacing,
     )
 
     return fig

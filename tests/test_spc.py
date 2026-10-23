@@ -2625,3 +2625,158 @@ class TestPhysicianExampleWorkflow:
             assert row["y"] > 2.0                      # plainly elevated
             assert not row["sigma_signal"]             # and plainly undetectable
             assert row["min_detectable_oe"] > row["y"]  # the chart says so itself
+
+
+# ---------------------------------------------------------------------------
+# warn_signal — the 95% tier
+# ---------------------------------------------------------------------------
+
+class TestWarnSignal:
+    """Same data as fixtures/spc/funnel_oe_warn_tier.json, which pins the values."""
+
+    Y = [9, 6, 7, 11, 13, 17, 37, 29, 66, 40]
+    N = [4.0, 6.0, 8.0, 10.0, 14.0, 18.0, 24.0, 30.0, 40.0, 55.0]
+
+    def _oe(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0, **kw)
+
+    @pytest.mark.parametrize("chart,funnel", [
+        ("oe", True), ("oe", False), ("oep", True), ("oep", False),
+        ("p", True), ("pp", True), ("u", True), ("up", True),
+    ])
+    def test_present(self, chart, funnel):
+        n = [v * 10 for v in self.N] if chart in ("p", "pp") else self.N
+        r = qic(y=self.Y, n=n, chart=chart, funnel=funnel)
+        assert "warn_signal" in r.data.columns
+        assert r.summary["n_warn"] == int(r.data["warn_signal"].sum())
+
+    @pytest.mark.parametrize("chart,kw", [
+        ("p", {}), ("u", {}), ("i", {}), ("run", {}),
+    ])
+    def test_absent_off_funnel_or_without_a_band(self, chart, kw):
+        n = [v * 10 for v in self.N] if chart in ("p", "u") else None
+        r = qic(y=self.Y, n=n, chart=chart, **kw)
+        assert "warn_signal" not in r.data.columns
+        assert "n_warn" not in r.summary
+
+    def test_tiers_are_disjoint_and_sided(self):
+        d = self._oe().data
+        assert not (d["warn_signal"] & d["sigma_signal"]).any()
+        beyond = (d["y"] > d["ucl_95"]) | (d["y"] < d["lcl_95"])
+        assert (d["warn_signal"] == (beyond & ~d["sigma_signal"] & ~d["excluded"])).all()
+        assert d["warn_signal"].tolist() == [
+            True, False, False, False, False, False, True, False, False, True,
+        ]
+
+    def test_excluded_point_never_warns(self):
+        d = self._oe(exclude=7).data
+        assert d.loc[6, "excluded"]
+        assert d.loc[6, "y"] > d.loc[6, "ucl_95"]
+        assert not d.loc[6, "warn_signal"]
+
+    def test_does_not_feed_signals(self):
+        # Low side warn only: 40 vs 55 expected, nothing else out.
+        r = qic(y=[4, 6, 8, 10, 14, 18, 24, 30, 40, 40], n=self.N,
+                chart="oe", funnel=True, cl=1.0)
+        assert r.data["warn_signal"].any()
+        assert not r.data["sigma_signal"].any()
+        assert r.signals is False
+
+    def test_multiply_does_not_move_tiers(self):
+        assert (self._oe(multiply=100).data["warn_signal"]
+                == self._oe().data["warn_signal"]).all()
+
+    def test_facets_carry_it(self):
+        df = pd.DataFrame({
+            "o": self.Y * 2, "e": self.N * 2, "site": ["A"] * 10 + ["B"] * 10,
+        })
+        r = qic(y="o", n="e", data=df, chart="oe", funnel=True, facets="site")
+        assert "warn_signal" in r.data.columns
+        assert len(r.data) == 20
+
+    def test_summary_table_reports_warn(self):
+        t = self._oe().summary_table()
+        assert "Warn" in t["signal_type"].tolist()
+
+
+# ---------------------------------------------------------------------------
+# point_labels= and hover_extra=
+# ---------------------------------------------------------------------------
+
+class TestPointLabelsAndHoverExtra:
+    X = ["n3", "n1", "n2", "n4"]
+    Y = [5, 2, 9, 4]
+    N = [30.0, 10.0, 60.0, 20.0]
+    NAMES = ["Carol", "Alice", "Bea", "Dana"]
+
+    def test_labels_follow_the_funnel_sort(self):
+        r = qic(x=self.X, y=self.Y, n=self.N, chart="oe", funnel=True,
+                point_labels=self.NAMES, hover_extra={"enc": [300, 100, 600, 200]})
+        d = r.data
+        assert d["x"].tolist() == ["n1", "n4", "n3", "n2"]
+        assert d["label"].tolist() == ["Alice", "Dana", "Carol", "Bea"]
+        assert d["enc"].tolist() == [100, 200, 300, 600]
+
+    def test_column_names_with_grouping(self):
+        df = pd.DataFrame({
+            "npi": ["n1", "n1", "n2", "n2"], "name": ["Alice", "Alice", "Bea", "Bea"],
+            "practice": ["East", "East", "West", "West"],
+            "o": [1, 2, 3, 4], "e": [1.0, 1.5, 2.0, 2.5],
+        })
+        r = qic(x="npi", y="o", n="e", data=df, chart="oe",
+                point_labels="name", hover_extra="practice")
+        assert r.data["label"].tolist() == ["Alice", "Bea"]
+        assert r.data["practice"].tolist() == ["East", "West"]
+        assert r.data["y"].tolist() == pytest.approx([3 / 2.5, 7 / 4.5])
+
+    def test_ungrouped_columns(self):
+        df = pd.DataFrame({"o": self.Y, "e": self.N, "name": self.NAMES})
+        r = qic(y="o", n="e", data=df, chart="oe", funnel=True, point_labels="name")
+        assert r.data["label"].tolist() == ["Alice", "Dana", "Carol", "Bea"]
+
+    def test_mr_drops_the_first(self):
+        r = qic(y=[1.0, 3.0, 2.0, 5.0], chart="mr", point_labels=list("abcd"),
+                hover_extra={"k": [1, 2, 3, 4]})
+        assert r.data["label"].tolist() == ["b", "c", "d"]
+        assert r.data["k"].tolist() == [2, 3, 4]
+
+    def test_facets_slice_labels(self):
+        df = pd.DataFrame({
+            "o": self.Y * 2, "e": self.N * 2, "name": self.NAMES * 2,
+            "site": ["A"] * 4 + ["B"] * 4, "grp": list("wxyzwxyz"),
+        })
+        r = qic(y="o", n="e", data=df, chart="oe", funnel=True, facets="site",
+                point_labels="name", hover_extra=["grp"])
+        sub = r.data[r.data["facet"] == "B"]
+        assert sub["label"].tolist() == ["Alice", "Dana", "Carol", "Bea"]
+        assert sub["grp"].tolist() == ["x", "z", "w", "y"]
+
+    def test_reserved_name_rejected(self):
+        with pytest.raises(ValueError, match="collide"):
+            qic(y=self.Y, n=self.N, chart="oe", hover_extra={"observed": [1, 2, 3, 4]})
+
+    def test_missing_column_rejected(self):
+        df = pd.DataFrame({"o": self.Y, "e": self.N})
+        with pytest.raises(ValueError, match="not found"):
+            qic(y="o", n="e", data=df, chart="oe", hover_extra="nope")
+        with pytest.raises(ValueError, match="not found"):
+            qic(y="o", n="e", data=df, chart="oe", point_labels="nope")
+
+    def test_wrong_shapes_rejected(self):
+        with pytest.raises(ValueError, match="dict"):
+            qic(y=self.Y, n=self.N, chart="oe", hover_extra=["a"])
+        with pytest.raises(ValueError, match="list"):
+            qic(y=self.Y, n=self.N, chart="oe", point_labels="name")
+        with pytest.raises(ValueError, match="Length of point_labels"):
+            qic(y=self.Y, n=self.N, chart="oe", point_labels=["a"])
+
+    def test_display_options_validated(self):
+        with pytest.raises(ValueError, match="label_signals"):
+            qic(y=self.Y, n=self.N, chart="oe", label_signals="all")
+        with pytest.raises(ValueError, match="warn tier"):
+            qic(y=[1, 2, 3, 4], chart="i", label_signals="warn")
+        with pytest.raises(ValueError, match="x_spacing"):
+            qic(y=self.Y, n=self.N, chart="oe", x_spacing="even")
+        with pytest.raises(ValueError, match="x_order"):
+            qic(x=self.X, y=self.Y, n=self.N, chart="oe", x_spacing="rank",
+                x_order=self.X)
