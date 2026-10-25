@@ -96,7 +96,11 @@
       "dispersion_adjusted": true,
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
-      "n_warn": 0
+      "n_warn": 0,
+      "min_detectable_ratio_median": 3.637033417535227,
+      "n_underpowered": 15,
+      "underpowered": true,
+      "power_note": "15 of 15 points have too few cases to detect even a doubling of the center-line rate (smallest detectable rate, median: 3.6\u00d7 the center line). Absence of a signal is not evidence of acceptable performance; aggregate more time periods or compare at a higher level before drawing conclusions."
     },
     "data": [
       {
@@ -112,7 +116,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.02927543639032258,
+        "ci_95_lower": 8.167034838709678e-05,
+        "ci_95_upper": 0.017973043196774195
       },
       {
         "x": 2,
@@ -127,7 +134,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.024363189635714284,
+        "ci_95_lower": 0.0,
+        "ci_95_upper": 0.00878304631904762
       },
       {
         "x": 3,
@@ -142,7 +152,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.022759545822,
+        "ci_95_lower": 0.001237344246,
+        "ci_95_upper": 0.01753454614
       },
       {
         "x": 4,
@@ -157,7 +170,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.019560551281249998,
+        "ci_95_lower": 0.0003784519984375,
+        "ci_95_upper": 0.011288574481249999
       },
       {
         "x": 5,
@@ -172,7 +188,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.019501038594285713,
+        "ci_95_lower": 0.0023192662714285714,
+        "ci_95_upper": 0.016669045827142858
       },
       {
         "x": 6,
@@ -187,7 +206,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.018020314170731706,
+        "ci_95_lower": 3.08753756097561e-05,
+        "ci_95_upper": 0.006794687062195122
       },
       {
         "x": 7,
@@ -202,7 +224,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.017663672258888888,
+        "ci_95_lower": 0.003127070057777778,
+        "ci_95_upper": 0.016025194846666667
       },
       {
         "x": 8,
@@ -217,7 +242,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.016477357625454544,
+        "ci_95_lower": 0.0009907867036363636,
+        "ci_95_upper": 0.009310535159090909
       },
       {
         "x": 9,
@@ -232,7 +260,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.01564448055230769,
+        "ci_95_lower": 0.003165671613076923,
+        "ci_95_upper": 0.01314215650076923
       },
       {
         "x": 10,
@@ -247,7 +278,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.014292932858666667,
+        "ci_95_lower": 0.000412448082,
+        "ci_95_upper": 0.005844848713333333
       },
       {
         "x": 11,
@@ -262,7 +296,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.013737769528888888,
+        "ci_95_lower": 0.0034447639494444445,
+        "ci_95_upper": 0.011645325026666667
       },
       {
         "x": 12,
@@ -277,7 +314,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.013331565782380954,
+        "ci_95_lower": 0.0010485210728571428,
+        "ci_95_upper": 0.006218797153809524
       },
       {
         "x": 13,
@@ -292,7 +332,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.012499225475999999,
+        "ci_95_lower": 0.0033581544532000004,
+        "ci_95_upper": 0.0098960875484
       },
       {
         "x": 14,
@@ -307,7 +350,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.012212681452000001,
+        "ci_95_lower": 0.0011512773923333332,
+        "ci_95_upper": 0.005254396406666666
       },
       {
         "x": 15,
@@ -322,7 +368,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.011666187086388889,
+        "ci_95_lower": 0.0033934776625,
+        "ci_95_upper": 0.008580104973055554
       }
     ]
   }

@@ -80,7 +80,10 @@
       "overdispersed": false,
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
-      "n_warn": 0
+      "n_warn": 0,
+      "min_detectable_ratio_median": 1.993536714198774,
+      "n_underpowered": 4,
+      "underpowered": false
     },
     "data": [
       {
@@ -96,7 +99,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.38351043855316247,
+        "ci_95_lower": 0.08001795745730567,
+        "ci_95_upper": 0.3205342433933702
       },
       {
         "x": 5,
@@ -111,7 +117,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.373317788069524,
+        "ci_95_lower": 0.04110150482249386,
+        "ci_95_upper": 0.22247090834022876
       },
       {
         "x": 9,
@@ -126,7 +135,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.3407664789434919,
+        "ci_95_lower": 0.06051331419038908,
+        "ci_95_upper": 0.23008839016903737
       },
       {
         "x": 3,
@@ -141,7 +153,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.3255603078040701,
+        "ci_95_lower": 0.052751513145687046,
+        "ci_95_upper": 0.20284659191698973
       },
       {
         "x": 7,
@@ -156,7 +171,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.30850206165428995,
+        "ci_95_lower": 0.06700593916015718,
+        "ci_95_upper": 0.21025494926335453
       },
       {
         "x": 2,
@@ -171,7 +189,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.2977977923880677,
+        "ci_95_lower": 0.07167967688875221,
+        "ci_95_upper": 0.19777641035182603
       },
       {
         "x": 6,
@@ -186,7 +207,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.28103006546163956,
+        "ci_95_lower": 0.08338380663952671,
+        "ci_95_upper": 0.1983869675990495
       },
       {
         "x": 10,
@@ -201,7 +225,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.26962751698097565,
+        "ci_95_lower": 0.07820482142664309,
+        "ci_95_upper": 0.17918207693911414
       },
       {
         "x": 4,
@@ -216,7 +243,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": false,
-        "excluded": true
+        "excluded": true,
+        "min_detectable": 0.24762166003500274,
+        "ci_95_lower": 0.08900292086334316,
+        "ci_95_upper": 0.173607749168045
       },
       {
         "x": 8,
@@ -231,7 +261,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.2415058268452026,
+        "ci_95_lower": 0.18046734428344946,
+        "ci_95_upper": 0.2764710056174562
       }
     ]
   }

@@ -228,14 +228,14 @@ _TAIL_EPS = 1e-20
 _MAX_TERMS = 100_000
 
 
-def _walk_quantiles(probs, ratio, start, upper):
+def _walk_terms(ratio, start, upper):
     """
-    Continuity-interpolated quantiles of a unimodal pmf given only its term ratio.
+    Unnormalised pmf terms of a unimodal distribution given only its term ratio.
 
     ratio(k) = f(k+1)/f(k); start is a point near the mode; upper is the last
-    support point (None when unbounded). Returns one quantile per p in probs, each
-    max(0, r − δ) with δ = (F(r) − p)/f(r) exactly as poisson_quantile_interp
-    ([1] A.1.1), or None when the walk exceeds _MAX_TERMS.
+    support point (None when unbounded). Returns (k_lo, terms, total): terms[j] is
+    proportional to f(k_lo + j), and total is their plain left-to-right sum. None
+    when the walk exceeds _MAX_TERMS.
     """
     # Upward from start, then downward; terms are relative to f(start) = 1.
     up = [1.0]
@@ -273,6 +273,21 @@ def _walk_quantiles(probs, ratio, start, upper):
     total = 0.0
     for t in terms:
         total += t
+    return k_lo, terms, total
+
+
+def _walk_quantiles(probs, ratio, start, upper):
+    """
+    Continuity-interpolated quantiles of a unimodal pmf given only its term ratio.
+
+    Arguments as _walk_terms. Returns one quantile per p in probs, each
+    max(0, r − δ) with δ = (F(r) − p)/f(r) exactly as poisson_quantile_interp
+    ([1] A.1.1), or None when the walk exceeds _MAX_TERMS.
+    """
+    walk = _walk_terms(ratio, start, upper)
+    if walk is None:
+        return None
+    k_lo, terms, total = walk
 
     out = []
     for p in probs:
@@ -330,6 +345,67 @@ def binomial_quantiles(probs, n, theta, zs):
     if out is None:
         return _normal_quantiles(probs, m * theta, m * theta * (1.0 - theta), zs), False
     return out, True
+
+
+def binomial_cdf(k: int, m: int, theta: float) -> float:
+    """
+    Binomial CDF F(k; m, θ) = P(X ≤ k), from the same lgamma-free walk as
+    binomial_quantiles.
+
+    The terms are normalised by their own total, so (1 − θ)^m, which underflows
+    for any denominator a hospital produces, is never formed. Terms dropped by the
+    walk's _TAIL_EPS cut sit below 1e-16 of the mass, so a k beyond the kept support
+    returns 0 or 1. NaN when the walk exceeds _MAX_TERMS.
+    """
+    if math.isnan(theta) or not (0.0 <= theta <= 1.0):
+        return math.nan
+    if k < 0:
+        return 0.0
+    if k >= m or theta <= 0.0:
+        return 1.0
+    if theta >= 1.0:
+        return 0.0
+    odds = theta / (1.0 - theta)
+
+    def ratio(j):
+        return (m - j) / (j + 1) * odds
+
+    start = min(m, int(math.floor((m + 1) * theta)))
+    walk = _walk_terms(ratio, start, m)
+    if walk is None:
+        return math.nan
+    k_lo, terms, total = walk
+    cdf = 0.0
+    for j in range(min(k - k_lo + 1, len(terms))):
+        cdf += terms[j]
+    return min(1.0, cdf / total)
+
+
+def binomial_theta_for_cdf(k: int, m: int, p: float) -> float:
+    """
+    The success probability θ satisfying F(k; m, θ) = p, found by bisection.
+
+    The binomial twin of poisson_mean_for_cdf, and exact in the same sense: F(k; m, θ)
+    is strictly decreasing in θ for 0 ≤ k < m, so the root in [0, 1] is unique.
+    Bisection runs _BISECT_ITERS halvings of [0, 1], resolving θ to ~1e-15.
+
+    No quantizing, unlike poisson_mean_for_cdf: binomial_cdf uses only + − × ÷,
+    which IEEE rounds exactly, so every comparison and therefore the whole bisection
+    path is identical across platforms and between this file and stats.ts.
+
+    NaN outside 0 ≤ k < m or for p outside (0, 1); at k ≥ m no θ moves the CDF off 1.
+    """
+    if math.isnan(p) or not (0.0 < p < 1.0) or k < 0 or k >= m:
+        return math.nan
+    lo = 0.0
+    hi = 1.0
+    for _ in range(_BISECT_ITERS):
+        mid = 0.5 * (lo + hi)
+        if binomial_cdf(k, m, mid) > p:
+            lo = mid  # still too much mass at or below k — θ must rise
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
 
 
 def poisson_gamma_quantiles(probs, lam, size, zs):

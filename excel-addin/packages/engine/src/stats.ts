@@ -196,10 +196,13 @@ const TAIL_EPS = 1e-20;
 /** Safety net for absurdly wide distributions; mirrors _MAX_TERMS. */
 const MAX_TERMS = 100_000;
 
-/** Continuity-interpolated quantiles from a term ratio. Twin of _walk_quantiles. */
-function walkQuantiles(
-  probs: readonly number[], ratio: (k: number) => number, start: number, upper: number | null
-): number[] | null {
+/**
+ * Unnormalised pmf terms from a term ratio, as [kLo, terms, total]. Twin of
+ * _walk_terms; null when the walk exceeds MAX_TERMS.
+ */
+function walkTerms(
+  ratio: (k: number) => number, start: number, upper: number | null
+): [number, number[], number] | null {
   const up: number[] = [1.0];
   let peak = 1.0;
   let u = 1.0;
@@ -228,6 +231,16 @@ function walkQuantiles(
   const kLo = start - down.length;
   let total = 0.0;
   for (const t of terms) total += t;
+  return [kLo, terms, total];
+}
+
+/** Continuity-interpolated quantiles from a term ratio. Twin of _walk_quantiles. */
+function walkQuantiles(
+  probs: readonly number[], ratio: (k: number) => number, start: number, upper: number | null
+): number[] | null {
+  const walk = walkTerms(ratio, start, upper);
+  if (walk === null) return null;
+  const [kLo, terms, total] = walk;
 
   const out: number[] = [];
   for (const p of probs) {
@@ -285,6 +298,49 @@ export function binomialQuantiles(
   const out = walkQuantiles(probs, ratio, start, m);
   if (out === null) return [normalQuantiles(m * theta, m * theta * (1.0 - theta), zs), false];
   return [out, true];
+}
+
+/**
+ * Binomial CDF F(k; m, θ) = P(X ≤ k) from the same lgamma-free walk as
+ * binomialQuantiles. Twin of binomial_cdf in dist.py: normalised by the terms' own
+ * total, so (1 − θ)^m, which underflows at hospital volumes, is never formed.
+ */
+export function binomialCdf(k: number, m: number, theta: number): number {
+  if (Number.isNaN(theta) || !(theta >= 0.0 && theta <= 1.0)) return NaN;
+  if (k < 0) return 0.0;
+  if (k >= m || theta <= 0.0) return 1.0;
+  if (theta >= 1.0) return 0.0;
+  const odds = theta / (1.0 - theta);
+  const ratio = (j: number) => (m - j) / (j + 1) * odds;
+  const start = Math.min(m, Math.floor((m + 1) * theta));
+  const walk = walkTerms(ratio, start, m);
+  if (walk === null) return NaN;
+  const [kLo, terms, total] = walk;
+  let cdf = 0.0;
+  const last = Math.min(k - kLo + 1, terms.length);
+  for (let j = 0; j < last; j++) cdf += terms[j];
+  return Math.min(1.0, cdf / total);
+}
+
+/**
+ * The θ satisfying F(k; m, θ) = p, by bisection on [0, 1]. Twin of
+ * binomial_theta_for_cdf. Not quantized: binomialCdf uses only + − × ÷, so the
+ * bisection path is already identical across platforms and languages.
+ * NaN outside 0 ≤ k < m or for p outside (0, 1).
+ */
+export function binomialThetaForCdf(k: number, m: number, p: number): number {
+  if (Number.isNaN(p) || !(p > 0 && p < 1) || k < 0 || k >= m) return NaN;
+  let lo = 0.0;
+  let hi = 1.0;
+  for (let i = 0; i < BISECT_ITERS; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (binomialCdf(k, m, mid) > p) {
+      lo = mid; // still too much mass at or below k — θ must rise
+    } else {
+      hi = mid;
+    }
+  }
+  return 0.5 * (lo + hi);
 }
 
 /**

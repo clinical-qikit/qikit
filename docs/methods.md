@@ -69,7 +69,7 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 | Outcome–volume association | Formal regression test (§4) | **Not yet** (§6) |
 | Multiple comparisons | Small P values; FDR "best carried out separately" (§6) | Same; the 95% band is a warn tier kept out of `signals` |
 | Change data, continuous outcomes | A.1.2, A.2.2, A.3 | Not offered |
-| Per-point power and intervals | Not part of the method | Extension on `oe`/`oep` (§4.8) |
+| Per-point power and intervals | Not part of the method | Extension on `oe`/`oep` and p/u funnels (§4.8) |
 
 ## 4. Design choices
 
@@ -209,19 +209,57 @@ report a signal. The 99.8% contour drives `sigma_signal`. With 99.8% limits abou
 of providers flag by chance, roughly one in a 500-provider funnel. Formal FDR control
 [12] is deferred, as [1, §6] recommends doing it separately.
 
-### 4.8 Power and intervals (O/E charts)
+### 4.8 Power and intervals
 
 Not part of [1]. At physician volumes a funnel mostly cannot detect even a doubling of
-risk [10], and a blank funnel reads as a clean bill of health. `oe`/`oep` therefore
-report:
+risk [10], and a blank funnel reads as a clean bill of health. This is in the spirit of
+Verburg's sample-size step [8, step 3], with a doubling rather than 1.5× as the
+reference effect. Power is fixed at 80% and is not a parameter: on a chart that feeds
+credentialing, a tunable threshold invites reporting whichever number reads best.
 
-- `min_detectable_oe`, at a fixed 80% power;
-- an exact Garwood 95% CI per point [5];
-- `underpowered`, `n_underpowered`, `min_detectable_oe_median` and `power_note`.
+**The detectable effect.** It is measured against the limit the chart actually draws,
+including the wider limits of `oep`/`pp`/`up`: the question is whether this point would
+flag on *this* chart. Signals fire strictly above `ucl`, so a count flags when
+X ≥ ⌊ucl·n⌋ + 1. The smallest true effect with 80% power is the one at which
+F(⌊ucl·n⌋) = 0.2. That equation is solved exactly by bisecting the CDF in its own
+parameter, never by scanning over ratios:
 
-This is in the spirit of Verburg's sample-size step [8, step 3], with a doubling rather
-than 1.5× as the reference effect. Extending this to p and u funnels is a planned
-follow-up.
+| Chart | Count model | Solved for | Column (y scale) | Per-point 95% CI |
+|---|---|---|---|---|
+| `oe`, `oep` | Poisson(ρE) | mean, then ρ = μ/E | `min_detectable_oe` | Garwood [5] |
+| `u`, `up` funnel | Poisson(θn) | mean, then θ = μ/n | `min_detectable` | Garwood [5] |
+| `p`, `pp` funnel | Binomial(n, θ) | θ directly | `min_detectable` | Clopper–Pearson [14] |
+
+A u funnel's algebra is the O/E chart's with exposure in place of expected events, so it
+reuses the same functions. A Clopper–Pearson interval inverts the exact binomial test the
+same way Garwood inverts the Poisson one: the lower bound is the θ at which x or more
+events has probability 0.025, and the upper bound is the θ at which x or fewer does.
+
+**Cross-platform reproducibility.** The Poisson solve sums lgamma terms, whose last ulp
+differs between platforms, so it is quantized to 1e-9. The binomial solve is lgamma-free. Its CDF is built from the
+term ratio outward from the mode, using the same walk as the binomial limits (§4.5), and
+normalized by its own total, so (1 − θ)ⁿ, which underflows at hospital volumes, is never
+formed. It uses only + − × ÷, so the bisection takes the same path on every platform and
+in both engines, and needs no quantizing.
+
+**The summary.** Every chart reports `underpowered`, `n_underpowered` and, when
+underpowered, a quotable `power_note`. Ghosted (`exclude=`) points are left out: they
+cannot flag, so they say nothing about the chart's reach.
+
+- **O/E.** The test is `min_detectable_oe > 2`, with the median reported as
+  `min_detectable_oe_median`.
+- **p/u funnels.** A proportion or rate has no natural unit, so the test is relative to
+  the center line: `min_detectable / cl > 2`, with the median of that ratio reported as
+  `min_detectable_ratio_median`. On a p funnel with cl ≥ 0.5 a doubling is not a
+  proportion. There only points that cannot flag at all count as underpowered; the ratio
+  still says how far above the line a point would have to be.
+
+**Edge cases.** A point whose limit reaches n cannot flag at any θ. Internally its
+detectable proportion is infinite, so it counts as underpowered and enters the median;
+the column shows NaN. With exact interpolated limits this is effectively unreachable.
+A non-integer denominator (an averaged or weighted n) has no binomial description,
+which is why its limits fall back to the normal approximation. For the same reason its
+detectability and interval are NaN rather than approximated.
 
 ## 5. Evidence from simulation
 
@@ -266,7 +304,7 @@ the nominal rate is 0.1%. "Outlier" is how often the planted outlier is detected
 - **Binary outcomes on an O/E chart.** Observed counts that are sums of yes/no outcomes
   have variance Σp(1 − p) < Σp = E. Poisson limits are therefore slightly too wide for
   common outcomes: about 8% at a 15% event rate, negligible for mortality.
-- **Planned:** power reporting for p/u funnels, a pre-specified τ [9], the volume test,
+- **Planned:** a pre-specified τ [9], the volume test,
   binomial variance for binary-outcome O/E when case counts are known, and FDR [12].
 
 ## References
@@ -302,3 +340,5 @@ the nominal rate is 0.1%. "Outlier" is how often the planted outlier is detected
     2008;61(3):232–240.
 13. Mainey C. FunnelPlotR: funnel plots for comparing institutional performance (R
     package). https://github.com/chrismainey/FunnelPlotR
+14. Clopper CJ, Pearson ES. The use of confidence or fiducial limits illustrated in the
+    case of the binomial. *Biometrika* 1934;26(4):404–413.

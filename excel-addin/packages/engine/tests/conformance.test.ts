@@ -69,7 +69,7 @@ describe('SPC Conformance Tests', () => {
                 [
                   'y', 'cl', 'ucl', 'lcl', 'ucl_95', 'lcl_95',
                   'sigma_signal', 'warn_signal', 'runs_signal', 'runs_signal_localized',
-                  'min_detectable_oe', 'ci_95_lower', 'ci_95_upper',
+                  'min_detectable_oe', 'min_detectable', 'ci_95_lower', 'ci_95_upper',
                 ].forEach(col => {
                     if (col in row && col in expRow) {
                         if (typeof row[col] === 'number' && row[col] !== null) {
@@ -79,7 +79,22 @@ describe('SPC Conformance Tests', () => {
                         }
                     }
                 });
+                // The guard above would let a missing power column pass silently.
+                for (const col of ['min_detectable_oe', 'min_detectable']) {
+                  expect(col in row).toEqual(col in expRow);
+                }
             });
+        }
+
+        // Power verdicts: one engine calling a chart underpowered while the other
+        // stays quiet is exactly the divergence the fixtures exist to catch.
+        for (const key of ['n_underpowered', 'underpowered', 'power_note']) {
+          expect(dict.summary?.[key]).toEqual(expected.summary?.[key]);
+        }
+        for (const key of ['min_detectable_oe_median', 'min_detectable_ratio_median']) {
+          const exp = expected.summary?.[key];
+          if (typeof exp === 'number') expect(dict.summary?.[key]).toBeCloseTo(exp, 5);
+          else expect(dict.summary?.[key] ?? null).toEqual(exp ?? null);
         }
       });
     });

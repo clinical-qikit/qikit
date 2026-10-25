@@ -6,6 +6,7 @@ import {
   MEAN_SOLVE_MAX_K,
   betaBinomialQuantiles,
   binomialQuantiles,
+  binomialThetaForCdf,
   byarQuantile,
   poissonGammaQuantiles,
   poissonMeanForCdf,
@@ -168,6 +169,86 @@ function oePowerSummary(
         `even a doubling of risk (smallest detectable O/E, median: ${median.toFixed(1)}). ` +
         `Absence of a signal is not evidence of acceptable performance; aggregate more ` +
         `time periods or compare at a higher level before drawing conclusions.`,
+    } : {}),
+  };
+}
+
+/** x as an integer when it is one to within float noise, else null. */
+function integerCount(x: number): number | null {
+  const r = Math.round(x);
+  return Math.abs(x - r) <= 1e-9 * Math.max(1.0, Math.abs(x)) ? r : null;
+}
+
+/**
+ * Smallest true proportion this point has an 80% chance of flagging on a p funnel.
+ * Twin of binomial_detectable_rate in limits.py: the θ at which
+ * F(floor(tCount); n, θ) = 0.2. Infinity when no count can flag (the limit sits at
+ * or above n); NaN without a usable, integer denominator. A u funnel reuses
+ * oeDetectableRatio, whose Poisson algebra is the same with exposure for E.
+ */
+export function binomialDetectableRate(tCount: number, n: number): number {
+  if (!(n > 0) || !Number.isFinite(tCount)) return NaN;
+  const m = integerCount(n);
+  if (m === null) return NaN;
+  const thr = Math.floor(tCount);
+  if (thr < 0) return NaN;
+  if (thr >= m) return Infinity;
+  return binomialThetaForCdf(thr, m, 0.2);
+}
+
+/**
+ * Exact (Clopper–Pearson) 95% CI for this point's own proportion. Twin of
+ * binomial_point_ci: x = 0 gives a lower bound of exactly 0, x = n an upper bound of
+ * exactly 1; NaN for a non-integer count or denominator.
+ */
+export function binomialPointCi(x: number, n: number): [number, number] {
+  if (!(n > 0) || Number.isNaN(x) || x < 0 || x > n) return [NaN, NaN];
+  const m = integerCount(n);
+  const k = integerCount(x);
+  if (m === null || k === null) return [NaN, NaN];
+  const lo = k === 0 ? 0.0 : binomialThetaForCdf(k - 1, m, 0.975);
+  const hi = k === m ? 1.0 : binomialThetaForCdf(k, m, 0.025);
+  return [lo, hi];
+}
+
+/** Median of an ascending array, as numpy.median takes it. */
+function sortedMedian(sorted: number[]): number {
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+/**
+ * The underpowered verdict for a p/u funnel. Twin of _funnel_power_summary in
+ * api.py: judged relative to the center line (min_detectable / cl > 2), on raw
+ * arrays, with unflaggable (Infinity) points counted and ghosted points left out.
+ */
+function funnelPowerSummary(
+  chart: string, detArr: number[], clArr: number[], excludeMask: boolean[]
+): Record<string, unknown> {
+  const counted = detArr
+    .map((d, i) => d / (clArr[i] > 0 ? clArr[i] : NaN))
+    .filter((r, i) => !excludeMask[i] && !Number.isNaN(r))
+    .sort((a, b) => a - b);
+  if (counted.length === 0) return {};
+
+  const median = sortedMedian(counted);
+  const nUnder = counted.filter(r => r > UNDERPOWERED_RATIO).length;
+  const underpowered = median > UNDERPOWERED_RATIO;
+  const noun = chart === 'p' || chart === 'pp' ? 'proportion' : 'rate';
+  const reach = Number.isFinite(median)
+    ? `median: ${median.toFixed(1)}× the center line`
+    : 'median: none, most points cannot flag at all';
+  return {
+    // NaN (null) only when over half the points cannot flag at all.
+    min_detectable_ratio_median: Number.isFinite(median) ? median : NaN,
+    n_underpowered: nUnder,
+    underpowered,
+    ...(underpowered ? {
+      power_note:
+        `${nUnder} of ${counted.length} points have too few cases to detect even a ` +
+        `doubling of the center-line ${noun} (smallest detectable ${noun}, ${reach}). ` +
+        `Absence of a signal is not evidence of acceptable performance; aggregate ` +
+        `more time periods or compare at a higher level before drawing conclusions.`,
     } : {}),
   };
 }
@@ -878,6 +959,27 @@ export function compute(input: SPCInput): SPCResult {
     }
   }
 
+  // The same question for a p/u funnel: what true proportion or rate a point would
+  // have needed before its silence meant anything. Raw arrays; for pp/up the drawn,
+  // over-dispersed limit, as oep uses its own. Mirrors _funnel_point_stats.
+  const isFunnelPower = funnel && ['p', 'pp', 'u', 'up'].includes(chart);
+  const fDetArr: number[] = [];
+  if (isFunnelPower) {
+    const binomial = chart === 'p' || chart === 'pp';
+    for (let i = 0; i < nPts; i++) {
+      const n = nCalc ? nCalc[i] : NaN;
+      const t = uclArr[i] * n;
+      const x = yCalc[i] * n;
+      fDetArr.push(binomial ? binomialDetectableRate(t, n) : oeDetectableRatio(t, n));
+      const [lo, hi] = binomial ? binomialPointCi(x, n) : oePointCi(x, n);
+      ciLoArr.push(lo);
+      ciHiArr.push(hi);
+    }
+  }
+  const funnelPower = isFunnelPower
+    ? funnelPowerSummary(chart, fDetArr, clArr.slice(), excludeMask)
+    : {};
+
   // Multiply
   if (multiply !== 1.0) {
     for (let i = 0; i < nPts; i++) {
@@ -889,6 +991,11 @@ export function compute(input: SPCInput): SPCResult {
       if (isOe) {
         // Every column on the y scale scales, same rule as the limits above.
         detArr[i]   *= multiply;
+        ciLoArr[i]  *= multiply;
+        ciHiArr[i]  *= multiply;
+      }
+      if (isFunnelPower) {
+        fDetArr[i]  *= multiply;
         ciLoArr[i]  *= multiply;
         ciHiArr[i]  *= multiply;
       }
@@ -915,6 +1022,13 @@ export function compute(input: SPCInput): SPCResult {
       // Event counts, not ratios, so multiply does not touch them.
       observed: yCalc[i] * (nCalc ? nCalc[i] : NaN),
       expected: nCalc ? nCalc[i] : NaN,
+    } : {}),
+    ...(isFunnelPower ? {
+      // Infinity (no count can flag) is not a value to plot or hover; the summary
+      // keeps it, the column says "none".
+      min_detectable: Number.isFinite(fDetArr[i]) ? fDetArr[i] : NaN,
+      ci_95_lower: ciLoArr[i],
+      ci_95_upper: ciHiArr[i],
     } : {}),
   }));
 
@@ -959,6 +1073,7 @@ export function compute(input: SPCInput): SPCResult {
     // funnel over small-volume providers mostly cannot detect anything, and the
     // honest reading of "no signal" there is "not enough data", not "fine".
     ...(isOe ? oePowerSummary(detArr, multiply, excludeMask) : {}),
+    ...funnelPower,
   };
 
   return {
@@ -986,8 +1101,8 @@ export function compute(input: SPCInput): SPCResult {
             ucl_95: isNaN(d.ucl_95) ? null : d.ucl_95,
             lcl_95: isNaN(d.lcl_95) ? null : d.lcl_95,
           };
-          // O/E-only columns; absent on every other chart, so guard by presence.
-          for (const col of ['min_detectable_oe', 'ci_95_lower', 'ci_95_upper']) {
+          // Power columns (O/E charts and p/u funnels); absent elsewhere, so guard by presence.
+          for (const col of ['min_detectable_oe', 'min_detectable', 'ci_95_lower', 'ci_95_upper']) {
             if (col in row && isNaN(row[col] as number)) row[col] = null;
           }
           return row;
