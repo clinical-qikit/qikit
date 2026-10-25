@@ -4,15 +4,23 @@ limits.py — center-line and control-limit functions per chart type.
 Each chart type is a ChartSpec with two functions: center and limits.
 No routing, no string dispatch. Adding a chart = two small functions + one dict entry.
 
+Funnel charts (p/pp/u/up with funnel=True, and oe/oep) follow Spiegelhalter [1]. The
+numbered references below are those of docs/methods.md, which records every design
+choice made here and each place it departs from the source.
+
 References
 ----------
-1. Montgomery DC. Introduction to Statistical Quality Control, 8th ed. Wiley, 2019.
-2. Provost LP, Murray SK. The Health Care Data Guide, 2nd ed. Jossey-Bass, 2022. ISBN 978-1-119-69013-9, 978-1-119-69012-2.
-5. Laney DB. Improved control charts for attributes. Quality Engineering 14(4), 2002.
-6. Spiegelhalter DJ. Funnel plots for comparing institutional performance.
-   Statistics in Medicine 2005;24(8):1185-1202.
-7. Spiegelhalter DJ. Handling over-dispersion of performance indicators.
-   Quality & Safety in Health Care 2005;14:347-351.
+    Montgomery DC. Introduction to Statistical Quality Control, 8th ed. Wiley, 2019.
+    Provost LP, Murray SK. The Health Care Data Guide, 2nd ed. Jossey-Bass, 2022.
+[1] Spiegelhalter DJ. Funnel plots for comparing institutional performance.
+    Statistics in Medicine 2005;24(8):1185-1202.
+[2] Spiegelhalter DJ. Handling over-dispersion of performance indicators.
+    Quality & Safety in Health Care 2005;14:347-351.
+[3] DerSimonian R, Laird N. Meta-analysis in clinical trials. Controlled Clinical
+    Trials 1986;7:177-188.
+[6] Laney DB. Improved control charts for attributes. Quality Engineering 14(4), 2002.
+[7] Clayton D, Kaldor J. Empirical Bayes estimates of age-standardized relative risks
+    for use in disease mapping. Biometrics 1987;43:671-681.
 """
 
 from __future__ import annotations
@@ -27,10 +35,18 @@ from .constants import D2, D4, Z_80, Z_95, Z_998, a3, b3, b4, c4
 from .dist import (
     _EXACT_MAX_LAMBDA,
     _MEAN_SOLVE_MAX_K,
+    beta_binomial_quantiles,
+    binomial_quantiles,
     byar_quantile,
+    poisson_gamma_quantiles,
     poisson_mean_for_cdf,
     poisson_quantile_interp,
 )
+
+# The two contours every funnel draws [1, §2]: (lower tail, upper tail, normal deviate).
+# The outer pair drives sigma_signal; the inner one is the 95% warn band.
+_OUTER = (0.001, 0.999, Z_998)
+_INNER = (0.025, 0.975, Z_95)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -291,17 +307,18 @@ def _up_limits(
     return cl + 3 * sigma, cl - 3 * sigma
 
 
-def _oe_limit_pair(
+def _poisson_funnel_pair(
     cl: float, n: np.ndarray | None, p_lower: float, p_upper: float,
     z: float, limit_method: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Funnel limits for an O/E chart at one probability contour, on the O/E scale.
+    Poisson funnel limits at one probability contour, on the rate (or O/E) scale.
 
-    With Eᵢ expected events and θ₀ the center line, the count of observed events is
-    modelled Poisson(λᵢ = θ₀·Eᵢ); the limit is that distribution's quantile divided
-    back through Eᵢ. Dividing by Eᵢ is what makes the funnel narrow as volume grows
-    while the underlying count distribution widens.
+    With nᵢ the denominator and θ₀ the center line, the count of events is modelled
+    Poisson(λᵢ = θ₀·nᵢ); the limit is that distribution's quantile divided back
+    through nᵢ [1, A.2.1]. For an O/E chart nᵢ is the expected events Eᵢ; for a u
+    funnel it is the exposure, which [1, A.2.3] treats the same way. Dividing by nᵢ is
+    what makes the funnel narrow as volume grows while the count distribution widens.
 
     Unlike the p/u charts these limits are asymmetric about the center line, which is
     the whole point at low volume: a physician with 3 expected deaths has a very
@@ -326,76 +343,123 @@ def _oe_limit_pair(
     return ucl / e, lcl / e
 
 
-def _oe_limits(
+def _poisson_funnel_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None,
     limit_method: str = "exact", **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """O/E (SMR) chart: 99.8% Poisson funnel limits. Spiegelhalter (2005), §3.2."""
-    return _oe_limit_pair(cl, n, 0.001, 0.999, Z_998, limit_method)
+    """O/E chart and u funnel: 99.8% exact Poisson limits [1, A.2.1]."""
+    return _poisson_funnel_pair(cl, n, *_OUTER, limit_method)
 
 
-def _oe_limits_95(
+def _poisson_funnel_limits_95(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None,
     limit_method: str = "exact", **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """O/E (SMR) chart: 95% Poisson funnel limits. Spiegelhalter (2005), §3.2."""
-    return _oe_limit_pair(cl, n, 0.025, 0.975, Z_95, limit_method)
+    """O/E chart and u funnel: 95% exact Poisson limits [1, A.2.1]."""
+    return _poisson_funnel_pair(cl, n, *_INNER, limit_method)
 
 
-def oe_dispersion_phi(
-    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
-) -> float:
+def _binomial_funnel_pair(
+    cl: float, n: np.ndarray | None, p_lower: float, p_upper: float, z: float,
+    diag: dict | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Winsorized multiplicative over-dispersion factor φ̂. Spiegelhalter, Quality &
-    Safety in Health Care 2005;14:347-351.
+    Exact binomial funnel limits at one contour, on the proportion scale [1, A.1.1].
 
-    Across a few hundred providers, exact Poisson limits routinely flag far more than
-    the nominal 0.2%: real providers differ from one another for reasons the risk
-    model does not capture, so the counts are over-dispersed relative to Poisson.
-    φ̂ measures that excess and widens the limits by √φ̂.
+    Asymmetric about the center line, as the Poisson pair is, and for the same reason:
+    a physician with 30 patients at a 10% event rate has room for 9 events above
+    expected but only 3 below. A non-integer denominator, which no binomial describes,
+    falls back to [1] eq. 3 and says so through diag.
+    """
+    e = np.asarray(n, dtype=float)
+    ucl = np.full(len(e), np.nan)
+    lcl = np.full(len(e), np.nan)
+    for i, ni in enumerate(e):
+        if not (ni > 0):
+            continue
+        (lo, hi), exact = binomial_quantiles((p_lower, p_upper), float(ni), cl, (-z, z))
+        if not exact and diag is not None:
+            diag["normal"] = True
+        ucl[i], lcl[i] = hi / ni, lo / ni
+    return ucl, lcl
 
-    Standardised residuals use the Poisson variance-stabilising transform
-    z = 2(√O − √(θ₀E)), which is far closer to standard normal at small expected
-    counts than the Pearson residual (O − θ₀E)/√(θ₀E). Since the whole reason this
-    chart type exists is small-volume providers, a residual that is skewed exactly
-    there would inflate φ̂ on distributional shape rather than on real dispersion.
 
-    The z's are winsorized at the 10th and 90th percentiles before squaring. Without
-    that, the genuine outliers being screened for would inflate φ̂ enough to widen the
-    limits past themselves — the estimate has to describe the background variation,
-    not the exceptions.
+def _p_funnel_limits(
+    cl: float, y: np.ndarray, n: np.ndarray | None,
+    mask: np.ndarray, subgroup_n: int | None = None, diag: dict | None = None, **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """p funnel: 99.8% exact binomial limits [1, A.1.1]."""
+    return _binomial_funnel_pair(cl, n, *_OUTER, diag)
 
-    Returns 1.0 (no adjustment) when φ̂ is within 2 standard errors of 1 under the
-    null, i.e. φ̂ ≤ 1 + 2√(2/K). Like Laney's σ_z, this only ever widens: an
-    under-dispersed sample falls back to the unadjusted limits rather than tightening
-    below them and manufacturing signals.
+
+def _p_funnel_limits_95(
+    cl: float, y: np.ndarray, n: np.ndarray | None,
+    mask: np.ndarray, subgroup_n: int | None = None, diag: dict | None = None, **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """p funnel: 95% exact binomial limits [1, A.1.1]."""
+    return _binomial_funnel_pair(cl, n, *_INNER, diag)
+
+
+def funnel_dispersion(
+    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray, family: str,
+) -> tuple[float, float]:
+    """
+    Spiegelhalter's over-dispersion estimate for a funnel: returns (φ̂, τ̂²).
+
+    Implemented as published [1, §5], with each choice recorded in docs/methods.md:
+
+    - Pearson residuals on the natural scale, zᵢ = (yᵢ − θ₀)/√V₀ᵢ [1, eq. 4], where
+      V₀ᵢ = θ₀/nᵢ for counts ("poisson": u, oe) and θ₀(1 − θ₀)/nᵢ for proportions
+      ("binomial": p). The natural scale is what makes τ² slot straight into the
+      variance V₀ᵢ + τ² of [1, eq. 11].
+    - 10% winsorizing, φ̂ = mean(z_W²) [1, eqs. 6, 8], so the outliers being screened
+      for cannot widen the limits past themselves.
+    - No debiasing factor. Winsorizing shrinks the variance of a normal sample to 0.68
+      of its value, and [1, eq. 9] gives the correction w(0.10) = 1.47, but [1] found it
+      gave "somewhat wide limits" and did not adopt it. Neither do we, so φ̂ averages
+      about 0.68 under pure chance and the method under- rather than over-adjusts.
+    - The additive random-effects variance by the method of moments [1, eq. 10; 3],
+      τ̂² = (Kφ̂ − (K−1)) / (Σwᵢ − Σwᵢ²/Σwᵢ) with wᵢ = 1/V₀ᵢ, and τ̂² = 0 whenever
+      φ̂ < (K−1)/K: no evidence of heterogeneity means none is assumed. It never goes
+      negative, so an under-dispersed sample keeps its unadjusted limits.
+
+    τ̂ is the standard deviation of providers' true rates (or true O/E) around θ₀ that
+    the null model does not explain, on the raw, pre-multiply scale.
 
     Caveat on small cohorts: winsorizing protects φ̂ from an outlier's own residual,
-    but the pooled ΣO/ΣE center line is not itself robust. Across a dozen providers
-    one extreme performer drags that line toward itself, which leaves every other
-    provider sitting systematically to one side of it and inflates φ̂ anyway. Passing
-    cl= (typically 1.0, the risk model's own benchmark) anchors the center line and
-    removes the effect. With a few hundred providers it is negligible.
+    but the pooled center line is not itself robust. Across a dozen providers one
+    extreme performer drags it toward itself, leaving every other provider to one side
+    and inflating φ̂ anyway. Passing cl= (for O/E typically 1.0, the risk model's own
+    benchmark) anchors the line and removes the effect.
+
+    φ̂ is NaN when fewer than two points carry a usable residual.
     """
     if n is None:
-        raise ValueError("Over-dispersion adjustment requires expected events (n=).")
+        raise ValueError("Over-dispersion estimation requires denominators (n=).")
 
     e = np.asarray(n, dtype=float)
-    observed = np.asarray(y, dtype=float) * e  # y arrives as the O/E ratio
-    with np.errstate(invalid="ignore"):
-        z = 2.0 * (np.sqrt(observed) - np.sqrt(cl * e))
+    v0 = cl / e if family == "poisson" else cl * (1.0 - cl) / e
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = (np.asarray(y, dtype=float) - cl) / np.sqrt(v0)
+        w = 1.0 / v0
 
-    z_valid = z[mask & np.isfinite(z)]
+    valid = mask & np.isfinite(z) & np.isfinite(w)
+    z_valid = z[valid]
     k = len(z_valid)
     if k < 2:
-        return 1.0
+        return math.nan, 0.0
 
     lo, hi = np.percentile(z_valid, [10.0, 90.0])
     phi = float(np.mean(np.clip(z_valid, lo, hi) ** 2))
 
-    return phi if phi > 1.0 + 2.0 * math.sqrt(2.0 / k) else 1.0
+    if k * phi <= k - 1:
+        return phi, 0.0
+    wv = w[valid]
+    sw = float(np.sum(wv))
+    tau2 = (k * phi - (k - 1)) / (sw - float(np.sum(wv * wv)) / sw)
+    return phi, max(0.0, tau2)
 
 
 def oe_detectable_ratio(t_count: float, e: float) -> float:
@@ -480,36 +544,102 @@ def oe_point_ci(o: float, e: float) -> tuple[float, float]:
     return (mu_lower / e, mu_upper / e)
 
 
-def _oep_limit_pair(
-    cl: float, n: np.ndarray | None, phi: float, z: float,
+def _mixture_funnel_pair(
+    cl: float, n: np.ndarray | None, tau2: float, family: str,
+    p_lower: float, p_upper: float, z: float, diag: dict | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Over-dispersed O/E limits: θ₀ ± z·√(φ̂·θ₀/Eᵢ).
+    Over-dispersed funnel limits at one contour: the additive random-effects model.
 
-    Necessarily a normal approximation — a multiplicative variance factor has no
-    counterpart in an exact Poisson quantile, so the two do not compose. This is the
-    same trade the Laney p′/u′ charts make, and the same one FunnelPlotR makes.
+    [1, eq. 11] draws θ₀ ± z·√(V₀ᵢ + τ²), a normal approximation. Here the same
+    model is drawn exactly, from the distribution it describes: each provider's true
+    rate is spread around θ₀ with variance τ², gamma-distributed for counts and
+    beta-distributed for proportions, and the observed count is Poisson or binomial
+    given that rate. Both mixtures have variance V₀ᵢ + τ² (the beta-binomial up to a
+    factor (nᵢ − 1)/nᵢ on τ²), so the only departure from [1] is exact quantiles in
+    place of normal ones — the substitution [1, Appendix A] itself makes for the
+    unadjusted limits. See docs/methods.md, "Adjusted limits".
+
+    Two consequences of the additive model are the reason for choosing it [1, §5; 2]:
+    at small volume, where V₀ᵢ dominates, the limits barely move from the unadjusted
+    ones; at large volume they level off at roughly θ₀ ± z·τ instead of closing onto
+    θ₀, so a high-volume provider is not flagged for a difference smaller than the
+    spread between providers.
+
+    τ² = 0 delegates to the unadjusted limits, so the two charts agree exactly when
+    there is no evidence of over-dispersion.
     """
+    if not (tau2 > 0):
+        if family == "binomial":
+            return _binomial_funnel_pair(cl, n, p_lower, p_upper, z, diag)
+        return _poisson_funnel_pair(cl, n, p_lower, p_upper, z, "exact")
+
     e = np.asarray(n, dtype=float)
-    e = np.where(e > 0, e, np.nan)
-    half = z * np.sqrt(phi * cl / e)
-    return cl + half, cl - half
+    ucl = np.full(len(e), np.nan)
+    lcl = np.full(len(e), np.nan)
+
+    if family == "poisson":
+        size = cl * cl / tau2
+        for i, ei in enumerate(e):
+            if not (ei > 0):
+                continue
+            (lo, hi), exact = poisson_gamma_quantiles((p_lower, p_upper), cl * ei, size, (-z, z))
+            if not exact and diag is not None:
+                diag["normal"] = True
+            ucl[i], lcl[i] = hi / ei, lo / ei
+        return ucl, lcl
+
+    s = cl * (1.0 - cl) / tau2 - 1.0
+    if not (s > 0):
+        # No beta distribution has this mean and variance: the providers spread wider
+        # than a proportion can. Fall back to [1, eq. 11] exactly as published.
+        if diag is not None:
+            diag["normal"] = True
+        with np.errstate(divide="ignore", invalid="ignore"):
+            half = z * np.sqrt(cl * (1.0 - cl) / np.where(e > 0, e, np.nan) + tau2)
+        return cl + half, cl - half
+
+    alpha, beta = cl * s, (1.0 - cl) * s
+    for i, ei in enumerate(e):
+        if not (ei > 0):
+            continue
+        (lo, hi), exact = beta_binomial_quantiles((p_lower, p_upper), float(ei), alpha, beta, (-z, z))
+        if not exact and diag is not None:
+            diag["normal"] = True
+        ucl[i], lcl[i] = hi / ei, lo / ei
+    return ucl, lcl
 
 
-def _oep_limits(
-    cl: float, y: np.ndarray, n: np.ndarray | None,
-    mask: np.ndarray, subgroup_n: int | None = None, **_,
+def _counts_adjusted_limits(
+    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Over-dispersed O/E chart: 99.8% limits. Spiegelhalter (2005), QSHC 14:347-351."""
-    return _oep_limit_pair(cl, n, oe_dispersion_phi(cl, y, n, mask), Z_998)
+    """oep, and up with funnel=True: 99.8% Poisson–gamma limits [1, eq. 11; 7]."""
+    return _mixture_funnel_pair(cl, n, tau2, "poisson", *_OUTER, diag)
 
 
-def _oep_limits_95(
-    cl: float, y: np.ndarray, n: np.ndarray | None,
-    mask: np.ndarray, subgroup_n: int | None = None, **_,
+def _counts_adjusted_limits_95(
+    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Over-dispersed O/E chart: 95% limits. Spiegelhalter (2005), QSHC 14:347-351."""
-    return _oep_limit_pair(cl, n, oe_dispersion_phi(cl, y, n, mask), Z_95)
+    """oep, and up with funnel=True: 95% Poisson–gamma limits [1, eq. 11; 7]."""
+    return _mixture_funnel_pair(cl, n, tau2, "poisson", *_INNER, diag)
+
+
+def _proportions_adjusted_limits(
+    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """pp with funnel=True: 99.8% beta-binomial limits [1, eq. 11]."""
+    return _mixture_funnel_pair(cl, n, tau2, "binomial", *_OUTER, diag)
+
+
+def _proportions_adjusted_limits_95(
+    cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
+) -> tuple[np.ndarray, np.ndarray]:
+    """pp with funnel=True: 95% beta-binomial limits [1, eq. 11]."""
+    return _mixture_funnel_pair(cl, n, tau2, "binomial", *_INNER, diag)
 
 
 def _xbar_limits(
@@ -555,8 +685,15 @@ class ChartSpec:
     limits_95: Callable | None = None
                         # Same signature as limits. Only for charts whose inner band
                         # is a genuine probability contour rather than 2/3 of the
-                        # outer one — see compute() and _oe_limits_95. None means the
-                        # caller derives the 95% band arithmetically as before.
+                        # outer one — every funnel, and oe/oep. None means the caller
+                        # derives the 95% band arithmetically as before.
+    family: str | None = None
+                        # The count model behind a funnel: "poisson" (u, oe) or
+                        # "binomial" (p). When set, compute() estimates over-dispersion
+                        # with funnel_dispersion() and reports it; None for every
+                        # time-ordered chart.
+    adjusted: bool = False
+                        # Whether the limits take the estimated τ² (pp/up funnels, oep).
 
 
 CHARTS: dict[str, ChartSpec] = {
@@ -572,10 +709,30 @@ CHARTS: dict[str, ChartSpec] = {
     "pp":   ChartSpec(_cl_weighted, _pp_limits, needs_n=True, is_attribute=True, floor_lcl=True),
     "up":   ChartSpec(_cl_weighted, _up_limits, needs_n=True, is_attribute=True, floor_lcl=True),
     "xbar": ChartSpec(_cl_grand_mean, _xbar_limits),
-    "oe":   ChartSpec(_cl_weighted, _oe_limits, needs_n=True, is_attribute=True,
-                      floor_lcl=True, limits_95=_oe_limits_95),
-    "oep":  ChartSpec(_cl_weighted, _oep_limits, needs_n=True, is_attribute=True,
-                      floor_lcl=True, limits_95=_oep_limits_95),
+    "oe":   ChartSpec(_cl_weighted, _poisson_funnel_limits, needs_n=True, is_attribute=True,
+                      floor_lcl=True, limits_95=_poisson_funnel_limits_95, family="poisson"),
+    "oep":  ChartSpec(_cl_weighted, _counts_adjusted_limits, needs_n=True, is_attribute=True,
+                      floor_lcl=True, limits_95=_counts_adjusted_limits_95, family="poisson",
+                      adjusted=True),
+}
+
+# What p, pp, u and up become with funnel=True. A funnel is a cross-sectional comparison,
+# so it takes Spiegelhalter's probability contours [1] rather than Shewhart's 3σ, and pp/up
+# take his additive over-dispersion adjustment rather than Laney's: Laney's σ_z is built
+# from moving ranges between consecutive points, which only means something in time
+# order [6]. The time-ordered entries in CHARTS above are untouched.
+FUNNEL_CHARTS: dict[str, ChartSpec] = {
+    "p":  ChartSpec(_cl_weighted, _p_funnel_limits, needs_n=True, is_attribute=True,
+                    floor_lcl=True, limits_95=_p_funnel_limits_95, family="binomial"),
+    "pp": ChartSpec(_cl_weighted, _proportions_adjusted_limits, needs_n=True,
+                    is_attribute=True, floor_lcl=True,
+                    limits_95=_proportions_adjusted_limits_95, family="binomial",
+                    adjusted=True),
+    "u":  ChartSpec(_cl_weighted, _poisson_funnel_limits, needs_n=True, is_attribute=True,
+                    floor_lcl=True, limits_95=_poisson_funnel_limits_95, family="poisson"),
+    "up": ChartSpec(_cl_weighted, _counts_adjusted_limits, needs_n=True, is_attribute=True,
+                    floor_lcl=True, limits_95=_counts_adjusted_limits_95, family="poisson",
+                    adjusted=True),
 }
 
 VALID_CHARTS = set(CHARTS) | {"t"}

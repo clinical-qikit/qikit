@@ -1,20 +1,25 @@
 """
-dist.py — Poisson quantile helpers for O/E (SMR) funnel limits.
+dist.py — exact quantile helpers for funnel limits.
 
 Pure Python + numpy, no scipy: the same constraint that makes signals.py compute
-its crossings threshold from math.comb rather than a binomial CDF library. Both
-functions have line-for-line twins in the TypeScript engine (engine/src/stats.ts),
+its crossings threshold from math.comb rather than a binomial CDF library. Every
+function has a line-for-line twin in the TypeScript engine (engine/src/stats.ts),
 so the shared fixtures reproduce on either language — keep the two in step, and in
-particular keep the CDF summation ascending in k so the float error matches.
+particular keep each summation in the same order so the float error matches.
+
+Numbered references are those of docs/methods.md, which records why each method
+was chosen and where it departs from the source.
 
 References
 ----------
-1. Spiegelhalter DJ. Funnel plots for comparing institutional performance.
-   Statistics in Medicine 2005;24(8):1185-1202. (Appendix A.1.1)
-2. Breslow NE, Day NE. Statistical Methods in Cancer Research, Vol II. IARC, 1987.
-   (Byar's approximation, via the Wilson-Hilferty transform.)
-3. Garwood F. Fiducial limits for the Poisson distribution. Biometrika 1936;28:437-442.
-   (The exact interval this module's mean-inversion produces.)
+[1] Spiegelhalter DJ. Funnel plots for comparing institutional performance.
+    Statistics in Medicine 2005;24(8):1185-1202. (Appendix A.1.1, A.2.1)
+[4] Breslow NE, Day NE. Statistical Methods in Cancer Research, Vol II. IARC, 1987.
+    (Byar's approximation, via the Wilson-Hilferty transform.)
+[5] Garwood F. Fiducial limits for the Poisson distribution. Biometrika 1936;28:437-442.
+    (The exact interval this module's mean-inversion produces.)
+[7] Clayton D, Kaldor J. Empirical Bayes estimates of age-standardized relative risks
+    for use in disease mapping. Biometrics 1987;43:671-681. (The Poisson–gamma model.)
 """
 
 from __future__ import annotations
@@ -191,3 +196,189 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
     jump = cdf - prev
     delta = (cdf - p) / jump if jump > 0 else 0.0
     return round(max(0.0, k - delta), _QUANTIZE_DECIMALS)
+
+
+# ---------------------------------------------------------------------------
+# Binomial, Poisson–gamma and beta-binomial quantiles
+# ---------------------------------------------------------------------------
+#
+# These three serve the p funnel (binomial, [1] A.1.1) and the over-dispersed funnels,
+# whose additive random-effects model [1, eq. 11] has an exact counterpart: true
+# provider rates drawn from a gamma (counts) or beta (proportions) distribution with
+# the estimated between-provider variance τ². See docs/methods.md, "Adjusted limits".
+#
+# Unlike poisson_quantile_interp they never call lgamma. Each pmf is built from its
+# term ratio f(k+1)/f(k) outward from the mode, starting at 1 and normalised at the
+# end. That has three properties worth keeping:
+#   - only + − × ÷, which IEEE rounds exactly, so the result is bit-identical across
+#     platforms and between this file and stats.ts (no libm last-ulp trap);
+#   - no catastrophic cancellation as τ² → 0, where the mixing parameter r or α+β
+#     grows without bound and a difference of lgammas loses every digit;
+#   - cost proportional to the distribution's spread, not to its mean, so a hospital
+#     with 100,000 discharges costs a few thousand terms, not a hundred thousand.
+# Poisson keeps its original loop so every existing O/E fixture is untouched.
+
+# Terms below this fraction of the largest are dropped. The neglected tail mass is
+# below 1e-16 of the total even for the slowest-decaying case reachable here.
+_TAIL_EPS = 1e-20
+
+# Safety net against a distribution so wide the walk would not finish, reachable only
+# for absurd between-provider variance (a gamma with shape far below 1 at a very large
+# mean). The caller then falls back to the normal approximation of [1, eq. 11].
+_MAX_TERMS = 100_000
+
+
+def _walk_quantiles(probs, ratio, start, upper):
+    """
+    Continuity-interpolated quantiles of a unimodal pmf given only its term ratio.
+
+    ratio(k) = f(k+1)/f(k); start is a point near the mode; upper is the last
+    support point (None when unbounded). Returns one quantile per p in probs, each
+    max(0, r − δ) with δ = (F(r) − p)/f(r) exactly as poisson_quantile_interp
+    ([1] A.1.1), or None when the walk exceeds _MAX_TERMS.
+    """
+    # Upward from start, then downward; terms are relative to f(start) = 1.
+    up = [1.0]
+    peak = 1.0
+    u = 1.0
+    k = start
+    while upper is None or k < upper:
+        u = u * ratio(k)
+        k += 1
+        if u > peak:
+            peak = u
+        if u < _TAIL_EPS * peak:
+            break
+        up.append(u)
+        if len(up) > _MAX_TERMS:
+            return None
+    down = []
+    u = 1.0
+    k = start
+    while k > 0:
+        u = u / ratio(k - 1)
+        k -= 1
+        if u > peak:
+            peak = u
+        if u < _TAIL_EPS * peak:
+            break
+        down.append(u)
+        if len(down) > _MAX_TERMS:
+            return None
+
+    terms = down[::-1] + up
+    k_lo = start - len(down)
+    # Plain left-to-right accumulation, not sum(): from Python 3.12 the builtin uses
+    # compensated summation, which the TypeScript twin does not.
+    total = 0.0
+    for t in terms:
+        total += t
+
+    out = []
+    for p in probs:
+        cdf = 0.0
+        prev = 0.0
+        r = k_lo
+        for t in terms:
+            prev = cdf
+            cdf += t / total
+            if cdf >= p:
+                break
+            r += 1
+        else:
+            # p sits in the float plateau at the top of the CDF; the support's last
+            # kept point is the answer.
+            out.append(float(k_lo + len(terms) - 1))
+            continue
+        jump = cdf - prev
+        delta = (cdf - p) / jump if jump > 0 else 0.0
+        out.append(round(max(0.0, r - delta), _QUANTIZE_DECIMALS))
+    return out
+
+
+def _normal_quantiles(probs, mean, var, zs):
+    """[1] eq. 3 / eq. 11 on the count scale, for the fallbacks above."""
+    sd = math.sqrt(var)
+    return [max(0.0, mean + z * sd) for z in zs]
+
+
+def binomial_quantiles(probs, n, theta, zs):
+    """
+    Continuity-interpolated Binomial(n, θ) quantiles on the count scale, [1] A.1.1.
+
+    Returns (quantiles, exact). zs are the normal deviates matching probs, used only
+    by the fallback, which reports exact=False: a non-integer n (an averaged or
+    weighted denominator, which no binomial describes) and the _MAX_TERMS safety net
+    both take the normal approximation of [1] eq. 3.
+    """
+    if not (n > 0) or math.isnan(n) or math.isnan(theta):
+        return [math.nan] * len(probs), True
+    if theta <= 0.0:
+        return [0.0] * len(probs), True
+    if theta >= 1.0:
+        return [float(n)] * len(probs), True
+    if abs(n - round(n)) > 1e-9 * max(1.0, n):
+        return _normal_quantiles(probs, n * theta, n * theta * (1.0 - theta), zs), False
+    m = int(round(n))
+    odds = theta / (1.0 - theta)
+
+    def ratio(k):
+        return (m - k) / (k + 1) * odds
+
+    start = min(m, int(math.floor((m + 1) * theta)))
+    out = _walk_quantiles(probs, ratio, start, m)
+    if out is None:
+        return _normal_quantiles(probs, m * theta, m * theta * (1.0 - theta), zs), False
+    return out, True
+
+
+def poisson_gamma_quantiles(probs, lam, size, zs):
+    """
+    Continuity-interpolated Poisson–gamma (negative binomial) quantiles [7].
+
+    The count is Poisson(θᵢE) with θᵢ ~ Gamma(mean θ₀, variance τ²), so with
+    λ = θ₀E and size r = θ₀²/τ² it has mean λ and variance λ + λ²/r: on the ratio
+    scale θ₀/E + τ², exactly the variance of [1] eq. 11. size = inf is the plain
+    Poisson, which callers route to poisson_quantile_interp instead. Returns
+    (quantiles, exact), as binomial_quantiles does.
+    """
+    if not (lam > 0) or math.isnan(lam) or not (size > 0):
+        return [math.nan] * len(probs), True
+    q = lam / (size + lam)
+
+    def ratio(k):
+        return (k + size) / (k + 1) * q
+
+    start = int(math.floor((size - 1.0) * lam / size)) if size > 1.0 else 0
+    out = _walk_quantiles(probs, ratio, start, None)
+    if out is None:
+        return _normal_quantiles(probs, lam, lam + lam * lam / size, zs), False
+    return out, True
+
+
+def beta_binomial_quantiles(probs, n, alpha, beta, zs):
+    """
+    Continuity-interpolated beta-binomial quantiles on the count scale.
+
+    The count is Binomial(n, θᵢ) with θᵢ ~ Beta(α, β); α = θ₀s, β = (1 − θ₀)s and
+    s = θ₀(1 − θ₀)/τ² − 1 give the beta mean θ₀ and variance τ², so the proportion
+    has variance θ₀(1 − θ₀)/n + τ²(n − 1)/n — [1] eq. 11 up to the (n − 1)/n on τ².
+    Returns (quantiles, exact); a non-integer n takes the normal approximation.
+    """
+    if not (n > 0) or math.isnan(n) or not (alpha > 0) or not (beta > 0):
+        return [math.nan] * len(probs), True
+    m = int(round(n))
+    theta = alpha / (alpha + beta)
+    if abs(n - m) > 1e-9 * max(1.0, n):
+        var = n * theta * (1.0 - theta) * (alpha + beta + n) / (alpha + beta + 1.0)
+        return _normal_quantiles(probs, n * theta, var, zs), False
+
+    def ratio(k):
+        return (m - k) * (alpha + k) / ((k + 1) * (beta + m - k - 1))
+
+    start = min(m, int(math.floor(m * theta)))
+    out = _walk_quantiles(probs, ratio, start, m)
+    if out is None:
+        var = m * theta * (1.0 - theta) * (alpha + beta + m) / (alpha + beta + 1.0)
+        return _normal_quantiles(probs, m * theta, var, zs), False
+    return out, True

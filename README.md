@@ -36,16 +36,19 @@ All chart types are computed by the same `qic()` entry point via the `chart=` ar
 | `s` | S chart | Subgroup standard deviation |
 | `t` | Time-between-events chart | Time or count between rare events |
 | `p` | P chart | Proportion (percent) defective, unequal subgroup sizes |
-| `pp` | P′ (Laney) chart | Proportion data with overdispersion |
+| `pp` | P′ chart | Proportions with overdispersion: Laney in time order, additive random effects in a funnel |
 | `c` | C chart | Count of defects, constant opportunity |
 | `u` | U chart | Rate of defects, unequal opportunity |
-| `up` | U′ (Laney) chart | Rate data with overdispersion |
+| `up` | U′ chart | Rates with overdispersion: Laney in time order, additive random effects in a funnel |
 | `g` | G chart | Number of opportunities between rare events |
 | `oe` | O/E (SMR) chart | Observed vs risk-model expected events, e.g. mortality O/E |
-| `oep` | O/E with over-dispersion | O/E across many providers, limits widened by √φ̂ |
+| `oep` | O/E with over-dispersion | O/E across providers, judged against the spread between them |
 
 `qic(..., funnel=True)` renders a funnel plot instead, for cross-sectional comparison
-across p/pp/u/up/oe/oep charts sorted by denominator.
+across p/pp/u/up/oe/oep charts sorted by denominator, with Spiegelhalter's exact 95% and
+99.8% probability contours in place of 3σ. Every method, reference and design choice
+behind the funnels is recorded in [docs/methods.md](docs/methods.md), including where
+qikit follows Spiegelhalter (2005) and where it departs from him.
 
 ### Risk-adjusted O/E funnel plots
 
@@ -53,9 +56,10 @@ across p/pp/u/up/oe/oep charts sorted by denominator.
 
 | What you are comparing | Use |
 | --- | --- |
-| Units on events against exposure (device-days, discharges) | `p` / `u` with `funnel=True` |
+| Units on a proportion (readmissions per discharge) | `p` with `funnel=True` |
+| Units on a rate against exposure (infections per device-day) | `u` with `funnel=True` |
 | Providers on outcomes against model-expected events (Vizient O/E) | `oe` with `funnel=True` |
-| Many providers, where `oe` flags an implausible number of them | `oep` |
+| Any of those whose summary reports `overdispersed` | Also run `pp` / `up` with `funnel=True`, or `oep`; signals on both charts are the robust ones |
 | Anything whose summary reports `underpowered` | Aggregate more time, or compare at a higher level, before concluding |
 
 `chart="oe"` compares observed events against model-derived expected events — the form
@@ -80,26 +84,49 @@ them against the risk model itself.
 
 #### Over-dispersion
 
-Across a few hundred providers, exact Poisson limits typically flag far more than the
-nominal 0.2% — real providers differ for reasons no risk model fully captures.
-`chart="oep"` applies Spiegelhalter's winsorized multiplicative adjustment
-(*QSHC* 2005;14:347-351), widening the limits by √φ̂:
+Providers often differ from one another by more than chance allows, because no risk model
+captures everything. Across a few hundred hospitals, exact limits can flag far more than
+the nominal 0.2%. Every funnel, and every `oe` chart, estimates that excess spread the
+way Spiegelhalter published it (*Stat Med* 2005, §5). It uses Pearson residuals,
+winsorized at the 10th/90th percentiles so the outliers being screened for cannot
+inflate it, and a method-of-moments between-provider variance τ²:
+
+```python
+r = qic(y=observed, n=expected, chart="oe", funnel=True)
+r.summary["dispersion_tau"]    # spread of true O/E between providers; 0.0 when none is detected
+r.summary["overdispersed"]     # True when τ̂ > 0
+r.summary["dispersion_note"]   # one quotable sentence, present only when overdispersed
+```
+
+An unadjusted funnel (`p`, `u`, `oe`) reports the estimate but does not use it. It
+answers *is this provider consistent with the target, given chance?* The adjusted funnels
+(`pp` and `up` with `funnel=True`, and `oep`) answer *is this provider unusual, given the
+spread between providers?* They draw the additive random-effects model of his eq. 11:
+each provider's true rate varies around the target with SD τ̂. The limits are the exact
+Poisson–gamma or beta-binomial quantiles of that model rather than its normal
+approximation:
 
 ```python
 r = qic(y=observed, n=expected, chart="oep", funnel=True)
-r.summary["dispersion_phi"]       # 1.0 means no adjustment was warranted
-r.summary["dispersion_adjusted"]  # False when the sample is within noise of Poisson
+r.summary["dispersion_adjusted"]  # False when τ̂ = 0, and then the limits are oe's exactly
+r.summary["dispersion_method"]    # "additive"
 ```
 
-φ̂ is estimated from variance-stabilized residuals winsorized at the 10th/90th
-percentiles, so the outliers being screened for cannot inflate the limits past
-themselves. Like Laney's σ_z it only ever widens: an under-dispersed sample falls back
-to the unadjusted limits. These limits are a normal approximation — a multiplicative
-variance factor has no exact-Poisson counterpart, so `limit_method=` does not apply.
+Under the additive model the smallest providers' limits barely move, because their own
+noise dominates. The busiest providers' limits level off at roughly θ₀ ± z·τ instead of
+closing onto the center line. At physician volumes τ̂ is usually 0, and the two charts
+are then identical. On the bundled 24-surgeon data it is 0.
 
-On a small cohort, note that one extreme provider will drag the pooled center line
-toward itself and inflate φ̂ even after its own residual is clipped; pass `cl=1.0` to
-anchor the center line if that matters.
+Choose which question you are asking before looking at the results. Treat a non-zero τ̂
+as a finding about the system: unmeasured case mix, data differences or real variation
+in practice. Spiegelhalter calls the adjustment a temporary measure, not a fix. Outside a
+funnel, `pp`/`up` remain Laney's p′/u′ charts, whose moving-range σ_z is designed for
+time order.
+
+On a small cohort, one extreme provider drags the pooled center line toward itself and
+inflates τ̂ even after its own residual is clipped. Pass `cl=1.0` to anchor the O/E
+center line if that matters. [docs/methods.md](docs/methods.md) covers this and the
+estimator's known downward bias.
 
 #### Physician-level comparison
 
