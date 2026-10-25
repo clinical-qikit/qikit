@@ -118,8 +118,9 @@ describe('multiply', () => {
   });
 
   test('dispersion_phi is multiply-invariant', () => {
-    // Regression: the summary previously fed the multiply-scaled centre line into
-    // oeDispersionPhi against raw ratios, silently corrupting φ̂ whenever multiply≠1.
+    // Regression: the summary once fed the multiply-scaled centre line into the
+    // dispersion estimate against raw ratios, silently corrupting φ̂ whenever
+    // multiply≠1. The estimate now runs per segment on raw arrays, before multiply.
     const y = [23, 8, 34, 19, 59, 31, 72, 38];
     const n = [12, 18, 25, 30, 38, 45, 55, 64];
     const base = compute({ y, n, chart: 'oep', funnel: true }).summary.dispersion_phi;

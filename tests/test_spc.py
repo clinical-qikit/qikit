@@ -2196,13 +2196,13 @@ class TestOEFunnelCalibration:
 
 
 class TestOEOverdispersion:
-    """chart='oep' — O/E funnel with Spiegelhalter's over-dispersion adjustment."""
+    """chart='oep' — O/E funnel with Spiegelhalter's additive over-dispersion adjustment."""
 
     # Twelve providers whose ratios vary far more than Poisson allows.
     Y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88]
     N = [12.0, 18.0, 25.0, 30.0, 38.0, 45.0, 55.0, 64.0, 72.0, 85.0, 96.0, 110.0]
 
-    # Near-Poisson counterpart: phi must fall back to 1.0.
+    # Near-Poisson counterpart: τ̂² must come out 0.
     Y_TIGHT = [12, 19, 24, 31, 37, 46, 54, 66, 71, 86, 95, 111]
 
     def _oep(self, y=None, **kw):
@@ -2211,17 +2211,24 @@ class TestOEOverdispersion:
     def test_detects_overdispersion(self):
         r = self._oep()
         assert r.summary["dispersion_adjusted"] is True
-        assert r.summary["dispersion_phi"] == pytest.approx(6.228815, abs=1e-6)
+        assert r.summary["overdispersed"] is True
+        assert r.summary["dispersion_method"] == "additive"
+        assert r.summary["dispersion_phi"] == pytest.approx(6.261737, abs=1e-6)
+        assert r.summary["dispersion_tau"] == pytest.approx(0.335455, abs=1e-6)
 
-    def test_widens_limits_by_root_phi(self):
-        """The adjustment is multiplicative on the standard deviation."""
-        adjusted = self._oep()
-        phi = adjusted.summary["dispersion_phi"]
-        cl = adjusted.data["cl"].iloc[0]
-        unadjusted_half = _constants.Z_998 * math.sqrt(cl / min(self.N))
-        assert adjusted.data["ucl"].iloc[0] - cl == pytest.approx(
-            unadjusted_half * math.sqrt(phi)
-        )
+    def test_estimator_matches_spiegelhalter_by_hand(self):
+        """[1] eqs. 4, 6, 8 and 10, written out independently of the engine."""
+        y, n = np.array(self.Y, float), np.array(self.N)
+        cl = y.sum() / n.sum()
+        z = (y / n - cl) / np.sqrt(cl / n)                    # eq. 4, Pearson
+        lo, hi = np.percentile(z, [10, 90])
+        phi = np.mean(np.clip(z, lo, hi) ** 2)                # eqs. 6 and 8
+        w = n / cl
+        k = len(y)
+        tau2 = (k * phi - (k - 1)) / (w.sum() - (w ** 2).sum() / w.sum())  # eq. 10
+        r = self._oep()
+        assert r.summary["dispersion_phi"] == pytest.approx(phi)
+        assert r.summary["dispersion_tau"] == pytest.approx(math.sqrt(tau2))
 
     def test_clears_points_the_unadjusted_chart_flags(self):
         """The point of the adjustment: 3 of 12 flagged at 99.8% is not a credible
@@ -2230,42 +2237,58 @@ class TestOEOverdispersion:
         assert plain.data["sigma_signal"].sum() == 3
         assert self._oep().data["sigma_signal"].sum() == 0
 
-    def test_falls_back_to_unadjusted_when_within_noise(self):
-        """φ only ever widens: an under-dispersed sample must not tighten below the
-        model and manufacture signals. Same contract as Laney's σ_z."""
+    def test_equals_oe_exactly_when_tau_is_zero(self):
+        """No evidence of over-dispersion, no adjustment: the two charts must agree to
+        the bit. The 0.4 multiplicative version drew a normal approximation here that
+        sat 7-10% inside oe's exact upper limit at small E."""
         r = self._oep(y=self.Y_TIGHT)
-        assert r.summary["dispersion_phi"] == 1.0
+        plain = qic(y=self.Y_TIGHT, n=self.N, chart="oe", funnel=True)
+        assert r.summary["dispersion_tau"] == 0.0
         assert r.summary["dispersion_adjusted"] is False
+        for col in ("ucl", "lcl", "ucl_95", "lcl_95"):
+            assert r.data[col].tolist() == plain.data[col].tolist()
 
-        cl = r.data["cl"].iloc[0]
-        expected_ucl = [cl + _constants.Z_998 * math.sqrt(cl / e) for e in sorted(self.N)]
-        assert r.data["ucl"].tolist() == pytest.approx(expected_ucl)
-
-    def test_phi_threshold_is_two_standard_errors(self):
-        """φ̂ ≤ 1 + 2√(2/K) is treated as noise around 1."""
+    def test_phi_below_its_null_threshold_assumes_homogeneity(self):
+        """[1]: if φ̂ < (K−1)/K, τ̂² is set to 0. The published, unwinsorized-debiased
+        φ̂ averages ~0.68 under chance, so this is the usual outcome at physician scale."""
+        r = self._oep(y=self.Y_TIGHT)
         k = len(self.Y_TIGHT)
-        raw = _limits.oe_dispersion_phi(
-            1.003076923076923,
-            np.array(self.Y_TIGHT) / np.array(self.N),
-            np.array(self.N),
-            np.ones(k, dtype=bool),
-        )
-        # Clamped, so the reported value is exactly 1.0 rather than the raw estimate.
-        assert raw == 1.0
-        assert 1.0 + 2.0 * math.sqrt(2.0 / k) == pytest.approx(1.816497, abs=1e-6)
+        assert r.summary["dispersion_phi"] < (k - 1) / k
 
-    @staticmethod
-    def _phi_from(y, n, cl):
-        z = 2.0 * (np.sqrt(np.array(y, dtype=float)) - np.sqrt(cl * np.array(n)))
-        return float(np.mean(z ** 2))
+    def test_limits_level_off_at_high_volume(self):
+        """The additive model's defining property [1, Fig. 6c]: a high-volume provider
+        is judged against the spread between providers, so the band levels off near
+        θ₀ ± z·τ instead of closing onto θ₀ as the unadjusted limits do."""
+        y = self.Y + [10_000]
+        n = self.N + [10_000.0]
+        r = qic(y=y, n=n, chart="oep", funnel=True)
+        plain = qic(y=y, n=n, chart="oe", funnel=True)
+        cl, tau = r.data["cl"].iloc[0], r.summary["dispersion_tau"]
+        top = r.data.iloc[-1]
+        assert top["ucl"] - cl > 0.9 * _constants.Z_998 * tau
+        assert plain.data.iloc[-1]["ucl"] - cl < 0.1 * (top["ucl"] - cl)
+
+    def test_widening_grows_with_volume(self):
+        """V₀ dominates at small E, τ² at large E: the adjustment matters most for the
+        busiest providers and barely at all for the smallest."""
+        adj = self._oep().data
+        plain = qic(y=self.Y, n=self.N, chart="oe", funnel=True).data
+        ratio = (adj["ucl"] - adj["cl"]) / (plain["ucl"] - plain["cl"])
+        assert ratio.iloc[-1] > ratio.iloc[0] > 1.0
+
+    def test_limits_are_asymmetric(self):
+        """Exact Poisson–gamma quantiles, not the symmetric normal of [1] eq. 11."""
+        row = self._oep().data.iloc[0]
+        assert row["ucl"] - row["cl"] > row["cl"] - row["lcl"]
 
     def test_winsorizing_blunts_an_outlier_in_the_dispersion_estimate(self):
         """Without it, the outliers being screened for would widen the limits past
         themselves."""
         y = list(self.Y_TIGHT)
         y[5] = 300  # one absurd provider on an otherwise in-control cohort
-        cl = sum(y) / sum(self.N)
-        raw = self._phi_from(y, self.N, cl)
+        yy, n = np.array(y, float), np.array(self.N)
+        cl = yy.sum() / n.sum()
+        raw = float(np.mean(((yy / n - cl) / np.sqrt(cl / n)) ** 2))
         winsorized = self._oep(y=y).summary["dispersion_phi"]
         assert raw > 30.0
         assert winsorized < raw / 5.0
@@ -2273,39 +2296,30 @@ class TestOEOverdispersion:
     def test_a_lone_outlier_still_leaks_in_through_the_pooled_center_line(self):
         """A documented limitation, not a defect of the winsorizing.
 
-        The pooled ΣO/ΣE is not itself robust: on a small cohort one extreme
-        provider drags the center line up, which then makes every other provider
-        look systematically low and inflates φ̂ even after their z's are clipped.
-        Anchoring the center with cl= sidesteps it entirely.
+        The pooled ΣO/ΣE is not itself robust: on a small cohort one extreme provider
+        drags the center line toward itself, every other provider then sits to one side
+        of it, and τ̂ inflates even though the outlier's own residual is clipped. Here
+        that is enough to hide the provider entirely. Anchoring with cl= removes it.
         """
-        y = list(self.Y_TIGHT)
-        y[5] = 300
-        assert self._oep(y=y).summary["dispersion_phi"] > 3.0
-        assert self._oep(y=y, cl=1.0).summary["dispersion_phi"] == 1.0
-
-    def test_retains_sensitivity_to_a_true_extreme(self):
-        r = self._oep(y=[23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 400])
-        assert r.data.loc[r.data["y"] > 3.0, "sigma_signal"].all()
+        y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 400]
+        pooled = self._oep(y=y)
+        anchored = self._oep(y=y, cl=1.0)
+        assert pooled.summary["dispersion_tau"] > anchored.summary["dispersion_tau"]
+        assert not pooled.data["sigma_signal"].iloc[-1]
+        assert anchored.data["sigma_signal"].iloc[-1]
 
     def test_center_line_is_the_pooled_smr(self):
         assert self._oep().data["cl"].iloc[0] == pytest.approx(sum(self.Y) / sum(self.N))
 
-    def test_95_band_uses_the_same_phi(self):
+    def test_95_band_uses_the_same_tau(self):
         r = self._oep()
-        cl = r.data["cl"].iloc[0]
-        phi = r.summary["dispersion_phi"]
-        expected = cl + _constants.Z_95 * math.sqrt(phi * cl / min(self.N))
-        assert r.data["ucl_95"].iloc[0] == pytest.approx(expected)
-
-    def test_limits_are_symmetric_about_the_center_line(self):
-        """Unlike exact-Poisson oe limits — a multiplicative φ forces the normal
-        approximation, since the two do not compose."""
-        r = self._oep()
-        row = r.data.iloc[-1]
-        assert row["ucl"] - row["cl"] == pytest.approx(row["cl"] - row["lcl"])
+        d = r.data
+        assert ((d["ucl_95"] < d["ucl"]) & (d["lcl_95"] > d["lcl"])).all()
+        plain = qic(y=self.Y, n=self.N, chart="oe", funnel=True).data
+        assert (d["ucl_95"] > plain["ucl_95"]).all()
 
     def test_rejects_limit_method(self):
-        """There is no quantile method to choose once φ forces a normal approximation."""
+        """Poisson–gamma quantiles have no Byar counterpart, so there is nothing to choose."""
         with pytest.raises(ValueError, match="not available for chart='oep'"):
             self._oep(limit_method="exact")
 
@@ -2318,6 +2332,215 @@ class TestOEOverdispersion:
         assert self._oep(exclude=1).summary["dispersion_phi"] != pytest.approx(
             self._oep().summary["dispersion_phi"]
         )
+
+    def test_multiply_does_not_change_the_estimate(self):
+        """φ̂ and τ̂ are statements about the raw ratio; multiply only rescales the axis."""
+        base, scaled = self._oep(), self._oep(multiply=100)
+        assert scaled.summary["dispersion_tau"] == base.summary["dispersion_tau"]
+        assert scaled.data["ucl"].tolist() == pytest.approx((base.data["ucl"] * 100).tolist())
+
+
+class TestMixtureQuantiles:
+    """dist.binomial_quantiles / poisson_gamma_quantiles / beta_binomial_quantiles.
+
+    Pinned values agree with scipy.stats (binom, nbinom, betabinom) interpolated the
+    same way to < 1e-9, and the beta-binomial case with 60-digit mpmath; scipy's own
+    betabinom drifts by ~1e-5 there, from the lgamma cancellation these functions avoid.
+    """
+
+    P = (0.001, 0.025, 0.975, 0.999)
+    Z = (-_constants.Z_998, -_constants.Z_95, _constants.Z_95, _constants.Z_998)
+
+    @pytest.mark.parametrize("fn,args,expected", [
+        (_dist.binomial_quantiles, (40, 0.15), [0.0, 1.353317438, 10.274115942, 13.407411677]),
+        (_dist.binomial_quantiles, (500, 0.06), [14.37069487, 19.488889585, 40.335778753, 47.099535085]),
+        (_dist.poisson_gamma_quantiles, (12.0, 4.0), [0.0, 1.426666667, 28.035000962, 42.959417236]),
+        (_dist.poisson_gamma_quantiles, (60.0, 25.0), [23.458676928, 34.336499809, 90.132141283, 111.962395051]),
+        # θ = 0.02, τ = 0.00012: α + β = θ(1 − θ)/τ² − 1.
+        (_dist.beta_binomial_quantiles, (800, "bb"), [4.692840993, 8.189438538, 23.729079843, 29.00454447]),
+    ])
+    def test_reference_values(self, fn, args, expected):
+        if args[-1] == "bb":
+            s = 0.02 * 0.98 / 0.00012 ** 2 - 1
+            args = (args[0], 0.02 * s, 0.98 * s)
+        got, exact = fn(self.P, *args, self.Z)
+        assert exact is True
+        assert got == pytest.approx(expected, abs=2e-9)
+
+    def test_binomial_matches_a_direct_cdf(self):
+        n, th = 20, 0.3
+        cdf = np.cumsum([math.comb(n, k) * th ** k * (1 - th) ** (n - k) for k in range(n + 1)])
+        got, _ = _dist.binomial_quantiles((0.025, 0.975), n, th, (-1.96, 1.96))
+        for p, q in zip((0.025, 0.975), got):
+            r = int(np.searchsorted(cdf, p))
+            f = cdf[r] - (cdf[r - 1] if r else 0.0)
+            assert q == pytest.approx(r - (cdf[r] - p) / f, abs=1e-9)
+
+    def test_poisson_gamma_tends_to_poisson(self):
+        got, _ = _dist.poisson_gamma_quantiles(self.P, 7.3, 1e12, self.Z)
+        assert got == pytest.approx([_dist.poisson_quantile_interp(p, 7.3) for p in self.P], abs=1e-8)
+
+    def test_beta_binomial_tends_to_binomial(self):
+        got, _ = _dist.beta_binomial_quantiles(self.P, 50, 0.2e12, 0.8e12, self.Z)
+        expected, _ = _dist.binomial_quantiles(self.P, 50, 0.2, self.Z)
+        assert got == pytest.approx(expected, abs=1e-8)
+
+    def test_non_integer_n_falls_back_to_normal(self):
+        """No binomial has 40.5 trials; [1] eq. 3 is the honest answer, and says so."""
+        got, exact = _dist.binomial_quantiles((0.999,), 40.5, 0.15, (_constants.Z_998,))
+        assert exact is False
+        assert got[0] == pytest.approx(40.5 * 0.15 + _constants.Z_998 * math.sqrt(40.5 * 0.15 * 0.85))
+
+    def test_degenerate_rates(self):
+        assert _dist.binomial_quantiles(self.P, 30, 0.0, self.Z)[0] == [0.0] * 4
+        assert _dist.binomial_quantiles(self.P, 30, 1.0, self.Z)[0] == [30.0] * 4
+        assert all(math.isnan(v) for v in _dist.poisson_gamma_quantiles(self.P, 0.0, 4.0, self.Z)[0])
+
+    def test_quantiles_sit_inside_their_integer_bracket(self):
+        got, _ = _dist.beta_binomial_quantiles(self.P, 120, 2.9, 26.1, self.Z)
+        assert got == sorted(got)
+        assert all(q >= 0 for q in got)
+
+
+class TestFunnelDispersionEstimator:
+    """limits.funnel_dispersion — Spiegelhalter [1] §5 as published."""
+
+    def test_binomial_family_uses_the_binomial_variance(self):
+        y = np.array([4, 9, 3, 15, 8, 22, 30, 12], float)
+        n = np.array([40, 60, 50, 90, 100, 150, 200, 160], float)
+        cl = y.sum() / n.sum()
+        phi, tau2 = _limits.funnel_dispersion(cl, y / n, n, np.ones(8, bool), "binomial")
+        z = (y / n - cl) / np.sqrt(cl * (1 - cl) / n)
+        lo, hi = np.percentile(z, [10, 90])
+        assert phi == pytest.approx(np.mean(np.clip(z, lo, hi) ** 2))
+
+    def test_tau_never_negative(self):
+        n = np.array([100.0] * 10)
+        y = np.full(10, 0.1)  # every provider exactly on target
+        phi, tau2 = _limits.funnel_dispersion(0.1, y, n, np.ones(10, bool), "binomial")
+        assert phi == 0.0 and tau2 == 0.0
+
+    def test_too_few_points(self):
+        phi, tau2 = _limits.funnel_dispersion(1.0, np.array([1.2]), np.array([10.0]), np.ones(1, bool), "poisson")
+        assert math.isnan(phi) and tau2 == 0.0
+
+    def test_ignores_points_outside_the_mask(self):
+        y = np.array([1.0, 1.1, 0.9, 5.0])
+        n = np.array([20.0, 30.0, 40.0, 50.0])
+        a = _limits.funnel_dispersion(1.0, y, n, np.array([True, True, True, False]), "poisson")
+        b = _limits.funnel_dispersion(1.0, y[:3], n[:3], np.ones(3, bool), "poisson")
+        assert a == b
+
+
+class TestExactFunnelLimits:
+    """p and u with funnel=True: Spiegelhalter's exact contours instead of 3σ."""
+
+    Y = [3, 7, 5, 12, 9, 20, 18, 31]
+    N = [20, 40, 55, 80, 95, 130, 160, 240]
+
+    def test_p_funnel_limits_are_exact_binomial(self):
+        r = qic(y=self.Y, n=self.N, chart="p", funnel=True)
+        cl = sum(self.Y) / sum(self.N)
+        n0 = sorted(self.N)[0]
+        (lo, hi), _ = _dist.binomial_quantiles((0.001, 0.999), n0, cl, (-_constants.Z_998, _constants.Z_998))
+        assert r.data["ucl"].iloc[0] == pytest.approx(hi / n0)
+        assert r.data["lcl"].iloc[0] == pytest.approx(lo / n0)
+        assert r.summary["limit_method"] == "exact"
+
+    def test_u_funnel_is_the_poisson_funnel(self):
+        """A u funnel and an O/E funnel are the same model with a different
+        denominator [1, A.2.3]: exposure in place of expected events."""
+        u = qic(y=self.Y, n=self.N, chart="u", funnel=True).data
+        oe = qic(y=self.Y, n=self.N, chart="oe", funnel=True).data
+        for col in ("cl", "ucl", "lcl", "ucl_95", "lcl_95"):
+            assert u[col].tolist() == oe[col].tolist()
+
+    def test_time_ordered_p_and_u_keep_3_sigma(self):
+        r = qic(y=self.Y, n=self.N, chart="p")
+        cl = sum(self.Y) / sum(self.N)
+        assert r.data["ucl"].iloc[0] == pytest.approx(cl + 3 * math.sqrt(cl * (1 - cl) / self.N[0]))
+        assert "limit_method" not in r.summary
+        assert "dispersion_phi" not in r.summary
+
+    def test_funnel_reports_dispersion_without_adjusting(self):
+        r = qic(y=self.Y, n=self.N, chart="p", funnel=True)
+        for key in ("dispersion_phi", "dispersion_tau", "overdispersed"):
+            assert key in r.summary
+        assert "dispersion_adjusted" not in r.summary
+
+    def test_dispersion_note_only_when_overdispersed(self):
+        quiet = qic(y=self.Y, n=self.N, chart="p", funnel=True)
+        assert quiet.summary["overdispersed"] is False
+        assert "dispersion_note" not in quiet.summary
+        y = [1, 19, 2, 40, 5, 70, 10, 120]
+        loud = qic(y=y, n=self.N, chart="p", funnel=True)
+        assert loud.summary["overdispersed"] is True
+        assert "chart='pp' with funnel=True" in loud.summary["dispersion_note"]
+
+    def test_non_integer_denominator_is_reported(self):
+        r = qic(y=self.Y, n=[v + 0.5 for v in self.N], chart="p", funnel=True)
+        assert r.summary["limit_method"] == "normal"
+
+
+class TestAdjustedFunnels:
+    """pp/up with funnel=True, and oep: the same additive model across families."""
+
+    COUNTS = dict(y=[23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88],
+                  n=[12.0, 18.0, 25.0, 30.0, 38.0, 45.0, 55.0, 64.0, 72.0, 85.0, 96.0, 110.0])
+    PROPS = dict(y=[2, 14, 5, 30, 9, 41, 20, 77, 35, 50, 160, 96],
+                 n=[40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 500, 600])
+    TIGHT_PROPS = dict(y=[4, 6, 5, 8, 10, 12, 15, 21, 25, 30, 51, 60],
+                       n=[40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 500, 600])
+
+    @pytest.mark.parametrize("chart,plain,data", [
+        ("up", "u", "COUNTS"), ("oep", "oe", "COUNTS"), ("pp", "p", "PROPS"),
+    ])
+    def test_adjusts_and_levels_off(self, chart, plain, data):
+        d = getattr(self, data)
+        adj = qic(chart=chart, funnel=True, **d)
+        ref = qic(chart=plain, funnel=True, **d)
+        assert adj.summary["dispersion_adjusted"] is True
+        widen = (adj.data["ucl"] - adj.data["cl"]) / (ref.data["ucl"] - ref.data["cl"])
+        assert widen.iloc[-1] > widen.iloc[0] > 1.0
+
+    def test_pp_equals_p_when_tau_is_zero(self):
+        adj = qic(chart="pp", funnel=True, **self.TIGHT_PROPS)
+        ref = qic(chart="p", funnel=True, **self.TIGHT_PROPS)
+        assert adj.summary["dispersion_tau"] == 0.0
+        for col in ("ucl", "lcl", "ucl_95", "lcl_95"):
+            assert adj.data[col].tolist() == ref.data[col].tolist()
+
+    def test_up_and_oep_agree(self):
+        """Same Poisson–gamma model; only the name of the denominator differs."""
+        up = qic(chart="up", funnel=True, **self.COUNTS).data
+        oep = qic(chart="oep", funnel=True, **self.COUNTS).data
+        assert up["ucl"].tolist() == oep["ucl"].tolist()
+
+    def test_time_ordered_pp_up_stay_laney(self):
+        """Laney's σ_z is the right tool in time order, which is what it was built for."""
+        r = qic(chart="pp", **self.PROPS)
+        assert r.summary["dispersion_method"] == "laney"
+        assert "dispersion_tau" not in r.summary
+
+    def test_laney_in_a_funnel_would_have_erased_real_signals(self):
+        """Why the funnel no longer uses σ_z. On the bundled 3-year surgeon data the
+        published test finds no over-dispersion, yet moving ranges taken in volume
+        order widened the old up funnel by 1.87x and hid all three signals."""
+        df = pd.read_csv("data/examples/physician_mortality_oe.csv")
+        agg = df.groupby("physician", as_index=False)[["observed_deaths", "expected_deaths"]].sum()
+        r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
+                chart="up", funnel=True)
+        assert r.summary["dispersion_tau"] == 0.0
+        assert sorted(r.data.loc[r.data["sigma_signal"], "x"]) == ["SURG-07", "SURG-15", "SURG-21"]
+
+    def test_beta_binomial_infeasible_spread_falls_back_and_says_so(self):
+        diag = {}
+        ucl, lcl = _limits._mixture_funnel_pair(
+            0.2, np.array([50.0, 100.0]), 0.2 * 0.8, "binomial", 0.001, 0.999,
+            _constants.Z_998, diag,
+        )
+        assert diag == {"normal": True}
+        assert ucl[0] == pytest.approx(0.2 + _constants.Z_998 * math.sqrt(0.16 / 50 + 0.16))
 
 
 class TestPoissonMeanInversion:

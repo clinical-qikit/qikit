@@ -1,5 +1,8 @@
 """
 compute.py — public, pure-numpy entry point for SPC limits and signal detection.
+
+Bracketed references ([1] is Spiegelhalter 2005, Stat Med) are those of
+docs/methods.md, as in limits.py.
 """
 
 from __future__ import annotations
@@ -8,7 +11,9 @@ from typing import Any
 
 import numpy as np
 
-from .limits import CHARTS, VALID_CHARTS
+import math
+
+from .limits import CHARTS, FUNNEL_CHARTS, VALID_CHARTS, funnel_dispersion
 from .signals import _runs_signals, _sigma_signals
 
 
@@ -24,6 +29,7 @@ def compute(
     exclude_mask: np.ndarray | None = None,
     sigma_hat: float | None = None,
     limit_method: str = "exact",
+    funnel: bool = False,
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
@@ -49,12 +55,20 @@ def compute(
                    not include freeze/part boundaries.
     limit_method : quantile method for charts with probability-based limits
                    ("exact" | "byar"). Ignored by every other chart type.
+    funnel       : take the funnel version of p/pp/u/up (FUNNEL_CHARTS): exact
+                   probability contours, and for pp/up the additive over-dispersion
+                   adjustment. No effect on other charts. This does not sort — the
+                   caller (qic) owns the ordering.
 
     Returns
     -------
     dict with keys: y, cl, ucl, lcl, sigma_signal, runs_signal, summary.
-    Charts defining spec.limits_95 (the O/E funnel) also return ucl_95/lcl_95;
+    Charts defining spec.limits_95 (funnels and oe/oep) also return ucl_95/lcl_95;
     every other chart leaves the caller to derive that band from the 3σ spread.
+    Those charts also add to summary: limit_method, and where the chart has a count
+    model (spec.family) the over-dispersion keys dispersion_phi, dispersion_tau and
+    overdispersed, plus dispersion_method and dispersion_adjusted when the limits use
+    the estimate. A time-ordered pp/up reports dispersion_method = "laney".
     """
     if chart not in CHARTS:
         raise ValueError(
@@ -62,7 +76,7 @@ def compute(
             f"Valid types: {sorted(VALID_CHARTS)}"
         )
 
-    spec = CHARTS[chart]
+    spec = FUNNEL_CHARTS.get(chart, CHARTS[chart]) if funnel else CHARTS[chart]
     y = np.asarray(y, dtype=float)
 
     if mask is None:
@@ -91,14 +105,36 @@ def compute(
 
     cl_arr = np.full(len(y), cl_val, dtype=float)
 
+    # Over-dispersion, estimated once per chart against the center line it is drawn
+    # around [1, §5]. An unadjusted funnel reports it as a diagnostic; an adjusted one
+    # also draws its limits from it. Baseline points only, as for the center line.
+    dispersion: dict[str, Any] = {}
+    tau2 = 0.0
+    if spec.family is not None and n is not None:
+        phi, tau2 = funnel_dispersion(cl_val, y, n, mask, spec.family)
+        dispersion = {
+            "dispersion_phi": phi,
+            "dispersion_tau": math.sqrt(tau2),
+            "overdispersed": tau2 > 0,
+        }
+        if spec.adjusted:
+            dispersion["dispersion_method"] = "additive"
+            dispersion["dispersion_adjusted"] = tau2 > 0
+    elif chart in ("pp", "up"):
+        # The same chart code means a different method in time order; say which.
+        dispersion = {"dispersion_method": "laney"}
+
     # Limits. A chart whose center line varies per point (S chart with unequal
     # subgroup sizes, where CL = c4(nᵢ)·σ̂) returns it as an optional third element
     # rather than through spec.center, which is scalar by contract. An explicit
-    # cl_override always wins — the user asked for a fixed line.
-    ucl_arr, lcl_arr, *cl_var = spec.limits(
-        cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat,
-        limit_method=limit_method,
+    # cl_override always wins — the user asked for a fixed line. diag collects any
+    # point whose exact limits had to fall back to the normal approximation.
+    diag: dict[str, Any] = {}
+    limit_kw = dict(
+        s_bar=s_bar, sigma_hat=sigma_hat, limit_method=limit_method,
+        tau2=tau2 if spec.adjusted else 0.0, diag=diag,
     )
+    ucl_arr, lcl_arr, *cl_var = spec.limits(cl_val, y, n, mask, subgroup_n, **limit_kw)
     if cl_override is None and cl_var and cl_var[0] is not None:
         cl_arr = np.asarray(cl_var[0], dtype=float)
 
@@ -110,10 +146,7 @@ def compute(
     # so its 95% contour has to be computed from the distribution in its own right.
     extra: dict[str, Any] = {}
     if spec.limits_95 is not None:
-        ucl_95, lcl_95 = spec.limits_95(
-            cl_val, y, n, mask, subgroup_n, s_bar=s_bar, sigma_hat=sigma_hat,
-            limit_method=limit_method,
-        )
+        ucl_95, lcl_95 = spec.limits_95(cl_val, y, n, mask, subgroup_n, **limit_kw)
         if spec.floor_lcl:
             lcl_95 = np.where(lcl_95 < 0, 0.0, lcl_95)
         extra["ucl_95"], extra["lcl_95"] = ucl_95, lcl_95
@@ -127,6 +160,18 @@ def compute(
         y_signal = np.where(np.asarray(exclude_mask, dtype=bool), np.nan, y)
     sigma_sig = _sigma_signals(y_signal, ucl_arr, lcl_arr)
     runs_sig, runs_loc, runs_summary = _runs_signals(y_signal, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
+
+    if spec.limits_95 is not None:
+        # Which method drew the limits is not recoverable from the numbers alone, and a
+        # funnel is the kind of chart that ends up in a credentialing file. Record it.
+        runs_summary = {
+            **runs_summary,
+            "limit_method": (
+                "normal" if diag.get("normal")
+                else limit_method if chart == "oe" else "exact"
+            ),
+        }
+    runs_summary = {**runs_summary, **dispersion}
 
     return {
         "y": y,

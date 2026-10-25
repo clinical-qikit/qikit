@@ -53,16 +53,27 @@ class SPCResult:
                  freeze, excluded, plus the runs method's own keys (longest_run,
                  n_crossings, thresholds, …; runs_disabled/note on a funnel).
                  n_warn — count of warn_signal points, wherever that column exists.
-                 O/E charts add:
-                   limit_method        — oe only: "exact" or "byar"
-                   dispersion_phi      — oep only: Spiegelhalter's winsorized
-                                         multiplicative over-dispersion factor φ̂.
-                                         Dimensionless (a variance ratio against
-                                         Poisson). Set to 1.0 when the sample is
-                                         within 2 SE of Poisson; never below 1.0.
-                                         The limits are widened by √φ̂.
-                   dispersion_adjusted — oep only: φ̂ > 1.0, i.e. the limits were
-                                         actually widened
+                 Funnels (p/pp/u/up with funnel=True) and oe/oep add:
+                   limit_method        — "exact", or "byar" on an oe chart that
+                                         asked for it, or "normal" if any point
+                                         fell back to the normal approximation
+                                         (a non-integer denominator, say)
+                   dispersion_phi      — Spiegelhalter's 10%-winsorized dispersion
+                                         ratio φ̂ (Stat Med 2005, eqs. 6, 8), as
+                                         published: averages ~0.68 under chance
+                   dispersion_tau      — τ̂, the SD of providers' true rates (or
+                                         true O/E) around the center line beyond
+                                         what chance explains, on the raw scale;
+                                         0.0 when φ̂ < (K−1)/K
+                   overdispersed       — τ̂ > 0
+                   dispersion_note     — unadjusted charts (p/u/oe), only when
+                                         overdispersed: one quotable sentence
+                   dispersion_method   — "additive" on pp/up funnels and oep;
+                                         "laney" on time-ordered pp/up
+                   dispersion_adjusted — adjusted charts only: τ̂ > 0, i.e. the
+                                         limits actually moved
+                 docs/methods.md records the method behind each of these.
+                 O/E charts also add:
                    min_detectable_oe_median — median of min_detectable_oe over
                                          non-excluded points (raw O/E scale)
                    n_underpowered      — points that could not detect a doubling

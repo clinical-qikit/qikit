@@ -5,6 +5,17 @@ export type ChartType =
 /** Quantile method for the oe chart's Poisson funnel limits. */
 export type LimitMethod = 'exact' | 'byar';
 
+/** The count model behind a funnel: Poisson for u/oe, binomial for p. */
+export type DispersionFamily = 'poisson' | 'binomial';
+
+/**
+ * Collects whether any point's exact limits fell back to the normal approximation, so
+ * the summary can say so. Mirrors the diag dict passed to the Python limits functions.
+ */
+export interface LimitDiag {
+  normal?: boolean;
+}
+
 export type SignalMethod = 'anhoej' | 'ihi' | 'weco' | 'nelson';
 
 export interface SPCInput {
@@ -30,7 +41,9 @@ export interface SPCInput {
   /** Fallback subgroup size, used only when no per-point n array is available.
    *  Not a constraint — any size >= 2 is valid. */
   subgroupN?: number;
-  /** Funnel plot mode (p/pp/u/up/oe only): sort by denominator ascending, sigma signals only. */
+  /** Funnel plot mode (p/pp/u/up/oe/oep): sort by denominator ascending, sigma signals
+   *  only, and Spiegelhalter's exact probability contours. pp/up in a funnel take his
+   *  additive over-dispersion adjustment instead of Laney's σ_z. See docs/methods.md. */
   funnel?: boolean;
   /** Quantile method for the oe chart's funnel limits, and valid only there.
    *  "exact" (default) inverts the Poisson CDF with Spiegelhalter's continuity
@@ -66,7 +79,8 @@ export interface ChartSpec {
    */
   limits: (cl: number, y: number[], n: number[] | undefined,
            mask: boolean[], subgroupN?: number, sBar?: number,
-           sigmaHat?: number, limitMethod?: LimitMethod) => [number[], number[]] | [number[], number[], number[]];
+           sigmaHat?: number, limitMethod?: LimitMethod,
+           tau2?: number, diag?: LimitDiag) => [number[], number[]] | [number[], number[], number[]];
   /**
    * The 95% band, for charts whose inner band is a genuine probability contour
    * rather than two thirds of the outer one — see the oe chart. Undefined means the
@@ -75,8 +89,13 @@ export interface ChartSpec {
    */
   limits95?: (cl: number, y: number[], n: number[] | undefined,
               mask: boolean[], subgroupN?: number, sBar?: number,
-              sigmaHat?: number, limitMethod?: LimitMethod) => [number[], number[]];
+              sigmaHat?: number, limitMethod?: LimitMethod,
+              tau2?: number, diag?: LimitDiag) => [number[], number[]];
   needsN: boolean;
   isAttribute: boolean;
   floorLcl: boolean;
+  /** Count model of a funnel; when set, compute() estimates and reports over-dispersion. */
+  family?: DispersionFamily;
+  /** Whether the limits take the estimated τ² (pp/up funnels, oep). */
+  adjusted?: boolean;
 }

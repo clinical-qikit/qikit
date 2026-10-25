@@ -63,6 +63,13 @@ engine lacked or hadn't proven. All three parity items landed 2026-07-08.
    (Since fixed: `cms_hospital_infections_sample.csv` now holds real CMS HAI
    data — CLABSI/CAUTI observed cases + device days for 25 hospitals —
    suitable as funnel-plot demo data.)
+   **Engine change in 0.5.0:** funnels now use Spiegelhalter's exact 95%/99.8%
+   contours (binomial for p, Poisson for u), and pp/up/oep funnels use his
+   additive over-dispersion adjustment with exact Poisson–gamma and beta-binomial
+   limits instead of Laney's σ_z or a multiplicative φ̂ (`FUNNEL_CHARTS` and
+   `funnelDispersion` in `spc-core.ts`, twins of `limits.py`). Time-ordered charts
+   are unchanged. Methods and references are in `docs/methods.md`. Any UI work on
+   funnels should surface `summary.dispersion_note` and `summary.limit_method`.
 2. ~~**Laney p′/u′ σ_z validation.**~~ ✅ Audit found this was already proven:
    both Laney fixtures are genuinely overdispersed (implied σ_z ≈ 3.2 / 3.6 —
    plain p/u limits would differ by >2×) and the TS snapshot comparison pins

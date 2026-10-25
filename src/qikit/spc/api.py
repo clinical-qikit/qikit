@@ -24,7 +24,6 @@ from .limits import (
     CHARTS,
     VALID_CHARTS,
     oe_detectable_ratio,
-    oe_dispersion_phi,
     oe_point_ci,
 )
 from .options import (
@@ -52,6 +51,15 @@ _RESERVED_COLUMNS = frozenset({
 # On a time-ordered chart one point beyond 2σ is not a signal on its own.
 _WARN_CHARTS = ("oe", "oep")
 _WARN_FUNNEL_CHARTS = ("p", "pp", "u", "up")
+
+# Unadjusted charts with an over-dispersion-adjusted counterpart, and how
+# dispersion_note names what they compare: (counterpart call, what explains the spread,
+# what τ is a spread of).
+_DISPERSION_NOTE = {
+    "oe": ("chart='oep'", "the risk model and chance", "O/E"),
+    "p": ("chart='pp' with funnel=True", "chance", "proportions"),
+    "u": ("chart='up' with funnel=True", "chance", "rates"),
+}
 
 # ---------------------------------------------------------------------------
 # qic() — main entry point
@@ -144,15 +152,14 @@ def qic(
              n= is the model-derived expected events, so each point is a ratio
              and the center line is the pooled ΣO/ΣE. Limits are Poisson
              probability contours rather than 3σ — see limit_method.
-             oep is the same chart with Spiegelhalter's over-dispersion
-             adjustment: limits widen by √φ̂ when providers vary by more than
-             the risk model explains, which across a few hundred of them is the
-             usual case. φ̂ is reported in summary["dispersion_phi"], and equals
-             1.0 (limits untouched) when the sample is within noise of Poisson.
-             Prefer oep when comparing roughly 20 or more providers, unless the
-             risk model is trusted to capture the differences between them.
-             summary["dispersion_adjusted"] says whether φ̂ engaged; see the
-             SPCResult docstring for every O/E summary key.
+             oep is the same chart with Spiegelhalter's additive over-dispersion
+             adjustment: each provider is judged against the estimated spread of
+             true O/E between providers (τ̂, summary["dispersion_tau"]) as well
+             as against chance, so the busiest providers' limits level off rather
+             than closing onto the center line. With τ̂ = 0 its limits are oe's
+             exactly. oe reports the same estimate without applying it, plus a
+             dispersion_note when it is non-zero. See docs/methods.md for the
+             method, and the SPCResult docstring for every O/E summary key.
              Both report per-point min_detectable_oe and a 95% CI, plus
              summary["underpowered"] — at physician volumes a funnel often
              cannot detect even a doubling of risk, and a point inside the
@@ -167,7 +174,9 @@ def qic(
              benchmark against the risk model itself rather than against the
              cohort: cl=1.0 asks "who differs from their expected count?", while
              the default pooled ΣO/ΣE asks "who differs from their peers?" and so
-             absorbs any overall miscalibration of the expected-events model.
+             absorbs any overall miscalibration of the expected-events model. The
+             over-dispersion estimate is taken around this line, so on a small
+             cohort anchoring it also keeps one extreme provider from inflating τ̂.
     multiply : multiply y values by this factor; note that y_percent=True (default
                for p/pp charts) already handles percent display — combining both
                will produce unexpectedly large values and raises a UserWarning
@@ -176,6 +185,12 @@ def qic(
                detection (only sigma signals are meaningful cross-sectionally),
                and renders markers only with all x-axis labels shown.
                Valid only for charts with denominators (p, pp, u, up, oe, oep).
+               Limits become Spiegelhalter's exact 99.8% (ucl/lcl) and 95%
+               (ucl_95/lcl_95) probability contours — binomial for p, Poisson for
+               u — instead of 3σ. pp/up switch from Laney's σ_z, which assumes
+               time order, to the additive over-dispersion adjustment oep uses.
+               summary gains limit_method and the dispersion_* keys; see
+               docs/methods.md for every method and its reference.
                notes=, a list-valued target= and exclude= are given in *input*
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
@@ -191,7 +206,9 @@ def qic(
                faster and agrees closely once expected counts reach ~20 but
                drifts below that — exactly where per-physician volumes live.
                The two limit levels are fixed at 95% (ucl_95/lcl_95, drawn with
-               show_95=True) and 99.8% (ucl/lcl, which drive sigma_signal).
+               show_95=True) and 99.8% (ucl/lcl, which drive sigma_signal). Every
+               other funnel, and oep, always uses exact limits;
+               summary["limit_method"] records which method drew them.
     show_x_labels : when False, hide the x-axis tick labels while keeping the
                full label in the hover tooltip. Intended for funnel plots over
                hundreds of categorical units, where the axis text is unreadable
@@ -254,15 +271,15 @@ def qic(
 
     if limit_method is not None and chart == "oep":
         raise ValueError(
-            "limit_method= is not available for chart='oep'. A multiplicative "
-            "over-dispersion factor has no counterpart in an exact Poisson quantile, "
-            "so the adjusted limits are always a normal approximation. Use chart='oe' "
-            "for exact or Byar limits without the over-dispersion adjustment."
+            "limit_method= is not available for chart='oep'. Its limits are always "
+            "exact Poisson–gamma quantiles, which have no Byar counterpart. Use "
+            "chart='oe' for exact or Byar limits without the over-dispersion adjustment."
         )
     if limit_method is not None and chart != "oe":
         raise ValueError(
             f"limit_method= is only valid for chart='oe'. Got chart={chart!r}. "
-            f"Other charts use 3σ limits, which have no quantile method to choose."
+            f"Funnel plots of the other charts always use exact limits, and "
+            f"time-ordered charts use 3σ limits, which have no quantile method to choose."
         )
     if chart == "oe":
         limit_method = "exact" if limit_method is None else limit_method.lower().strip()
@@ -607,19 +624,21 @@ def qic(
         # point, a funnel of a few hundred providers would always report a signal.
         summary["n_warn"] = int(np.sum(warn_sig))
 
-    if chart == "oe":
-        # Which quantile method drew the limits is not recoverable from the numbers
-        # alone, and an O/E funnel is the kind of chart that ends up in a credentialing
-        # file. Record it.
-        summary["limit_method"] = limit_method
-
-    if chart == "oep":
-        # Whether the over-dispersion adjustment actually engaged, and by how much,
-        # is the first thing a reviewer asks of one of these charts. φ̂ = 1.0 means
-        # the sample was within noise of Poisson and the limits were left alone.
-        phi = oe_dispersion_phi(cl_arr[0], y_calc, n_vals, mask)
-        summary["dispersion_phi"] = phi
-        summary["dispersion_adjusted"] = phi > 1.0
+    if summary.get("overdispersed") and "dispersion_adjusted" not in summary:
+        # An unadjusted funnel whose providers spread wider than its null model allows.
+        # Its limits stay as they are — that is the question it asks — but a reader
+        # should know that some of its signals may be that spread rather than a single
+        # unusual provider, and that the adjustment is a stopgap [Spiegelhalter 2005, §5].
+        call, basis, quantity = _DISPERSION_NOTE[chart]
+        summary["dispersion_note"] = (
+            f"Providers vary more than {basis} can explain: the estimated spread of "
+            f"true {quantity} between them is τ = {_two_sig(summary['dispersion_tau'])}. "
+            f"Some signals here may reflect that spread (unmeasured case mix, data "
+            f"differences, or real variation in practice) rather than an individually "
+            f"unusual provider. Compare with {call}, which judges each provider against "
+            f"that spread, and look for its cause: an adjustment is a temporary measure, "
+            f"not a fix."
+        )
 
     if oe_stats is not None:
         # How much signal the chart could carry, reported alongside what it found. A
@@ -673,6 +692,13 @@ def qic(
         xlab=xlab,
         _plot_opts=plot_opts,
     )
+
+
+def _two_sig(x: float) -> str:
+    """x to two significant figures in fixed notation, as the TS engine writes it."""
+    if not (x > 0) or not math.isfinite(x):
+        return f"{x:.2f}"
+    return f"{x:.{max(0, 1 - math.floor(math.log10(x)))}f}"
 
 
 def _has_warn_tier(chart: str, funnel: bool) -> bool:
@@ -979,7 +1005,7 @@ def _compute_spc_arrays(
                 mask=seg_mask, cl_override=cl, method=method, s_bar=s_bar_val,
                 sigma_hat=sigma_hat_val, subgroup_n=subgroup_n_val,
                 exclude_mask=exclude_mask[start:end],
-                limit_method=limit_method,
+                limit_method=limit_method, funnel=funnel,
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
             seg_u95, seg_l95 = _inner_band(seg_raw, spec)
@@ -1006,7 +1032,7 @@ def _compute_spc_arrays(
         res = compute(
             chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
             sigma_hat=sigma_hat_val, exclude_mask=exclude_mask,
-            limit_method=limit_method,
+            limit_method=limit_method, funnel=funnel,
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         ucl_95_arr, lcl_95_arr = _inner_band(res, spec)

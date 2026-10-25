@@ -1,31 +1,38 @@
-import { ChartSpec, LimitMethod, SPCInput, SPCResult } from './spc-types';
+import { ChartSpec, DispersionFamily, LimitDiag, LimitMethod, SPCInput, SPCResult } from './spc-types';
 import { nanmean, nanmedian, nansum, screenedMeanMR } from './spc-helpers';
 import { D2, D4, Z_80, Z_95, Z_998, a3, b3, b4, c4 } from './constants';
 import {
   EXACT_MAX_LAMBDA,
   MEAN_SOLVE_MAX_K,
+  betaBinomialQuantiles,
+  binomialQuantiles,
   byarQuantile,
+  poissonGammaQuantiles,
   poissonMeanForCdf,
   poissonQuantileInterp,
 } from './stats';
+
+/** The two contours every funnel draws [1, §2]: lower tail, upper tail, normal deviate. */
+const OUTER: [number, number, number] = [0.001, 0.999, Z_998];
+const INNER: [number, number, number] = [0.025, 0.975, Z_95];
 import { detectSignals } from './signals';
 
 /**
- * Funnel limits for an O/E chart at one probability contour, on the O/E scale.
+ * Poisson funnel limits at one probability contour, on the rate (or O/E) scale.
  *
- * With Eᵢ expected events and θ₀ the center line, the count of observed events is
- * modelled Poisson(λᵢ = θ₀·Eᵢ); the limit is that distribution's quantile divided
- * back through Eᵢ. Dividing by Eᵢ is what makes the funnel narrow as volume grows
- * while the underlying count distribution widens.
+ * With nᵢ the denominator and θ₀ the center line, the count of events is modelled
+ * Poisson(λᵢ = θ₀·nᵢ); the limit is that distribution's quantile divided back through
+ * nᵢ [1, A.2.1]. For an O/E chart nᵢ is the expected events; for a u funnel it is the
+ * exposure [1, A.2.3]. Dividing by nᵢ is what makes the funnel narrow with volume.
  *
- * Unlike the p/u charts these limits are asymmetric about the center line, which is
- * the whole point at low volume: a physician with 3 expected deaths has a very
- * different amount of room above the line than below it, and the normal
- * approximation would give them the same and then clip the lower limit at zero.
+ * Unlike 3σ limits these are asymmetric about the center line, which is the whole
+ * point at low volume: a physician with 3 expected deaths has a very different amount
+ * of room above the line than below it, and the normal approximation would give them
+ * the same and then clip the lower limit at zero.
  *
- * Mirrors _oe_limit_pair in src/qikit/spc/limits.py.
+ * Mirrors _poisson_funnel_pair in src/qikit/spc/limits.py.
  */
-function oeLimitPair(
+function poissonFunnelPair(
   cl: number, n: number[] | undefined, pLower: number, pUpper: number,
   z: number, limitMethod: LimitMethod
 ): [number[], number[]] {
@@ -55,25 +62,6 @@ function percentile(sorted: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
-/**
- * Winsorized multiplicative over-dispersion factor φ̂. Spiegelhalter, Quality &
- * Safety in Health Care 2005;14:347-351. Mirrors oe_dispersion_phi in limits.py.
- *
- * Across a few hundred providers, exact Poisson limits routinely flag far more than
- * the nominal 0.2%: real providers differ for reasons the risk model does not
- * capture. φ̂ measures that excess and widens the limits by √φ̂.
- *
- * Residuals use the Poisson variance-stabilising transform z = 2(√O − √(θ₀E)),
- * much closer to standard normal at small expected counts than the Pearson residual;
- * winsorizing at the 10th/90th percentiles stops the outliers being screened for from
- * inflating the estimate past themselves. Returns 1.0 when φ̂ is within two standard
- * errors of 1 under the null, so the adjustment only ever widens.
- *
- * Caveat on small cohorts: the pooled ΣO/ΣE center line is not itself robust, so
- * across a dozen providers one extreme performer drags that line toward itself and
- * inflates φ̂ even after its own residual is clipped. clOverride anchors the center
- * line and removes the effect; with a few hundred providers it is negligible.
- */
 /**
  * Smallest true O/E this point has an 80% chance of flagging. Twin of
  * oe_detectable_ratio in limits.py.
@@ -184,56 +172,164 @@ function oePowerSummary(
   };
 }
 
-export function oeDispersionPhi(
-  cl: number, y: number[], n: number[] | undefined, mask: boolean[]
-): number {
-  if (!n) throw new Error('Over-dispersion adjustment requires expected events (n).');
-
-  const z: number[] = [];
-  for (let i = 0; i < y.length; i++) {
-    if (!mask[i]) continue;
-    const observed = y[i] * n[i]; // y arrives as the O/E ratio
-    const zi = 2 * (Math.sqrt(observed) - Math.sqrt(cl * n[i]));
-    if (Number.isFinite(zi)) z.push(zi);
-  }
-
-  const k = z.length;
-  if (k < 2) return 1.0;
-
-  const sorted = [...z].sort((a, b) => a - b);
-  const lo = percentile(sorted, 10);
-  const hi = percentile(sorted, 90);
-
-  let total = 0;
-  for (const zi of z) {
-    const w = Math.min(hi, Math.max(lo, zi));
-    total += w * w;
-  }
-  const phi = total / k;
-
-  return phi > 1 + 2 * Math.sqrt(2 / k) ? phi : 1.0;
-}
-
 /**
- * Over-dispersed O/E limits: θ₀ ± z·√(φ̂·θ₀/Eᵢ).
- *
- * Necessarily a normal approximation — a multiplicative variance factor has no
- * counterpart in an exact Poisson quantile, so the two do not compose. Same trade the
- * Laney p′/u′ charts make.
+ * Exact binomial funnel limits at one contour, on the proportion scale [1, A.1.1].
+ * A non-integer denominator falls back to [1] eq. 3 and says so through diag.
+ * Mirrors _binomial_funnel_pair in limits.py.
  */
-function oepLimitPair(
-  cl: number, n: number[] | undefined, phi: number, z: number
+function binomialFunnelPair(
+  cl: number, n: number[] | undefined, pLower: number, pUpper: number, z: number,
+  diag?: LimitDiag
 ): [number[], number[]] {
   const ucl: number[] = [];
   const lcl: number[] = [];
   for (const ni of n ?? []) {
-    const e = ni > 0 ? ni : NaN;
-    const half = z * Math.sqrt((phi * cl) / e);
-    ucl.push(cl + half);
-    lcl.push(cl - half);
+    if (!(ni > 0)) {
+      ucl.push(NaN);
+      lcl.push(NaN);
+      continue;
+    }
+    const [[lo, hi], exact] = binomialQuantiles([pLower, pUpper], ni, cl, [-z, z]);
+    if (!exact && diag) diag.normal = true;
+    ucl.push(hi / ni);
+    lcl.push(lo / ni);
   }
   return [ucl, lcl];
 }
+
+/**
+ * Spiegelhalter's over-dispersion estimate for a funnel: returns [φ̂, τ̂²]. Twin of
+ * funnel_dispersion in limits.py, whose docstring records each choice: Pearson
+ * residuals on the natural scale [1, eq. 4], 10% winsorized φ̂ [1, eqs. 6, 8] with no
+ * debiasing factor (as [1] did not adopt one), and the method-of-moments τ̂² [1, eq. 10]
+ * with τ̂² = 0 whenever φ̂ < (K−1)/K. φ̂ is NaN with fewer than two usable points.
+ */
+export function funnelDispersion(
+  cl: number, y: number[], n: number[] | undefined, mask: boolean[], family: DispersionFamily
+): [number, number] {
+  if (!n) throw new Error('Over-dispersion estimation requires denominators (n).');
+
+  const z: number[] = [];
+  const w: number[] = [];
+  for (let i = 0; i < y.length; i++) {
+    if (!mask[i]) continue;
+    const v0 = family === 'poisson' ? cl / n[i] : cl * (1.0 - cl) / n[i];
+    const zi = (y[i] - cl) / Math.sqrt(v0);
+    const wi = 1.0 / v0;
+    if (Number.isFinite(zi) && Number.isFinite(wi)) {
+      z.push(zi);
+      w.push(wi);
+    }
+  }
+
+  const k = z.length;
+  if (k < 2) return [NaN, 0.0];
+
+  const sorted = [...z].sort((a, b) => a - b);
+  const lo = percentile(sorted, 10);
+  const hi = percentile(sorted, 90);
+  let total = 0;
+  for (const zi of z) {
+    const c = Math.min(hi, Math.max(lo, zi));
+    total += c * c;
+  }
+  const phi = total / k;
+
+  if (k * phi <= k - 1) return [phi, 0.0];
+  let sw = 0;
+  let sw2 = 0;
+  for (const wi of w) {
+    sw += wi;
+    sw2 += wi * wi;
+  }
+  const tau2 = (k * phi - (k - 1)) / (sw - sw2 / sw);
+  return [phi, Math.max(0.0, tau2)];
+}
+
+/**
+ * Over-dispersed funnel limits at one contour: [1, eq. 11]'s additive random-effects
+ * model drawn exactly — Poisson–gamma for counts, beta-binomial for proportions — rather
+ * than as a normal approximation. τ² = 0 delegates to the unadjusted limits, so the two
+ * charts agree exactly without evidence of over-dispersion. Mirrors _mixture_funnel_pair
+ * in limits.py, whose docstring explains the model.
+ */
+function mixtureFunnelPair(
+  cl: number, n: number[] | undefined, tau2: number, family: DispersionFamily,
+  pLower: number, pUpper: number, z: number, diag?: LimitDiag
+): [number[], number[]] {
+  if (!(tau2 > 0)) {
+    return family === 'binomial'
+      ? binomialFunnelPair(cl, n, pLower, pUpper, z, diag)
+      : poissonFunnelPair(cl, n, pLower, pUpper, z, 'exact');
+  }
+
+  const ucl: number[] = [];
+  const lcl: number[] = [];
+  const e = n ?? [];
+
+  if (family === 'poisson') {
+    const size = cl * cl / tau2;
+    for (const ei of e) {
+      if (!(ei > 0)) {
+        ucl.push(NaN);
+        lcl.push(NaN);
+        continue;
+      }
+      const [[lo, hi], exact] = poissonGammaQuantiles([pLower, pUpper], cl * ei, size, [-z, z]);
+      if (!exact && diag) diag.normal = true;
+      ucl.push(hi / ei);
+      lcl.push(lo / ei);
+    }
+    return [ucl, lcl];
+  }
+
+  const s = cl * (1.0 - cl) / tau2 - 1.0;
+  if (!(s > 0)) {
+    // No beta distribution has this mean and variance; fall back to [1, eq. 11].
+    if (diag) diag.normal = true;
+    for (const ei of e) {
+      const half = z * Math.sqrt(cl * (1.0 - cl) / (ei > 0 ? ei : NaN) + tau2);
+      ucl.push(cl + half);
+      lcl.push(cl - half);
+    }
+    return [ucl, lcl];
+  }
+
+  const alpha = cl * s;
+  const beta = (1.0 - cl) * s;
+  for (const ei of e) {
+    if (!(ei > 0)) {
+      ucl.push(NaN);
+      lcl.push(NaN);
+      continue;
+    }
+    const [[lo, hi], exact] = betaBinomialQuantiles([pLower, pUpper], ei, alpha, beta, [-z, z]);
+    if (!exact && diag) diag.normal = true;
+    ucl.push(hi / ei);
+    lcl.push(lo / ei);
+  }
+  return [ucl, lcl];
+}
+
+/** Weighted center line Σ(yᵢnᵢ)/Σnᵢ, shared by every attribute chart. */
+const weightedCenter = (yb: number[], nb?: number[]) =>
+  nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!);
+
+/** x to two significant figures in fixed notation. Twin of _two_sig in api.py. */
+function twoSig(x: number): string {
+  if (!(x > 0) || !Number.isFinite(x)) return x.toFixed(2);
+  return x.toFixed(Math.max(0, 1 - Math.floor(Math.log10(x))));
+}
+
+/**
+ * Unadjusted charts with an over-dispersion-adjusted counterpart, and how
+ * dispersion_note names what they compare. Mirrors _DISPERSION_NOTE in api.py.
+ */
+const DISPERSION_NOTE: Record<string, [string, string, string]> = {
+  oe: ["chart='oep'", 'the risk model and chance', 'O/E'],
+  p: ["chart='pp' with funnel=True", 'chance', 'proportions'],
+  u: ["chart='up' with funnel=True", 'chance', 'rates'],
+};
 
 /**
  * Per-point subgroup sizes, preferring the n array over the scalar fallback.
@@ -411,20 +507,59 @@ export const CHARTS: Record<string, ChartSpec> = {
   oe: {
     // Pooled ΣO/ΣE. isAttribute divides y by n upstream, so yBase is already the
     // per-point ratio and this weights it back by expected volume.
-    center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
+    center: weightedCenter,
     limits: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, limitMethod) =>
-      oeLimitPair(cl, n, 0.001, 0.999, Z_998, limitMethod ?? 'exact'),
+      poissonFunnelPair(cl, n, ...OUTER, limitMethod ?? 'exact'),
     limits95: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, limitMethod) =>
-      oeLimitPair(cl, n, 0.025, 0.975, Z_95, limitMethod ?? 'exact'),
-    needsN: true, isAttribute: true, floorLcl: true
+      poissonFunnelPair(cl, n, ...INNER, limitMethod ?? 'exact'),
+    needsN: true, isAttribute: true, floorLcl: true, family: 'poisson'
   },
   oep: {
-    center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
-    limits: (cl, y, n, mask) =>
-      oepLimitPair(cl, n, oeDispersionPhi(cl, y, n, mask), Z_998),
-    limits95: (cl, y, n, mask) =>
-      oepLimitPair(cl, n, oeDispersionPhi(cl, y, n, mask), Z_95),
-    needsN: true, isAttribute: true, floorLcl: true
+    center: weightedCenter,
+    limits: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, tau2, diag) =>
+      mixtureFunnelPair(cl, n, tau2 ?? 0, 'poisson', ...OUTER, diag),
+    limits95: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, tau2, diag) =>
+      mixtureFunnelPair(cl, n, tau2 ?? 0, 'poisson', ...INNER, diag),
+    needsN: true, isAttribute: true, floorLcl: true, family: 'poisson', adjusted: true
+  }
+};
+
+/**
+ * What p, pp, u and up become with funnel=true: Spiegelhalter's probability contours
+ * [1] instead of 3σ, and for pp/up his additive over-dispersion adjustment instead of
+ * Laney's σ_z, whose moving ranges only mean something in time order. Mirrors
+ * FUNNEL_CHARTS in limits.py; the time-ordered CHARTS entries are untouched.
+ */
+export const FUNNEL_CHARTS: Record<string, ChartSpec> = {
+  p: {
+    center: weightedCenter,
+    limits: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, _tau2, diag) =>
+      binomialFunnelPair(cl, n, ...OUTER, diag),
+    limits95: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, _tau2, diag) =>
+      binomialFunnelPair(cl, n, ...INNER, diag),
+    needsN: true, isAttribute: true, floorLcl: true, family: 'binomial'
+  },
+  pp: {
+    center: weightedCenter,
+    limits: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, tau2, diag) =>
+      mixtureFunnelPair(cl, n, tau2 ?? 0, 'binomial', ...OUTER, diag),
+    limits95: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, tau2, diag) =>
+      mixtureFunnelPair(cl, n, tau2 ?? 0, 'binomial', ...INNER, diag),
+    needsN: true, isAttribute: true, floorLcl: true, family: 'binomial', adjusted: true
+  },
+  u: {
+    center: weightedCenter,
+    limits: (cl, _y, n) => poissonFunnelPair(cl, n, ...OUTER, 'exact'),
+    limits95: (cl, _y, n) => poissonFunnelPair(cl, n, ...INNER, 'exact'),
+    needsN: true, isAttribute: true, floorLcl: true, family: 'poisson'
+  },
+  up: {
+    center: weightedCenter,
+    limits: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, tau2, diag) =>
+      mixtureFunnelPair(cl, n, tau2 ?? 0, 'poisson', ...OUTER, diag),
+    limits95: (cl, _y, n, _mask, _subN, _sBar, _sigmaHat, _lm, tau2, diag) =>
+      mixtureFunnelPair(cl, n, tau2 ?? 0, 'poisson', ...INNER, diag),
+    needsN: true, isAttribute: true, floorLcl: true, family: 'poisson', adjusted: true
   }
 };
 
@@ -433,16 +568,16 @@ export function compute(input: SPCInput): SPCResult {
 
   if (input.limitMethod !== undefined && chart === 'oep') {
     throw new Error(
-      'limitMethod is not available for chart "oep". A multiplicative over-dispersion ' +
-      'factor has no counterpart in an exact Poisson quantile, so the adjusted limits ' +
-      'are always a normal approximation. Use chart "oe" for exact or Byar limits ' +
-      'without the over-dispersion adjustment.'
+      'limitMethod is not available for chart "oep". Its limits are always exact ' +
+      'Poisson–gamma quantiles, which have no Byar counterpart. Use chart "oe" for ' +
+      'exact or Byar limits without the over-dispersion adjustment.'
     );
   }
   if (input.limitMethod !== undefined && chart !== 'oe') {
     throw new Error(
       `limitMethod is only valid for chart "oe". Got chart "${chart}". ` +
-      `Other charts use 3σ limits, which have no quantile method to choose.`
+      `Funnel plots of the other charts always use exact limits, and time-ordered ` +
+      `charts use 3σ limits, which have no quantile method to choose.`
     );
   }
   const limitMethod: LimitMethod = input.limitMethod ?? 'exact';
@@ -453,7 +588,7 @@ export function compute(input: SPCInput): SPCResult {
   // Resolved display hints (mirrors Python qic() semantics)
   const yPercent = input.yPercent ?? (chart === 'p' || chart === 'pp');
   const connect = funnel ? false : (input.connect ?? null);
-  const spec = CHARTS[chart === 't' ? 'i' : chart];
+  const spec = (funnel && FUNNEL_CHARTS[chart]) || CHARTS[chart === 't' ? 'i' : chart];
 
   if (!Array.isArray(y)) {
       y = Object.values(y); // Handle case where it might be a Series-like object from JSON
@@ -632,15 +767,42 @@ export function compute(input: SPCInput): SPCResult {
         clVal = Math.pow(clOverride, 1 / 3.6);
     }
     
+    // Over-dispersion, estimated once per segment against the center line it is drawn
+    // around [1, §5]: a diagnostic on an unadjusted funnel, the limits' input on an
+    // adjusted one. Mirrors compute.py.
+    const segExtra: Record<string, unknown> = {};
+    let tau2 = 0.0;
+    if (spec.family && segN) {
+      const [phi, t2] = funnelDispersion(clVal, segY, segN, segMask, spec.family);
+      tau2 = t2;
+      segExtra.dispersion_phi = phi;
+      segExtra.dispersion_tau = Math.sqrt(t2);
+      segExtra.overdispersed = t2 > 0;
+      if (spec.adjusted) {
+        segExtra.dispersion_method = 'additive';
+        segExtra.dispersion_adjusted = t2 > 0;
+      }
+    } else if (chart === 'pp' || chart === 'up') {
+      // The same chart code means a different method in time order; say which.
+      segExtra.dispersion_method = 'laney';
+    }
+    const diag: LimitDiag = {};
+    const tau2Arg = spec.adjusted ? tau2 : 0.0;
+
     // Limits
     // Important: for t-chart, we need to pass clVal which is in transformed space
-    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod);
+    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod, tau2Arg, diag);
 
     // A chart whose limits come from a distribution supplies its own 95% band; the
     // 2/3-of-3σ shortcut below holds only for symmetric, normal limits.
     const band95 = spec.limits95
-      ? spec.limits95(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod)
+      ? spec.limits95(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod, tau2Arg, diag)
       : undefined;
+    if (spec.limits95) {
+      // Which method drew the limits is not recoverable from the numbers alone, and a
+      // funnel is the kind of chart that ends up in a credentialing file. Record it.
+      segExtra.limit_method = diag.normal ? 'normal' : (chart === 'oe' ? limitMethod : 'exact');
+    }
 
     for (let j = 0; j < e - s; j++) {
       // clSeg is present only for charts whose center line varies per point; an
@@ -672,7 +834,7 @@ export function compute(input: SPCInput): SPCResult {
       runsLoc[s + j] = sLoc[j];
       sigmaSig[s + j] = (!isNaN(uclArr[s + j]) && segSignalY[j] > uclArr[s + j]) || (!isNaN(lclArr[s + j]) && segSignalY[j] < lclArr[s + j]);
     }
-    summaries.push(sSum);
+    summaries.push({ ...sSum, ...segExtra });
   }
 
   // Back-transform for t-chart
@@ -703,7 +865,6 @@ export function compute(input: SPCInput): SPCResult {
   // arrays before multiply rescales them. For oep this uses oep's own wider limits:
   // the question is whether the point would flag on *this* chart.
   const isOe = chart === 'oe' || chart === 'oep';
-  const rawCl0 = clArr[0];
   const detArr: number[] = [];
   const ciLoArr: number[] = [];
   const ciHiArr: number[] = [];
@@ -776,21 +937,24 @@ export function compute(input: SPCInput): SPCResult {
     // Not folded into `signals`: at one false alarm in twenty per point, a funnel of
     // a few hundred providers would always report one.
     ...(hasWarn ? { n_warn: warnSig.filter(Boolean).length } : {}),
-    // Which quantile method drew the limits is not recoverable from the numbers
-    // alone, and an O/E funnel is the kind of chart that ends up in a credentialing
-    // file. Record it.
-    ...(chart === 'oe' ? { limit_method: limitMethod } : {}),
-    // Whether the over-dispersion adjustment actually engaged, and by how much, is
-    // the first thing a reviewer asks of one of these charts. φ̂ = 1.0 means the
-    // sample was within noise of Poisson and the limits were left alone.
-    // rawCl0, not clArr[0]: the multiply loop above has already scaled the latter,
-    // while yCalc is still raw, and mixing the two silently corrupts φ̂.
-    ...(chart === 'oep'
-      ? (() => {
-          const phi = oeDispersionPhi(rawCl0, yCalc, nCalc, mask);
-          return { dispersion_phi: phi, dispersion_adjusted: phi > 1.0 };
-        })()
-      : {}),
+    // An unadjusted funnel whose providers spread wider than its null model allows:
+    // its limits stay as they are, but a reader should know some signals may be that
+    // spread, and that the adjustment is a stopgap [1, §5]. Mirrors api.py.
+    ...(() => {
+      const last = summaries[summaries.length - 1] ?? {};
+      if (!last.overdispersed || 'dispersion_adjusted' in last) return {};
+      const [call, basis, quantity] = DISPERSION_NOTE[chart];
+      return {
+        dispersion_note:
+          `Providers vary more than ${basis} can explain: the estimated spread of ` +
+          `true ${quantity} between them is τ = ${twoSig(last.dispersion_tau)}. ` +
+          `Some signals here may reflect that spread (unmeasured case mix, data ` +
+          `differences, or real variation in practice) rather than an individually ` +
+          `unusual provider. Compare with ${call}, which judges each provider against ` +
+          `that spread, and look for its cause: an adjustment is a temporary measure, ` +
+          `not a fix.`,
+      };
+    })(),
     // How much signal the chart could carry, reported alongside what it found. A
     // funnel over small-volume providers mostly cannot detect anything, and the
     // honest reading of "no signal" there is "not enough data", not "fine".

@@ -1,17 +1,21 @@
 /**
- * stats.ts — Poisson quantile helpers for O/E (SMR) funnel limits.
+ * stats.ts — exact quantile helpers for funnel limits.
  *
  * Twin of src/qikit/spc/dist.py. The shared fixtures assert both engines to ~1e-6,
- * so keep the CDF summation ascending in k here as it is there: changing the order
+ * so keep every summation in the same order here as there: changing the order
  * changes the float error. JavaScript has no Math.lgamma, hence the Lanczos
  * approximation below (agreement with C's lgamma is ~1e-13, far inside tolerance).
  *
+ * Numbered references are those of docs/methods.md.
+ *
  * References
  * ----------
- * 1. Spiegelhalter DJ. Funnel plots for comparing institutional performance.
- *    Statistics in Medicine 2005;24(8):1185-1202. (Appendix A.1.1)
- * 2. Breslow NE, Day NE. Statistical Methods in Cancer Research, Vol II. IARC, 1987.
- * 3. Garwood F. Fiducial limits for the Poisson distribution. Biometrika 1936;28:437-442.
+ * [1] Spiegelhalter DJ. Funnel plots for comparing institutional performance.
+ *     Statistics in Medicine 2005;24(8):1185-1202. (Appendix A.1.1, A.2.1)
+ * [4] Breslow NE, Day NE. Statistical Methods in Cancer Research, Vol II. IARC, 1987.
+ * [5] Garwood F. Fiducial limits for the Poisson distribution. Biometrika 1936;28:437-442.
+ * [7] Clayton D, Kaldor J. Empirical Bayes estimates of age-standardized relative risks
+ *     for use in disease mapping. Biometrics 1987;43:671-681.
  */
 
 /** Above this mean the exact loop stops earning its cost; Byar is within 1e-4 relative. */
@@ -175,4 +179,152 @@ export function poissonQuantileInterp(p: number, lam: number): number {
   const jump = cdf - prev;
   const delta = jump > 0 ? (cdf - p) / jump : 0;
   return quantize(Math.max(0, k - delta));
+}
+
+// ---------------------------------------------------------------------------
+// Binomial, Poisson–gamma and beta-binomial quantiles
+// ---------------------------------------------------------------------------
+//
+// Twins of the same-named functions in dist.py, which explains the method: each pmf
+// is built from its term ratio f(k+1)/f(k) outward from the mode and normalised at the
+// end, using only + − × ÷. That makes these bit-identical to the Python side and free
+// of lgamma cancellation as τ² → 0. Keep the operation order exactly as there.
+
+/** Terms below this fraction of the largest are dropped. Mirrors _TAIL_EPS. */
+const TAIL_EPS = 1e-20;
+
+/** Safety net for absurdly wide distributions; mirrors _MAX_TERMS. */
+const MAX_TERMS = 100_000;
+
+/** Continuity-interpolated quantiles from a term ratio. Twin of _walk_quantiles. */
+function walkQuantiles(
+  probs: readonly number[], ratio: (k: number) => number, start: number, upper: number | null
+): number[] | null {
+  const up: number[] = [1.0];
+  let peak = 1.0;
+  let u = 1.0;
+  let k = start;
+  while (upper === null || k < upper) {
+    u = u * ratio(k);
+    k += 1;
+    if (u > peak) peak = u;
+    if (u < TAIL_EPS * peak) break;
+    up.push(u);
+    if (up.length > MAX_TERMS) return null;
+  }
+  const down: number[] = [];
+  u = 1.0;
+  k = start;
+  while (k > 0) {
+    u = u / ratio(k - 1);
+    k -= 1;
+    if (u > peak) peak = u;
+    if (u < TAIL_EPS * peak) break;
+    down.push(u);
+    if (down.length > MAX_TERMS) return null;
+  }
+
+  const terms = down.slice().reverse().concat(up);
+  const kLo = start - down.length;
+  let total = 0.0;
+  for (const t of terms) total += t;
+
+  const out: number[] = [];
+  for (const p of probs) {
+    let cdf = 0.0;
+    let prev = 0.0;
+    let r = kLo;
+    let found = false;
+    for (const t of terms) {
+      prev = cdf;
+      cdf += t / total;
+      if (cdf >= p) {
+        found = true;
+        break;
+      }
+      r += 1;
+    }
+    if (!found) {
+      // p sits in the float plateau at the top of the CDF.
+      out.push(kLo + terms.length - 1);
+      continue;
+    }
+    const jump = cdf - prev;
+    const delta = jump > 0 ? (cdf - p) / jump : 0.0;
+    out.push(quantize(Math.max(0.0, r - delta)));
+  }
+  return out;
+}
+
+/** [1] eq. 3 / eq. 11 on the count scale, for the fallbacks. Twin of _normal_quantiles. */
+function normalQuantiles(mean: number, variance: number, zs: readonly number[]): number[] {
+  const sd = Math.sqrt(variance);
+  return zs.map(z => Math.max(0.0, mean + z * sd));
+}
+
+/** Quantiles plus whether they are exact (false = normal-approximation fallback). */
+export type QuantileResult = [number[], boolean];
+
+/**
+ * Continuity-interpolated Binomial(n, θ) quantiles on the count scale, [1] A.1.1.
+ * Twin of binomial_quantiles. A non-integer n falls back to [1] eq. 3.
+ */
+export function binomialQuantiles(
+  probs: readonly number[], n: number, theta: number, zs: readonly number[]
+): QuantileResult {
+  if (!(n > 0) || Number.isNaN(n) || Number.isNaN(theta)) return [probs.map(() => NaN), true];
+  if (theta <= 0.0) return [probs.map(() => 0.0), true];
+  if (theta >= 1.0) return [probs.map(() => n), true];
+  if (Math.abs(n - Math.round(n)) > 1e-9 * Math.max(1.0, n)) {
+    return [normalQuantiles(n * theta, n * theta * (1.0 - theta), zs), false];
+  }
+  const m = Math.round(n);
+  const odds = theta / (1.0 - theta);
+  const ratio = (k: number) => (m - k) / (k + 1) * odds;
+  const start = Math.min(m, Math.floor((m + 1) * theta));
+  const out = walkQuantiles(probs, ratio, start, m);
+  if (out === null) return [normalQuantiles(m * theta, m * theta * (1.0 - theta), zs), false];
+  return [out, true];
+}
+
+/**
+ * Continuity-interpolated Poisson–gamma (negative binomial) quantiles [7], mean λ and
+ * variance λ + λ²/size. Twin of poisson_gamma_quantiles.
+ */
+export function poissonGammaQuantiles(
+  probs: readonly number[], lam: number, size: number, zs: readonly number[]
+): QuantileResult {
+  if (!(lam > 0) || Number.isNaN(lam) || !(size > 0)) return [probs.map(() => NaN), true];
+  const q = lam / (size + lam);
+  const ratio = (k: number) => (k + size) / (k + 1) * q;
+  const start = size > 1.0 ? Math.floor((size - 1.0) * lam / size) : 0;
+  const out = walkQuantiles(probs, ratio, start, null);
+  if (out === null) return [normalQuantiles(lam, lam + lam * lam / size, zs), false];
+  return [out, true];
+}
+
+/**
+ * Continuity-interpolated beta-binomial quantiles on the count scale. Twin of
+ * beta_binomial_quantiles; a non-integer n falls back to the normal approximation.
+ */
+export function betaBinomialQuantiles(
+  probs: readonly number[], n: number, alpha: number, beta: number, zs: readonly number[]
+): QuantileResult {
+  if (!(n > 0) || Number.isNaN(n) || !(alpha > 0) || !(beta > 0)) {
+    return [probs.map(() => NaN), true];
+  }
+  const m = Math.round(n);
+  const theta = alpha / (alpha + beta);
+  if (Math.abs(n - m) > 1e-9 * Math.max(1.0, n)) {
+    const v = n * theta * (1.0 - theta) * (alpha + beta + n) / (alpha + beta + 1.0);
+    return [normalQuantiles(n * theta, v, zs), false];
+  }
+  const ratio = (k: number) => (m - k) * (alpha + k) / ((k + 1) * (beta + m - k - 1));
+  const start = Math.min(m, Math.floor(m * theta));
+  const out = walkQuantiles(probs, ratio, start, m);
+  if (out === null) {
+    const v = m * theta * (1.0 - theta) * (alpha + beta + m) / (alpha + beta + 1.0);
+    return [normalQuantiles(m * theta, v, zs), false];
+  }
+  return [out, true];
 }

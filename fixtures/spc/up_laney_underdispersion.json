@@ -51,7 +51,8 @@
       "run_threshold": 7,
       "crossings_threshold": -1,
       "run_signal": false,
-      "crossings_signal": false
+      "crossings_signal": false,
+      "dispersion_method": "laney"
     },
     "data": [
       {

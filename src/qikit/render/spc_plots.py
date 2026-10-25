@@ -164,9 +164,9 @@ def _add_chart_traces(
     """
     Add data/CL/UCL/LCL traces, part boundaries, notes and signal labels to fig.
     """
-    # An O/E funnel's limits are probability contours, not sigma multiples, so
+    # Funnel and O/E limits are probability contours, not sigma multiples, so
     # naming them "UCL"/"2σ" would misreport what the reader is looking at.
-    if chart_type in ("oe", "oep"):
+    if chart_type in ("oe", "oep") or funnel:
         outer_names, inner_names = ("99.8%+", "99.8%-"), ("95%+", "95%-")
     else:
         outer_names, inner_names = ("UCL", "LCL"), ("2σ+", "2σ-")
