@@ -23,6 +23,8 @@ from .compute import compute
 from .limits import (
     CHARTS,
     VALID_CHARTS,
+    binomial_detectable_rate,
+    binomial_point_ci,
     oe_detectable_ratio,
     oe_point_ci,
 )
@@ -42,7 +44,8 @@ _RESERVED_COLUMNS = frozenset({
     "x", "y", "cl", "ucl", "lcl", "ucl_95", "lcl_95",
     "sigma_signal", "warn_signal", "runs_signal", "runs_signal_localized",
     "baseline", "excluded", "notes", "label", "target", "part", "facet",
-    "min_detectable_oe", "ci_95_lower", "ci_95_upper", "observed", "expected",
+    "min_detectable_oe", "min_detectable", "ci_95_lower", "ci_95_upper",
+    "observed", "expected",
 })
 
 # Charts whose result.data carries warn_signal. An O/E chart's 95% band is a genuine
@@ -191,6 +194,11 @@ def qic(
                time order, to the additive over-dispersion adjustment oep uses.
                summary gains limit_method and the dispersion_* keys; see
                docs/methods.md for every method and its reference.
+               Each point also reports min_detectable — the smallest true
+               proportion (p, pp) or rate (u, up) it would flag with 80% power —
+               and an exact 95% CI (Clopper–Pearson for p, Garwood for u), with
+               summary["underpowered"] when the typical point cannot detect a
+               doubling of the center line, exactly as oe/oep report it.
                notes=, a list-valued target= and exclude= are given in *input*
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
@@ -580,6 +588,12 @@ def qic(
     oe_stats = (
         _oe_point_stats(y_calc, n_vals, ucl_arr) if chart in ("oe", "oep") else None
     )
+    # The same question for a p/u funnel: what true proportion or rate a point would
+    # have needed before its silence meant anything.
+    funnel_stats = (
+        _funnel_point_stats(chart, y_calc, n_vals, ucl_arr)
+        if funnel and chart in _WARN_FUNNEL_CHARTS else None
+    )
 
     # ------------------------------------------------------------------
     # 7c. Warn tier: past the 95% band but inside the outer limits
@@ -597,8 +611,8 @@ def qic(
     df = _assemble_final_df(
         x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
         sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-        exclude_mask=exclude_mask, oe_stats=oe_stats, warn_sig=warn_sig,
-        point_labels=point_labels, hover_extra=hover_extra,
+        exclude_mask=exclude_mask, oe_stats=oe_stats, funnel_stats=funnel_stats,
+        warn_sig=warn_sig, point_labels=point_labels, hover_extra=hover_extra,
     )
 
     # ------------------------------------------------------------------
@@ -667,6 +681,12 @@ def qic(
                     f"of acceptable performance; aggregate more time periods or "
                     f"compare at a higher level before drawing conclusions."
                 )
+
+    if funnel_stats is not None:
+        summary.update(_funnel_power_summary(
+            chart, funnel_stats[0], cl_arr,
+            exclude_mask if exclude_mask is not None else np.zeros(n_pts, dtype=bool),
+        ))
 
     if print_summary:
         _print_summary(chart, summary)
@@ -1081,10 +1101,85 @@ def _oe_point_stats(
     return detectable, ci_lo, ci_hi, observed, expected
 
 
+def _funnel_point_stats(
+    chart: str, y_calc: np.ndarray, n_vals: np.ndarray, ucl_arr: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Per-point detectability and confidence interval for a p/pp/u/up funnel.
+
+    The counterpart of _oe_point_stats, on the same raw (pre-multiply) arrays: y_calc
+    is the proportion or rate, n_vals the denominator, ucl_arr the drawn upper limit
+    (for pp/up the over-dispersed one, as oep uses its own). Counts are recovered as
+    y·n. A u funnel's counts are Poisson in exactly the O/E algebra, with exposure
+    in place of expected events, so it reuses the O/E functions unchanged.
+
+    detectable is inf where no count can flag; _assemble_final_df writes that as NaN
+    and _funnel_power_summary counts it as underpowered.
+    """
+    k = len(y_calc)
+    detectable = np.full(k, np.nan)
+    ci_lo = np.full(k, np.nan)
+    ci_hi = np.full(k, np.nan)
+    binomial = chart in ("p", "pp")
+    for i in range(k):
+        n = float(n_vals[i])
+        t = float(ucl_arr[i]) * n
+        x = float(y_calc[i]) * n
+        if binomial:
+            detectable[i] = binomial_detectable_rate(t, n)
+            ci_lo[i], ci_hi[i] = binomial_point_ci(x, n)
+        else:
+            detectable[i] = oe_detectable_ratio(t, n)
+            ci_lo[i], ci_hi[i] = oe_point_ci(x, n)
+    return detectable, ci_lo, ci_hi
+
+
+def _funnel_power_summary(
+    chart: str, detectable: np.ndarray, cl_arr: np.ndarray, exclude_mask: np.ndarray,
+) -> dict[str, Any]:
+    """
+    The underpowered verdict for a p/u funnel, judged as the O/E one is.
+
+    A proportion or rate has no natural unit the way an O/E ratio does, so the test
+    is relative: min_detectable / cl > 2, a true doubling of the center line going
+    undetected. Points that cannot flag at all (inf) count as underpowered; ghosted
+    points are left out, as for O/E. On a p funnel whose center line is 0.5 or
+    higher a doubling is not a proportion at all, so only unflaggable points can
+    count there — the ratio still says how far above the line a point must be.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = detectable / np.where(cl_arr > 0, cl_arr, np.nan)
+    counted = ratio[~exclude_mask]
+    counted = counted[~np.isnan(counted)]
+    if len(counted) == 0:
+        return {}
+    median = float(np.median(counted))
+    n_under = int(np.sum(counted > _UNDERPOWERED_RATIO))
+    out: dict[str, Any] = {
+        # NaN (null) only when over half the points cannot flag at all.
+        "min_detectable_ratio_median": median if math.isfinite(median) else math.nan,
+        "n_underpowered": n_under,
+        "underpowered": median > _UNDERPOWERED_RATIO,
+    }
+    if out["underpowered"]:
+        noun = "proportion" if chart in ("p", "pp") else "rate"
+        reach = (
+            f"median: {median:.1f}× the center line" if math.isfinite(median)
+            else "median: none, most points cannot flag at all"
+        )
+        out["power_note"] = (
+            f"{n_under} of {len(counted)} points have too few cases to detect even a "
+            f"doubling of the center-line {noun} (smallest detectable {noun}, {reach}). "
+            f"Absence of a signal is not evidence of acceptable performance; aggregate "
+            f"more time periods or compare at a higher level before drawing conclusions."
+        )
+    return out
+
+
 def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
     sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
-    exclude_mask=None, oe_stats=None, warn_sig=None,
+    exclude_mask=None, oe_stats=None, funnel_stats=None, warn_sig=None,
     point_labels=None, hover_extra=None,
 ):
     if multiply != 1.0:
@@ -1149,6 +1244,15 @@ def _assemble_final_df(
         # event counts, not ratios, so multiply (a y-scale rescale) does not touch them.
         df_dict["observed"] = observed
         df_dict["expected"] = expected
+
+    if funnel_stats is not None:
+        detectable, ci_lo, ci_hi = funnel_stats
+        scale = multiply if multiply != 1.0 else 1.0
+        # inf (no count can flag) is not a value a reader can plot or hover; the
+        # summary keeps it, the column says "none".
+        df_dict["min_detectable"] = np.where(np.isinf(detectable), np.nan, detectable) * scale
+        df_dict["ci_95_lower"] = ci_lo * scale
+        df_dict["ci_95_upper"] = ci_hi * scale
 
     if part_indices:
         n_pts = len(y_plot)

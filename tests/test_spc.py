@@ -3003,3 +3003,164 @@ class TestPointLabelsAndHoverExtra:
         with pytest.raises(ValueError, match="x_order"):
             qic(x=self.X, y=self.Y, n=self.N, chart="oe", x_spacing="rank",
                 x_order=self.X)
+
+
+class TestBinomialInversion:
+    """dist.binomial_cdf / binomial_theta_for_cdf — the lgamma-free binomial solve."""
+
+    @staticmethod
+    def _cdf(k, m, t):
+        return sum(math.comb(m, j) * t**j * (1 - t) ** (m - j) for j in range(k + 1))
+
+    @pytest.mark.parametrize("k,m,t", [(3, 20, 0.1), (0, 5, 0.3), (10, 40, 0.2),
+                                       (50, 300, 0.15), (4, 10, 0.9)])
+    def test_cdf_matches_direct_sum(self, k, m, t):
+        assert _dist.binomial_cdf(k, m, t) == pytest.approx(self._cdf(k, m, t), rel=1e-12)
+
+    def test_cdf_survives_hospital_volumes(self):
+        """(1 − θ)^m underflows here; the normalised walk never forms it."""
+        assert _dist.binomial_cdf(5000, 10_000, 0.5) == pytest.approx(0.5040, abs=1e-4)
+
+    def test_cdf_edges(self):
+        assert _dist.binomial_cdf(-1, 10, 0.3) == 0.0
+        assert _dist.binomial_cdf(10, 10, 0.3) == 1.0
+        assert _dist.binomial_cdf(3, 10, 0.0) == 1.0
+        assert _dist.binomial_cdf(3, 10, 1.0) == 0.0
+        assert math.isnan(_dist.binomial_cdf(3, 10, float("nan")))
+
+    @pytest.mark.parametrize("k,m", [(0, 1), (0, 12), (3, 20), (46, 260), (900, 10_000)])
+    @pytest.mark.parametrize("p", [0.025, 0.2, 0.975])
+    def test_theta_inverts_the_cdf(self, k, m, p):
+        assert _dist.binomial_cdf(k, m, _dist.binomial_theta_for_cdf(k, m, p)) == (
+            pytest.approx(p, abs=1e-12)
+        )
+
+    def test_theta_nan_where_no_theta_moves_the_cdf(self):
+        assert math.isnan(_dist.binomial_theta_for_cdf(10, 10, 0.5))
+        assert math.isnan(_dist.binomial_theta_for_cdf(-1, 10, 0.5))
+        assert math.isnan(_dist.binomial_theta_for_cdf(3, 10, 1.0))
+
+
+class TestBinomialPointCI:
+    """limits.binomial_point_ci — exact Clopper–Pearson interval on a proportion."""
+
+    def test_clopper_pearson_anchors(self):
+        """Published exact intervals: 10/100 and 0/20."""
+        assert _limits.binomial_point_ci(10, 100) == pytest.approx((0.0490, 0.1762), abs=1e-4)
+        lo, hi = _limits.binomial_point_ci(0, 20)
+        assert lo == 0.0
+        assert hi == pytest.approx(1 - 0.025 ** (1 / 20), abs=1e-12)
+
+    def test_all_events_gives_an_upper_bound_of_one(self):
+        lo, hi = _limits.binomial_point_ci(20, 20)
+        assert hi == 1.0
+        assert lo == pytest.approx(0.025 ** (1 / 20), abs=1e-12)
+
+    def test_contains_the_point_estimate(self):
+        for x, n in [(1, 3), (4, 12), (19, 200), (48, 260)]:
+            lo, hi = _limits.binomial_point_ci(x, n)
+            assert lo <= x / n <= hi
+
+    def test_nan_without_an_exact_statement(self):
+        assert all(math.isnan(v) for v in _limits.binomial_point_ci(3, 0))
+        assert all(math.isnan(v) for v in _limits.binomial_point_ci(3, 10.5))
+        assert all(math.isnan(v) for v in _limits.binomial_point_ci(2.5, 10))
+        assert all(math.isnan(v) for v in _limits.binomial_point_ci(11, 10))
+
+
+class TestBinomialDetectability:
+    """limits.binomial_detectable_rate — the p funnel's smallest detectable proportion."""
+
+    @pytest.mark.parametrize("n", [10, 30, 100, 400, 1000])
+    def test_achieves_exactly_80_percent_power(self, n):
+        (_, t), _ = _dist.binomial_quantiles((0.001, 0.999), n, 0.1, (-3.09, 3.09))
+        theta = _limits.binomial_detectable_rate(t, n)
+        power = 1.0 - TestBinomialInversion._cdf(math.floor(t), n, theta)
+        assert power == pytest.approx(0.8, abs=1e-9)
+
+    def test_signal_event_matches_sigma_signal_semantics(self):
+        """Flags strictly y > ucl, so the detectable event is X ≥ floor(ucl·n) + 1."""
+        n = 40
+        ucl = float(qic(y=[4], n=[n], chart="p", funnel=True, cl=0.1).data["ucl"].iloc[0])
+        m = math.floor(ucl * n)
+        at = qic(y=[m], n=[n], chart="p", funnel=True, cl=0.1)
+        over = qic(y=[m + 1], n=[n], chart="p", funnel=True, cl=0.1)
+        assert not bool(at.data["sigma_signal"].iloc[0])
+        assert bool(over.data["sigma_signal"].iloc[0])
+
+    def test_unflaggable_point_is_inf(self):
+        assert _limits.binomial_detectable_rate(5.0, 5) == math.inf
+
+    def test_nan_without_usable_denominator(self):
+        assert math.isnan(_limits.binomial_detectable_rate(3.0, 0))
+        assert math.isnan(_limits.binomial_detectable_rate(3.0, 10.5))
+        assert math.isnan(_limits.binomial_detectable_rate(float("inf"), 10))
+
+
+class TestFunnelPowerReporting:
+    """p/u funnels report what a signal would have required, as O/E charts do."""
+
+    Y = [4, 1, 3, 2, 4, 3, 5, 6, 8, 7, 10, 12, 19, 48]
+    N = [12, 15, 20, 24, 30, 38, 45, 60, 75, 90, 120, 150, 200, 260]
+    COLS = ("min_detectable", "ci_95_lower", "ci_95_upper")
+
+    def _r(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="p", funnel=True, **kw)
+
+    def test_the_trap_point_reports_why_it_did_not_flag(self):
+        row = self._r().data.iloc[0]
+        assert row["y"] == pytest.approx(1 / 3)
+        assert not row["sigma_signal"]
+        assert row["min_detectable"] == pytest.approx(0.5779, abs=1e-4)
+        assert row["ci_95_lower"] == pytest.approx(0.0992, abs=1e-4)
+        assert row["ci_95_upper"] == pytest.approx(0.6511, abs=1e-4)
+
+    def test_summary_and_note(self):
+        s = self._r().summary
+        assert s["underpowered"] is True
+        assert s["n_underpowered"] == 11
+        assert s["min_detectable_ratio_median"] == pytest.approx(2.7885, abs=1e-4)
+        assert "11 of 14" in s["power_note"]
+        assert "proportion" in s["power_note"]
+        assert "not evidence of acceptable performance" in s["power_note"]
+
+    def test_u_funnel_note_speaks_of_rates(self):
+        r = qic(y=[3, 1, 0, 2, 4], n=[180, 220, 260, 310, 350], chart="u", funnel=True)
+        assert "rate" in r.summary["power_note"]
+        assert r.data.sort_values("y")["ci_95_lower"].iloc[0] == 0.0
+
+    def test_u_funnel_reuses_the_oe_algebra(self):
+        """Counts over exposure are counts over expected events: identical columns."""
+        y, n = [3, 1, 0, 2, 4], [180.0, 220.0, 260.0, 310.0, 350.0]
+        u = qic(y=y, n=n, chart="u", funnel=True).data
+        cl = sum(y) / sum(n)
+        oe = qic(y=y, n=[v * cl for v in n], chart="oe", funnel=True).data
+        assert (u["min_detectable"] / cl).tolist() == pytest.approx(
+            oe["min_detectable_oe"].tolist(), rel=1e-8)
+
+    def test_columns_scale_with_multiply_but_the_verdict_does_not(self):
+        a, b = self._r(y_percent=False), self._r(multiply=100, y_percent=False)
+        for c in self.COLS:
+            assert (b.data[c] / 100).tolist() == pytest.approx(a.data[c].tolist())
+        assert b.summary["min_detectable_ratio_median"] == a.summary["min_detectable_ratio_median"]
+
+    def test_excluded_points_do_not_colour_the_verdict(self):
+        assert self._r(exclude=[1]).summary["n_underpowered"] == 10
+
+    def test_well_powered_funnel_stays_quiet(self):
+        r = qic(y=[70] * 10, n=[1000] * 10, chart="p", funnel=True)
+        assert r.summary["underpowered"] is False
+        assert "power_note" not in r.summary
+
+    def test_adjusted_funnel_uses_its_own_wider_limits(self):
+        y = [1, 6, 2, 9, 4, 11, 7, 16, 10, 21, 13, 30, 19, 33]
+        n = [18, 25, 31, 40, 46, 55, 63, 80, 92, 110, 130, 160, 185, 220]
+        p = qic(y=y, n=n, chart="p", funnel=True).data["min_detectable"]
+        pp = qic(y=y, n=n, chart="pp", funnel=True).data["min_detectable"]
+        assert (pp >= p).all()
+        assert (pp > p).any()
+
+    def test_absent_without_funnel_mode(self):
+        r = qic(y=self.Y, n=self.N, chart="p")
+        assert not any(c in r.data.columns for c in self.COLS)
+        assert "underpowered" not in r.summary

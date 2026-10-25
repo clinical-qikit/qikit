@@ -43,8 +43,14 @@ class SPCResult:
                    <hover_extra names>   — copied from hover_extra=
                    min_detectable_oe     — oe/oep: smallest O/E this point could
                                            have flagged at 80% power (y scale)
+                   min_detectable        — p/pp/u/up with funnel=True: smallest
+                                           true proportion or rate this point could
+                                           have flagged at 80% power (y scale);
+                                           NaN where no count can flag
                    ci_95_lower, ci_95_upper — oe/oep: exact Garwood 95% CI on the
-                                           point's own O/E (y scale)
+                                           point's own O/E; p/u funnels: Clopper–
+                                           Pearson (p, pp) or Garwood (u, up) on
+                                           its own proportion or rate (y scale)
                    observed, expected    — oe/oep: event counts, echoed in plotted
                                            (post-funnel-sort) order
     chart_type : "run", "i", "mr", "p", "u", "c", etc.
@@ -83,7 +89,12 @@ class SPCResult:
                    power_note          — one-sentence caveat, present only when
                                          underpowered
                  The last four are omitted when no point has a finite expected
-                 count.
+                 count. p/pp/u/up funnels add n_underpowered, underpowered and
+                 power_note on the same terms, judged relative to the center line
+                 (min_detectable / cl > 2.0, unflaggable points included), plus:
+                   min_detectable_ratio_median — median of min_detectable / cl over
+                                         non-excluded points; null when most
+                                         points cannot flag at all
     signals    : True if any non-random variation detected
     title      : chart title
     subtitle   : optional subtitle

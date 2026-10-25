@@ -437,6 +437,13 @@ class TestOEHoverAndCaption:
         fig = qic(y=[400] * 12, n=[400.0] * 12, chart="oe", funnel=True).plot()
         assert not any("not evidence" in (a.text or "") for a in fig.layout.annotations)
 
+    def test_underpowered_p_funnel_captions_itself_too(self):
+        """The caveat follows summary["underpowered"], which p/u funnels now report."""
+        y = [4, 1, 3, 2, 4, 3, 5, 6, 8, 7, 10, 12, 19, 48]
+        n = [12, 15, 20, 24, 30, 38, 45, 60, 75, 90, 120, 150, 200, 260]
+        fig = qic(y=y, n=n, chart="p", funnel=True).plot()
+        assert any("not evidence" in (a.text or "") for a in fig.layout.annotations)
+
     def test_other_charts_keep_the_plain_hover(self):
         fig = qic(y=[3, 2, 6, 2], n=[90, 113, 105, 102], chart="u").plot()
         tpl = fig.data[0].hovertemplate

@@ -98,7 +98,11 @@
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "n_warn": 0,
-      "dispersion_note": "Providers vary more than chance can explain: the estimated spread of true proportions between them is \u03c4 = 0.029. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='pp' with funnel=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix."
+      "dispersion_note": "Providers vary more than chance can explain: the estimated spread of true proportions between them is \u03c4 = 0.029. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='pp' with funnel=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
+      "min_detectable_ratio_median": 2.2648125601017908,
+      "n_underpowered": 9,
+      "underpowered": true,
+      "power_note": "9 of 14 points have too few cases to detect even a doubling of the center-line proportion (smallest detectable proportion, median: 2.3\u00d7 the center line). Absence of a signal is not evidence of acceptable performance; aggregate more time periods or compare at a higher level before drawing conclusions."
     },
     "data": [
       {
@@ -114,7 +118,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.5158800092171627,
+        "ci_95_lower": 0.0014055561673695927,
+        "ci_95_upper": 0.2729435996733689
       },
       {
         "x": 2,
@@ -129,7 +136,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.46418660048394633,
+        "ci_95_lower": 0.09356443933174274,
+        "ci_95_upper": 0.45128801781668626
       },
       {
         "x": 3,
@@ -144,7 +154,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.4134883285524009,
+        "ci_95_lower": 0.007910983461854482,
+        "ci_95_upper": 0.21421615716340225
       },
       {
         "x": 4,
@@ -159,7 +172,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.4030512262329542,
+        "ci_95_lower": 0.10839663898407226,
+        "ci_95_upper": 0.3845116773034225
       },
       {
         "x": 5,
@@ -174,7 +190,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.37560419305427706,
+        "ci_95_lower": 0.0242030708029346,
+        "ci_95_upper": 0.20791732488394787
       },
       {
         "x": 6,
@@ -189,7 +208,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.35456444985894864,
+        "ci_95_lower": 0.10429591692576823,
+        "ci_95_upper": 0.3297285062876143
       },
       {
         "x": 7,
@@ -204,7 +226,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.34428485164406153,
+        "ci_95_lower": 0.04585662371687116,
+        "ci_95_upper": 0.2156242487025284
       },
       {
         "x": 8,
@@ -219,7 +244,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.3126010223615574,
+        "ci_95_lower": 0.11885908640498544,
+        "ci_95_upper": 0.3043688670054645
       },
       {
         "x": 9,
@@ -234,7 +262,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.30698290243873805,
+        "ci_95_lower": 0.05336993945693047,
+        "ci_95_upper": 0.19082333326711032
       },
       {
         "x": 10,
@@ -249,7 +280,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.28646841759514574,
+        "ci_95_lower": 0.1222334120453552,
+        "ci_95_upper": 0.2768977428636332
       },
       {
         "x": 11,
@@ -264,7 +298,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.27545055175012,
+        "ci_95_lower": 0.054328692827203984,
+        "ci_95_upper": 0.1649316732793138
       },
       {
         "x": 12,
@@ -279,7 +316,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.2638398688275365,
+        "ci_95_lower": 0.1302258088343291,
+        "ci_95_upper": 0.2567194821762402
       },
       {
         "x": 13,
@@ -294,7 +334,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.256890715171481,
+        "ci_95_lower": 0.0629749249503937,
+        "ci_95_upper": 0.1557320590388458
       },
       {
         "x": 14,
@@ -309,7 +352,10 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "min_detectable": 0.2449679231155799,
+        "ci_95_lower": 0.10555727839495743,
+        "ci_95_upper": 0.20415745418494735
       }
     ]
   }

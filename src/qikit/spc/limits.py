@@ -37,6 +37,7 @@ from .dist import (
     _MEAN_SOLVE_MAX_K,
     beta_binomial_quantiles,
     binomial_quantiles,
+    binomial_theta_for_cdf,
     byar_quantile,
     poisson_gamma_quantiles,
     poisson_mean_for_cdf,
@@ -542,6 +543,62 @@ def oe_point_ci(o: float, e: float) -> tuple[float, float]:
         ) ** 3
 
     return (mu_lower / e, mu_upper / e)
+
+
+def _integer_count(x: float) -> int | None:
+    """x as an int when it is one to within float noise, else None."""
+    r = round(x)
+    return int(r) if abs(x - r) <= 1e-9 * max(1.0, abs(x)) else None
+
+
+def binomial_detectable_rate(t_count: float, n: float) -> float:
+    """
+    Smallest true proportion this point has an 80% chance of flagging on a p funnel.
+
+    The binomial twin of oe_detectable_ratio, and exact in the same way: an integer
+    count flags iff X ≥ floor(t_count) + 1, so the answer is the θ at which
+    F(floor(t_count); n, θ) = 0.2, found by inverting the CDF in θ. A u funnel needs
+    no twin: its counts are Poisson, and oe_detectable_ratio(ucl·n, n) is already the
+    detectable rate.
+
+    Returns inf when no count can flag at all — the upper limit sits at or above n,
+    which happens at a handful of cases against a high center line — and NaN when the
+    point has no usable denominator. A non-integer n, which no binomial describes and
+    whose limits already fell back to the normal approximation, is also NaN: there is
+    no exact statement to make about it.
+    """
+    if not (n > 0) or math.isnan(t_count) or math.isinf(t_count):
+        return math.nan
+    m = _integer_count(n)
+    if m is None:
+        return math.nan
+    thr = math.floor(t_count)
+    if thr < 0:
+        return math.nan
+    if thr >= m:
+        return math.inf
+    return binomial_theta_for_cdf(int(thr), m, 0.2)
+
+
+def binomial_point_ci(x: float, n: float) -> tuple[float, float]:
+    """
+    Exact (Clopper–Pearson) 95% confidence interval for this point's own proportion.
+
+    The binomial counterpart of oe_point_ci's Garwood interval, and the same
+    construction: the lower bound is the θ at which x or more events has probability
+    0.025, the upper the θ at which x or fewer does. x = 0 gives a lower bound of
+    exactly 0 and x = n an upper bound of exactly 1. Like the band, NaN for a
+    non-integer count or denominator, which no binomial describes.
+    """
+    if not (n > 0) or math.isnan(x) or x < 0 or x > n:
+        return (math.nan, math.nan)
+    m = _integer_count(n)
+    k = _integer_count(x)
+    if m is None or k is None:
+        return (math.nan, math.nan)
+    lo = 0.0 if k == 0 else binomial_theta_for_cdf(k - 1, m, 0.975)
+    hi = 1.0 if k == m else binomial_theta_for_cdf(k, m, 0.025)
+    return (lo, hi)
 
 
 def _mixture_funnel_pair(
