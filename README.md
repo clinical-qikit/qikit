@@ -171,6 +171,28 @@ r.summary["power_note"]                 # one quotable sentence, present only wh
 Note too that at 99.8% about 0.2% of points flag by chance alone, so in a 500-physician
 funnel roughly one signal is expected even when every physician is average.
 
+**p and u funnels report the same way.** A complication rate over a surgeon's 30 cases
+is no better powered than an O/E over their 5 expected deaths, so `funnel=True` on
+`p`/`pp`/`u`/`up` adds the same columns and summary keys:
+
+```python
+r = qic(x=surgeons, y=complications, n=cases, chart="p", funnel=True)
+
+r.data[["y", "ucl", "min_detectable", "ci_95_lower", "ci_95_upper", "sigma_signal"]]
+r.summary["underpowered"]                # True when the median point can't detect a doubling
+r.summary["min_detectable_ratio_median"] # median of min_detectable / cl
+r.summary["n_underpowered"], r.summary["power_note"]
+```
+
+- **`min_detectable`** is a proportion (p, pp) or rate (u, up) on the chart's own y
+  scale, so it scales with `multiply=` like `ucl`. A surgeon at 4 of 12 (33%) against an
+  11.6% center line does not signal, and their `min_detectable` of 0.58 says why.
+- **The interval is exact**: Clopper–Pearson for proportions, Garwood for rates.
+- **"Underpowered" is relative to the center line**, because a proportion has no natural
+  unit the way O/E does: a point is underpowered when `min_detectable / cl > 2`. On a p
+  funnel whose center line is 50% or more, a doubling is not a proportion at all, so only
+  points that cannot flag at any rate count there.
+
 **The workflow that actually works** is to aggregate until the chart has power. Using
 the bundled example (24 surgeons, 3 years):
 
