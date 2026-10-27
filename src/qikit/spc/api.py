@@ -29,9 +29,10 @@ from .limits import (
     oe_point_ci,
 )
 from .options import (
-    PlotOptions, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, VALID_X_SPACING,
+    DEFAULT_XLAB, PlotOptions, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, VALID_X_SPACING,
+    validate_x_spacing,
 )
-from .results import BChartResult, ParetoResult, SPCResult
+from .results import BChartResult, ParetoResult, SPCResult, n_varies
 from .signals import _runs_signals, _sigma_signals, _warn_signals
 
 # A doubling of risk-adjusted mortality is unambiguously material. If the typical
@@ -45,8 +46,16 @@ _RESERVED_COLUMNS = frozenset({
     "sigma_signal", "warn_signal", "runs_signal", "runs_signal_localized",
     "baseline", "excluded", "notes", "label", "target", "part", "facet",
     "min_detectable_oe", "min_detectable", "ci_95_lower", "ci_95_upper",
-    "observed", "expected",
+    "observed", "expected", "n",
 })
+
+# What a volume axis is titled when the caller gives no xlab and n= is not a column
+# name: what the denominator measures on each chart.
+_N_NAMES = {
+    "oe": "Expected events", "oep": "Expected events",
+    "p": "Sample size", "pp": "Sample size",
+    "u": "Exposure", "up": "Exposure",
+}
 
 # Charts whose result.data carries warn_signal. An O/E chart's 95% band is a genuine
 # probability contour; the other denominator charts get the tier only as a funnel,
@@ -95,7 +104,7 @@ def qic(
     # Labels
     title: str = "",
     ylab: str = "Value",
-    xlab: str = "Subgroup",
+    xlab: str | None = None,
     subtitle: str | None = None,
     caption: str | None = None,
     part_labels: list[str] | None = None,
@@ -122,6 +131,7 @@ def qic(
     runs_highlight: str = "localized",
     label_signals: str | None = None,
     x_spacing: str | None = None,
+    x_log: bool = False,
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
@@ -186,7 +196,9 @@ def qic(
     funnel : when True, produces a funnel plot from a p/pp/u/up chart:
                sorts data by denominator (n) ascending, disables runs-signal
                detection (only sigma signals are meaningful cross-sectionally),
-               and renders markers only with all x-axis labels shown.
+               and renders markers only. The x-axis is the denominator itself, with
+               the limits drawn as smooth contours, as Spiegelhalter draws them;
+               see x_spacing.
                Valid only for charts with denominators (p, pp, u, up, oe, oep).
                Limits become Spiegelhalter's exact 99.8% (ucl/lcl) and 95%
                (ucl_95/lcl_95) probability contours — binomial for p, Poisson for
@@ -203,7 +215,8 @@ def qic(
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
                part= are rejected — they assume the points are in time order.
-               result.data gains warn_signal: points past the 95% band that
+               result.data gains n, the denominator in plotted order (oe/oep
+               echo it as expected), and warn_signal: points past the 95% band that
                are not already sigma signals (also always present on oe/oep).
                With show_95=True those points are drawn amber, the color runs
                signals use on a time-ordered chart.
@@ -217,10 +230,14 @@ def qic(
                show_95=True) and 99.8% (ucl/lcl, which drive sigma_signal). Every
                other funnel, and oep, always uses exact limits;
                summary["limit_method"] records which method drew them.
+    xlab   : x-axis title. When None (default) it follows the axis drawn: on a
+               funnel's volume axis, the n= column name (or "Expected events" on
+               oe/oep, "Sample size" on p/pp, "Exposure" on u/up); otherwise
+               "Subgroup".
     show_x_labels : when False, hide the x-axis tick labels while keeping the
-               full label in the hover tooltip. Intended for funnel plots over
-               hundreds of categorical units, where the axis text is unreadable
-               anyway. Overridable per-call via result.plot(show_x_labels=...).
+               full label in the hover tooltip. Intended for funnel plots with
+               x_spacing="x" over hundreds of categorical units, where the axis
+               text is unreadable anyway. Overridable per-call via result.plot(show_x_labels=...).
     decimals : decimal places for the CL/UCL/LCL labels. When None (default),
                scaled to the spread the limits span, so a proportion keeps its
                resolution and a large count is not padded with noise. On a
@@ -245,12 +262,22 @@ def qic(
                staggered so their labels do not overlap. "warn" and "both" need
                a chart with warn_signal (oe/oep, or a p/pp/u/up funnel).
                Overridable per-call via result.plot(label_signals=...).
-    x_spacing : None (default) spaces points by x value. "rank" spaces them
-               evenly in row order — for a funnel, by increasing denominator —
-               with point_labels= (or x) as tick text. Use it when x is an ID:
-               numeric-looking IDs on a category axis can otherwise be coerced
-               to numbers. Cannot be combined with x_order=. Overridable
-               per-call via result.plot(x_spacing=...).
+    x_spacing : how points are spaced along x. None (default) is "n" on a
+               funnel (funnel=True) and "x" everywhere else.
+               "n" plots each point at its denominator (expected events on oe/oep)
+               and draws the limits as smooth contours across the volume range,
+               passing exactly through each point's own limit (see
+               SPCResult.funnel_limits). It needs funnel=True and denominators that
+               vary; a funnel whose denominators are all equal falls back to "x".
+               "x" spaces points by x value — the categorical funnel of earlier
+               releases, and the only spacing x_order= applies to.
+               "rank" spaces them evenly in row order — for a funnel, by increasing
+               denominator — with point_labels= (or x) as tick text.
+               x_order= is rejected under "n" and "rank", including a funnel's
+               default: pass x_spacing="x" with it. Overridable per-call via
+               result.plot(x_spacing=...).
+    x_log : log-scale the volume axis; valid only with x_spacing="n" (a funnel's
+               default). Overridable via result.plot(x_log=...).
 
     Returns
     -------
@@ -327,11 +354,12 @@ def qic(
         raise ValueError(
             f"x_spacing must be one of {VALID_X_SPACING}, got {x_spacing!r}."
         )
-    if x_spacing == "rank" and x_order is not None:
-        raise ValueError(
-            "x_order= cannot be combined with x_spacing='rank': rank spacing plots "
-            "points in their row order, so there is no category order left to set."
-        )
+    # The rest of the spacing rules need to know whether the denominators vary, so
+    # they run once the data is assembled (validate_x_spacing, below).
+
+    # Charts whose limits are funnel contours, which funnel_limits() can redraw.
+    has_contours = chart in _WARN_CHARTS or (funnel and chart in _WARN_FUNNEL_CHARTS)
+    n_name = (n if isinstance(n, str) else _N_NAMES[chart]) if has_contours else None
 
     hover_extra_names = _hover_extra_names(hover_extra, data)
 
@@ -355,7 +383,8 @@ def qic(
         part_labels=part_labels,
         height=height, width=width,
         connect=connect, runs_highlight=runs_highlight,
-        label_signals=label_signals, x_spacing=x_spacing, funnel=funnel,
+        label_signals=label_signals, x_spacing=x_spacing, x_log=x_log,
+        xlab_given=xlab is not None, n_name=n_name, funnel=funnel,
         hover_extra=hover_extra_names,
     )
 
@@ -407,6 +436,9 @@ def qic(
             sub_results.append((fv, sub_result, sub_df_copy))
 
         combined_df = pd.concat([r[2] for r in sub_results], ignore_index=True)
+        spacing = validate_x_spacing(
+            x_spacing, funnel, n_varies(combined_df, chart), x_order, x_log,
+        )
         total_n_obs = sum(r[1].summary.get("n_obs", 0) for r in sub_results)
         total_n_baseline = sum(r[1].summary.get("n_baseline", 0) for r in sub_results)
         any_signals = any(r[1].signals for r in sub_results)
@@ -433,8 +465,12 @@ def qic(
             subtitle=subtitle,
             caption=caption,
             ylab=ylab,
-            xlab=xlab,
+            xlab=_resolve_xlab(xlab, spacing, n_name),
             _plot_opts=plot_opts,
+            _funnel=(
+                {fv: next(iter(r._funnel.values())) for fv, r, _ in sub_results}
+                if has_contours else None
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -571,7 +607,8 @@ def qic(
     # 7. Compute limits and signals
     # ------------------------------------------------------------------
     (
-        cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
+        cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc,
+        runs_summary, tau2,
     ) = _compute_spc_arrays(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
         s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
@@ -613,7 +650,9 @@ def qic(
         sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
         exclude_mask=exclude_mask, oe_stats=oe_stats, funnel_stats=funnel_stats,
         warn_sig=warn_sig, point_labels=point_labels, hover_extra=hover_extra,
+        n_echo=n_vals if funnel_stats is not None else None,
     )
+    spacing = validate_x_spacing(x_spacing, funnel, n_varies(df, chart), x_order, x_log)
 
     # ------------------------------------------------------------------
     # 9. Summary
@@ -709,9 +748,20 @@ def qic(
         subtitle=subtitle,
         caption=caption,
         ylab=ylab,
-        xlab=xlab,
+        xlab=_resolve_xlab(xlab, spacing, n_name),
         _plot_opts=plot_opts,
+        _funnel={None: {
+            "chart": chart, "cl": float(cl_arr[0]), "tau2": tau2,
+            "limit_method": limit_method or "exact", "multiply": float(multiply),
+        }} if has_contours else None,
     )
+
+
+def _resolve_xlab(xlab: str | None, spacing: str, n_name: str | None) -> str:
+    """The x title for the spacing drawn: the caller's, else the axis's own name."""
+    if xlab is not None:
+        return xlab
+    return n_name if (spacing == "n" and n_name) else DEFAULT_XLAB
 
 
 def _two_sig(x: float) -> str:
@@ -1035,6 +1085,8 @@ def _compute_spc_arrays(
             per_part_summaries.append({"part": seg_i + 1, **seg_raw["summary"]})
 
         runs_summary = {**per_part_summaries[-1], "parts": per_part_summaries}
+        # Parts are rejected on funnels, so no part has a τ² to draw with.
+        tau2 = 0.0
         if chart == "t":
             cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
@@ -1056,6 +1108,7 @@ def _compute_spc_arrays(
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         ucl_95_arr, lcl_95_arr = _inner_band(res, spec)
+        tau2 = res["tau2"]
         if chart == "t":
             cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
@@ -1073,7 +1126,10 @@ def _compute_spc_arrays(
         runs_loc = np.zeros(len(runs_loc), dtype=bool)
         runs_summary = {**runs_summary, "runs_disabled": True, "note": "runs signals suppressed (funnel mode)"}
 
-    return cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc, runs_summary
+    return (
+        cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc,
+        runs_summary, tau2,
+    )
 
 
 def _oe_point_stats(
@@ -1180,7 +1236,7 @@ def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
     sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
     exclude_mask=None, oe_stats=None, funnel_stats=None, warn_sig=None,
-    point_labels=None, hover_extra=None,
+    point_labels=None, hover_extra=None, n_echo=None,
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
@@ -1253,6 +1309,11 @@ def _assemble_final_df(
         df_dict["min_detectable"] = np.where(np.isinf(detectable), np.nan, detectable) * scale
         df_dict["ci_95_lower"] = ci_lo * scale
         df_dict["ci_95_upper"] = ci_hi * scale
+
+    if n_echo is not None:
+        # The denominator, echoed for the reason observed/expected are on oe/oep: the
+        # funnel sort has reordered the rows. It is also what a volume axis plots.
+        df_dict["n"] = np.asarray(n_echo, dtype=float)
 
     if part_indices:
         n_pts = len(y_plot)

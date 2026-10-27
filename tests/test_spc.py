@@ -7,6 +7,7 @@ Numerical tolerances match published SPC constants to 3 decimal places.
 from __future__ import annotations
 import math
 import json
+import pathlib
 import numpy as np
 import pandas as pd
 import pytest
@@ -537,7 +538,7 @@ class TestDisplayParams:
 
         # part_indices and x_nticks_all are derived/injected inside qic(),
         # not user-facing parameters — everything else must round-trip 1:1.
-        derived = {"part_indices", "x_nticks_all"}
+        derived = {"part_indices", "x_nticks_all", "xlab_given", "n_name"}
         fields = set(PlotOptions.__dataclass_fields__) - derived
         assert fields <= set(inspect.signature(qic).parameters)
 
@@ -3164,3 +3165,105 @@ class TestFunnelPowerReporting:
         r = qic(y=self.Y, n=self.N, chart="p")
         assert not any(c in r.data.columns for c in self.COLS)
         assert "underpowered" not in r.summary
+
+
+# ---------------------------------------------------------------------------
+# Funnel contours off the points: SPCResult.funnel_limits()
+# ---------------------------------------------------------------------------
+
+_FUNNEL_FIXTURES = sorted(
+    (pathlib.Path(__file__).parent.parent / "fixtures" / "spc").glob("funnel_*.json")
+)
+
+
+def _fixture_result(path):
+    inputs = json.loads(path.read_text())["input"].copy()
+    if "clOverride" in inputs:
+        inputs["cl"] = inputs.pop("clOverride")
+    if "limitMethod" in inputs:
+        inputs["limit_method"] = inputs.pop("limitMethod")
+    return qic(**inputs)
+
+
+class TestFunnelLimits:
+    LIMITS = ["cl", "ucl", "lcl", "ucl_95", "lcl_95"]
+
+    @staticmethod
+    def _ncol(r):
+        return "expected" if r.chart_type in ("oe", "oep") else "n"
+
+    @pytest.mark.parametrize("path", _FUNNEL_FIXTURES, ids=lambda p: p.stem)
+    def test_contours_pass_through_every_point_exactly(self, path):
+        """
+        Every funnel fixture — p, pp, u, up, oe exact and Byar, oep, with cl=, exclude=,
+        multiply= and τ̂ > 0 among them. A curve that missed a point's own limit by
+        even an ulp could draw a flagged point inside the funnel.
+        """
+        r = _fixture_result(path)
+        at_points = r.funnel_limits(n=r.data[self._ncol(r)])
+        for col in self.LIMITS:
+            np.testing.assert_array_equal(at_points[col].to_numpy(), r.data[col].to_numpy())
+
+    def test_default_grid_covers_and_includes_every_point(self):
+        r = _fixture_result(next(p for p in _FUNNEL_FIXTURES if p.stem == "funnel_oep_overdispersion"))
+        assert r.summary["dispersion_tau"] > 0
+        n_obs = r.data["expected"].to_numpy()
+        grid = r.funnel_limits()
+        g = grid["n"].to_numpy()
+        assert np.all(np.diff(g) > 0)
+        assert g[0] == n_obs.min() and g[-1] == n_obs.max()
+        assert set(n_obs) <= set(g)
+        assert len(g) > len(n_obs)
+        # The grid's rows at the points are the points' own limits.
+        at = grid.set_index("n").loc[n_obs]
+        for col in self.LIMITS:
+            np.testing.assert_array_equal(at[col].to_numpy(), r.data[col].to_numpy())
+
+    def test_binomial_grid_is_whole_numbers(self):
+        r = qic(y=[3, 9, 14, 30, 41], n=[17, 60, 120, 333, 512], chart="pp", funnel=True)
+        g = r.funnel_limits()["n"].to_numpy()
+        np.testing.assert_array_equal(g, np.round(g))
+        assert r.summary["limit_method"] == "exact"
+
+    def test_multiply_and_cl_scale_like_the_data(self):
+        r = qic(y=[2, 5, 9, 4, 12], n=[400.0, 900, 1500, 2100, 3000],
+                chart="u", funnel=True, multiply=1000)
+        assert r.funnel_limits()["cl"].iloc[0] == r.data["cl"].iloc[0]
+        r = qic(y=[3, 7, 4, 15, 9], n=[2.5, 4.0, 6.1, 8.0, 12.0], chart="oe", funnel=True, cl=1.0)
+        assert set(r.funnel_limits()["cl"]) == {1.0}
+
+    def test_faceted_contours_are_per_facet(self):
+        df = pd.DataFrame({
+            "site": ["A"] * 5 + ["B"] * 5,
+            "y": [2, 5, 9, 4, 12, 20, 31, 18, 44, 60],
+            "n": [40, 90, 150, 210, 300, 120, 200, 260, 400, 650],
+        })
+        r = qic(y="y", n="n", data=df, chart="p", funnel=True, facets="site")
+        grid = r.funnel_limits()
+        assert set(grid["facet"]) == {"A", "B"}
+        for site in ("A", "B"):
+            cl_data = r.data.loc[r.data["facet"] == site, "cl"].iloc[0]
+            assert set(grid.loc[grid["facet"] == site, "cl"]) == {cl_data}
+            g = grid.loc[grid["facet"] == site, "n"]
+            n_site = df.loc[df["site"] == site, "n"]
+            assert g.min() == n_site.min() and g.max() == n_site.max()
+
+    def test_unavailable_without_contours(self):
+        with pytest.raises(ValueError, match="funnel contours"):
+            qic(y=[3, 4, 5], n=[10, 20, 30], chart="p").funnel_limits()
+
+    def test_n_column_only_on_p_u_funnels(self):
+        args = dict(y=[3, 4, 5, 9], n=[10, 20, 30, 50])
+        assert list(qic(chart="p", funnel=True, **args).data["n"]) == [10, 20, 30, 50]
+        assert "n" not in qic(chart="p", **args).data.columns
+        assert "n" not in qic(chart="oe", funnel=True, **args).data.columns
+
+    def test_n_column_follows_the_funnel_sort(self):
+        r = qic(x=list("abcd"), y=[9, 4, 5, 3], n=[50, 20, 30, 10], chart="u", funnel=True)
+        assert list(r.data["x"]) == list("dbca")
+        assert list(r.data["n"]) == [10, 20, 30, 50]
+
+    def test_hover_extra_n_is_reserved(self):
+        df = pd.DataFrame({"x": list("abc"), "y": [3, 4, 5], "n": [10, 20, 30]})
+        with pytest.raises(ValueError, match="collide"):
+            qic(x="x", y="y", n="n", data=df, chart="p", funnel=True, hover_extra="n")
