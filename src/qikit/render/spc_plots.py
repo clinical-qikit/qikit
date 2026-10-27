@@ -21,8 +21,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from qikit.spc.options import (
-    VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, VALID_X_SPACING,
+    DEFAULT_XLAB, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, validate_x_spacing,
 )
+from qikit.spc.results import denominator_column, n_varies
 
 from .utils import (
     apply_tufte_theme,
@@ -160,9 +161,17 @@ def _add_chart_traces(
     x_spacing: str | None = None,
     hover_extra: list[str] | None = None,
     x_order: list | str | None = None,
+    curve: Any = None,
+    x_log: bool = False,
+    x_title: str = "",
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, notes and signal labels to fig.
+
+    x_spacing is already resolved. Under "n", curve is this panel's slice of
+    result.funnel_limits(): the reference lines are drawn from it rather than at
+    the points, and x_log puts every annotation on the log10 scale Plotly expects
+    on a log axis.
     """
     # Funnel and O/E limits are probability contours, not sigma multiples, so
     # naming them "UCL"/"2σ" would misreport what the reader is looking at.
@@ -176,14 +185,42 @@ def _add_chart_traces(
     display = [
         (labels[i] if labels and labels[i] else str(v)) for i, v in enumerate(x_raw)
     ]
-    # Rank spacing swaps every x this function emits for a position, so no raw x
-    # value (a 10-digit ID, say) ever reaches the figure for Plotly to coerce.
+    # Rank and volume spacing swap every x this function emits for a position or a
+    # denominator, so no raw x value (a 10-digit ID, say) ever reaches the figure for
+    # Plotly to coerce.
     rank = x_spacing == "rank"
-    x = list(range(1, len(x_raw) + 1)) if rank else x_raw
+    by_n = x_spacing == "n"
+    if by_n:
+        x = df[denominator_column(chart_type)].astype(float).tolist()
+    elif rank:
+        x = list(range(1, len(x_raw) + 1))
+    else:
+        x = x_raw
     y = df["y"].to_numpy(dtype=float)
     cl = df["cl"].to_numpy(dtype=float)
     ucl = df["ucl"].to_numpy(dtype=float)
     lcl = df["lcl"].to_numpy(dtype=float)
+
+    def _ax(v: Any) -> Any:
+        """An x position as an annotation takes it: log10 of the value on a log axis."""
+        if not x_log:
+            return v
+        # A zero denominator has no place on a log axis (its y is NaN anyway).
+        return math.log10(v) if v > 0 else None
+
+    # The reference lines. On a volume axis they are the funnel's contours, drawn on
+    # a grid that includes every point's own n, so each curve passes through the limit
+    # that decided that point; elsewhere they step from point to point.
+    if by_n:
+        ref_x = curve["n"].tolist()
+        ref_cl, ref_ucl, ref_lcl = (curve[c].to_numpy(dtype=float) for c in ("cl", "ucl", "lcl"))
+        ref_95 = (curve["ucl_95"].to_numpy(dtype=float), curve["lcl_95"].to_numpy(dtype=float))
+    else:
+        ref_x, ref_cl, ref_ucl, ref_lcl = x, cl, ucl, lcl
+        ref_95 = (
+            (df["ucl_95"].to_numpy(dtype=float), df["lcl_95"].to_numpy(dtype=float))
+            if "ucl_95" in df and "lcl_95" in df else None
+        )
 
     sigma_sig = df["sigma_signal"].to_numpy()
     warn_sig = (
@@ -226,11 +263,11 @@ def _add_chart_traces(
     ghost_note = ["excluded" if ex else "" for ex in excluded]
     extras = [c for c in (hover_extra or []) if c in df.columns]
 
-    # Rank mode plots positions, and labels replace the key, so either way %{x}
-    # no longer names the point; the header is carried in customdata instead.
-    # Appended last, so the O/E fields keep their customdata indices.
+    # Rank and volume modes plot positions or denominators, and labels replace the
+    # key, so in any of these %{x} no longer names the point; the header is carried
+    # in customdata instead. Appended last, so the O/E fields keep their indices.
     header = None
-    if rank or labels:
+    if rank or by_n or labels:
         header = [
             f"{lab} ({v})" if (labels and lab) else str(v)
             for lab, v in zip(labels or [""] * len(x_raw), x_raw)
@@ -271,6 +308,10 @@ def _add_chart_traces(
     else:
         customdata = [[f" ({n})" if n else ""] for n in ghost_note]
         hovertemplate += "%{customdata[0]}"
+        if by_n:
+            # O/E already leads with its counts; a proportion or rate needs its
+            # denominator, which the volume axis has taken over from the name.
+            hovertemplate += f"<br>{x_title}: %{{x}}"
 
     for name in extras:
         k = len(customdata[0]) if customdata else 0
@@ -322,7 +363,7 @@ def _add_chart_traces(
 
     # Center line
     fig.add_trace(go.Scatter(
-        x=x, y=cl,
+        x=ref_x, y=ref_cl,
         mode="lines",
         line=dict(color=CL, width=1),
         name="CL",
@@ -332,10 +373,10 @@ def _add_chart_traces(
 
     # UCL/LCL — light solid hairlines; the direct labels say which is which,
     # so neither a dash pattern nor a fill between them has to carry meaning.
-    for arr, name in [(ucl, outer_names[0]), (lcl, outer_names[1])]:
+    for arr, name in [(ref_ucl, outer_names[0]), (ref_lcl, outer_names[1])]:
         if not np.all(np.isnan(arr)):
             fig.add_trace(go.Scatter(
-                x=x, y=arr,
+                x=ref_x, y=arr,
                 mode="lines",
                 line=dict(color=LIMIT, width=1),
                 name=name,
@@ -345,15 +386,14 @@ def _add_chart_traces(
 
     # 2-sigma warning lines
     if show_95 and not np.all(np.isnan(ucl)):
-        if "ucl_95" in df and "lcl_95" in df:
-            warn_upper = df["ucl_95"].to_numpy(dtype=float)
-            warn_lower = df["lcl_95"].to_numpy(dtype=float)
+        if ref_95 is not None:
+            warn_upper, warn_lower = ref_95
         else:
             warn_upper = cl + (ucl - cl) * (2.0 / 3.0)
             warn_lower = cl - (ucl - cl) * (2.0 / 3.0)
         for warn_y, name in [(warn_upper, inner_names[0]), (warn_lower, inner_names[1])]:
             fig.add_trace(go.Scatter(
-                x=x, y=warn_y,
+                x=ref_x, y=warn_y,
                 mode="lines",
                 line=dict(color=WARN, width=1, dash="dot"),
                 name=name,
@@ -368,13 +408,13 @@ def _add_chart_traces(
         scale = 100.0 if y_percent else 1.0
         label_decimals = (
             decimals if decimals is not None
-            else _label_decimals(cl * scale, ucl * scale, lcl * scale)
+            else _label_decimals(ref_cl * scale, ref_ucl * scale, ref_lcl * scale)
         )
         value_fmt = f"{{:.{label_decimals}{'%' if y_percent else 'f'}}}"
         ann_kwargs: dict[str, Any] = {}
         if row is not None and col is not None:
             ann_kwargs = {"row": row, "col": col}
-        for arr, label in [(cl, "CL"), (ucl, outer_names[0]), (lcl, outer_names[1])]:
+        for arr, label in [(ref_cl, "CL"), (ref_ucl, outer_names[0]), (ref_lcl, outer_names[1])]:
             valid_idx = np.flatnonzero(~np.isnan(arr))
             if len(valid_idx) == 0:
                 continue
@@ -384,7 +424,7 @@ def _add_chart_traces(
             last = int(valid_idx[-1])
             val = float(arr[last])
             fig.add_annotation(
-                x=x[last], y=val,
+                x=_ax(ref_x[last]), y=val,
                 text=f"{label}={value_fmt.format(val)}",
                 xshift=8 + x_pad * 4,
                 showarrow=False, xanchor="left",
@@ -426,7 +466,17 @@ def _add_chart_traces(
         if label_signals in ("warn", "both"):
             flagged |= warn_sig.astype(bool)
         idx = [int(i) for i in np.flatnonzero(flagged) if np.isfinite(y[i])]
-        if isinstance(x_order, list) and not rank:
+        if by_n:
+            # Neighbours on a volume axis are close in axis units, not in rank: many
+            # small providers crowd its left end. Rescaled to 0…K, so min_gap below
+            # keeps its meaning of a fifteenth of the plot.
+            coord = np.array([_ax(v) for v in x], dtype=float)
+            finite = coord[np.isfinite(coord)]
+            lo, hi = (float(finite.min()), float(finite.max())) if len(finite) else (0.0, 0.0)
+            positions = (
+                [(coord[i] - lo) / (hi - lo) * len(x) for i in idx] if hi > lo else idx
+            )
+        elif isinstance(x_order, list) and not rank:
             order_pos = {v: k for k, v in enumerate(x_order)}
             positions = [order_pos.get(x_raw[i], i) for i in idx]
         else:
@@ -440,7 +490,7 @@ def _add_chart_traces(
         for i, (ax, ay) in zip(idx, offsets):
             note = notes_list[i].strip()
             fig.add_annotation(
-                x=x[i], y=y[i],
+                x=_ax(x[i]), y=y[i],
                 text=f"{display[i]} — {note}" if note else display[i],
                 showarrow=True, arrowhead=0,
                 arrowcolor=AXIS, arrowwidth=1,
@@ -457,7 +507,7 @@ def _add_chart_traces(
                 continue
             if note.strip():
                 fig.add_annotation(
-                    x=x[i], y=y[i],
+                    x=_ax(x[i]), y=y[i],
                     text=note,
                     showarrow=True, arrowhead=1,
                     arrowcolor=AXIS, arrowwidth=1,
@@ -467,9 +517,31 @@ def _add_chart_traces(
                 )
 
     # Tick text: positions need names, and given labels outrank the raw key on a
-    # categorical axis. A numeric or date axis keeps its own scale.
-    if rank or (labels and all(isinstance(v, str) for v in x_raw)):
+    # categorical axis. A numeric, date or volume axis keeps its own scale.
+    if not by_n and (rank or (labels and all(isinstance(v, str) for v in x_raw))):
         fig.update_xaxes(tickvals=x, ticktext=display, **add_kwargs)
+
+
+def _log_ticks(lo: float, hi: float) -> list[float]:
+    """
+    Tick values for a log volume axis: 1-2-5 steps across [lo, hi], or every digit when
+    the range is too narrow for those, or the two ends as a last resort.
+
+    Plotly's own log ticks label the steps inside a decade with their leading digit
+    alone, so 20, 30, … 90 read as "2, 3, … 9" beside "100". Explicit values carry
+    their full labels.
+    """
+    k0, k1 = math.floor(math.log10(lo)), math.ceil(math.log10(hi))
+    for mults in ((1, 2, 5), range(1, 10)):
+        vals = [m * 10.0 ** k for k in range(k0, k1 + 1) for m in mults]
+        vals = [v for v in vals if lo <= v <= hi]
+        if len(vals) >= 3:
+            return vals
+    return vals if len(vals) >= 2 else [lo, hi]
+
+
+def _fmt_tick(v: float) -> str:
+    return f"{v:,.0f}" if v >= 1 and float(v).is_integer() else f"{v:,.3g}"
 
 
 # Shown under an underpowered O/E funnel when the caller supplied no caption of their
@@ -507,6 +579,8 @@ def _configure_layout(
     x_nticks_all: bool = False,
     show_x_labels: bool = True,
     x_spacing: str | None = None,
+    x_log: bool = False,
+    x_title: str = "",
 ) -> None:
     """Shared layout and axis styling for single and faceted plots."""
     apply_tufte_theme(fig)
@@ -514,12 +588,19 @@ def _configure_layout(
     # Categorical x-axis: explicit type + optional ordering
     x_vals = result.data["x"].tolist()
     is_categorical = all(isinstance(v, str) for v in x_vals)
-    if x_spacing == "rank":
-        # Positions, not categories. The unified hover would title itself with the
-        # position number, so hover the nearest point and let it name itself.
+    if x_spacing in ("rank", "n"):
+        # Positions or denominators, not categories. The unified hover would title
+        # itself with that number, so hover the nearest point and let it name itself.
         is_categorical = False
-        fig.update_xaxes(type="linear")
+        fig.update_xaxes(type="log" if x_log else "linear")
         fig.update_layout(hovermode="closest")
+        if x_log:
+            n_vals = result.data[denominator_column(result.chart_type)].to_numpy(dtype=float)
+            n_vals = n_vals[np.isfinite(n_vals) & (n_vals > 0)]
+            ticks = _log_ticks(float(n_vals.min()), float(n_vals.max()))
+            # A caller's x_format still decides how the labels read.
+            text = None if x_format is not None else [_fmt_tick(v) for v in ticks]
+            fig.update_xaxes(tickvals=ticks, ticktext=text)
     elif is_categorical:
         fig.update_xaxes(type="category")
         if x_order is not None:
@@ -556,7 +637,7 @@ def _configure_layout(
 
     fig.update_layout(
         title=dict(text=full_title, font=dict(size=15, color=TEXT), x=0, xanchor="left"),
-        xaxis_title=result.xlab,
+        xaxis_title=x_title,
         yaxis_title=result.ylab,
         margin=dict(l=50, r=100, t=top_margin, b=80),
         **size_kwargs,
@@ -624,6 +705,9 @@ def _plot_faceted(
     label_signals: str | None = None,
     x_spacing: str | None = None,
     hover_extra: list[str] | None = None,
+    curve: Any = None,
+    x_log: bool = False,
+    x_title: str = "",
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -674,6 +758,9 @@ def _plot_faceted(
             x_spacing=x_spacing,
             hover_extra=hover_extra,
             x_order=x_order,
+            curve=None if curve is None else curve[curve["facet"] == fv],
+            x_log=x_log,
+            x_title=x_title,
         )
 
     _configure_layout(
@@ -681,6 +768,7 @@ def _plot_faceted(
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
         show_x_labels=show_x_labels, x_spacing=x_spacing,
+        x_log=x_log, x_title=x_title,
     )
 
     # Shared axes hide the tick labels on inner panels; the tick marks left
@@ -872,6 +960,9 @@ def plot_result(
     label_signals: str | None = None,
     x_spacing: str | None = None,
     hover_extra: list[str] | None = None,
+    x_log: bool = False,
+    xlab_given: bool = True,
+    n_name: str | None = None,
     **_kwargs: Any,
 ) -> go.Figure:
     """
@@ -892,15 +983,17 @@ def plot_result(
             f"chart='oe'/'oep' and funnel=True p/pp/u/up charts have. "
             f"Use label_signals='outlier' here."
         )
-    if x_spacing not in VALID_X_SPACING:
-        raise ValueError(
-            f"x_spacing must be one of {VALID_X_SPACING}, got {x_spacing!r}."
-        )
-    if x_spacing == "rank" and x_order is not None:
-        raise ValueError(
-            "x_order= cannot be combined with x_spacing='rank': rank spacing plots "
-            "points in their row order, so there is no category order left to set."
-        )
+    # The same rule qic() applied, re-run because an override can change any input.
+    x_spacing = validate_x_spacing(
+        x_spacing, funnel, n_varies(result.data, result.chart_type), x_order, x_log,
+    )
+    curve = result.funnel_limits() if x_spacing == "n" else None
+    # A title the caller gave is theirs on any axis; otherwise it names the axis drawn,
+    # which an x_spacing override may have changed since qic() resolved result.xlab.
+    if xlab_given:
+        x_title = result.xlab
+    else:
+        x_title = n_name if (x_spacing == "n" and n_name) else DEFAULT_XLAB
 
     if "facet" in result.data.columns:
         return _plot_faceted(
@@ -916,6 +1009,7 @@ def plot_result(
             show_x_labels=show_x_labels,
             funnel=funnel, label_signals=label_signals,
             x_spacing=x_spacing, hover_extra=hover_extra,
+            curve=curve, x_log=x_log, x_title=x_title,
         )
 
     df = result.data
@@ -939,6 +1033,9 @@ def plot_result(
         x_spacing=x_spacing,
         hover_extra=hover_extra,
         x_order=x_order,
+        curve=curve,
+        x_log=x_log,
+        x_title=x_title,
     )
 
     _configure_layout(
@@ -946,6 +1043,7 @@ def plot_result(
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
         show_x_labels=show_x_labels, x_spacing=x_spacing,
+        x_log=x_log, x_title=x_title,
     )
 
     return fig

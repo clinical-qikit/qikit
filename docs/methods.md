@@ -65,7 +65,7 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 | Additive model | τ̂² by method of moments (eq. 10), 0 if φ̂ < (I−1)/I | Same |
 | Adjusted limits | θ₀ ± z√(V + τ²), normal (eq. 11) | **Differs**: same variance, exact mixture quantiles (§4.5) |
 | Under-dispersion | Never narrow the limits | Same |
-| X-axis | Indicator against precision ρ, smooth pre-drawn limits (§2) | **Differs**: providers in volume-rank order, limits per point (§6) |
+| X-axis | Indicator against precision ρ, smooth pre-drawn limits (§2) | Same in effect: against volume (n, or E), which is proportional to ρ, with smooth contours (§4.9) |
 | Outcome–volume association | Formal regression test (§4) | **Not yet** (§6) |
 | Multiple comparisons | Small P values; FDR "best carried out separately" (§6) | Same; the 95% band is a warn tier kept out of `signals` |
 | Change data, continuous outcomes | A.1.2, A.2.2, A.3 | Not offered |
@@ -261,6 +261,39 @@ A non-integer denominator (an averaged or weighted n) has no binomial descriptio
 which is why its limits fall back to the normal approximation. For the same reason its
 detectability and interval are NaN rather than approximated.
 
+### 4.9 The volume axis
+
+[1, §2] plots each indicator against its precision ρ = 1/s², with the limits drawn as
+smooth contours. qikit plots against the denominator instead: sample size on p/pp,
+exposure on u/up, and expected events on oe/oep. That is the same axis up to a
+constant. For a proportion s² = θ₀(1 − θ₀)/n, so ρ ∝ n. For a rate or an O/E ratio
+s² = θ₀/n (or θ₀/E), so ρ ∝ n (or E). The difference is that volume is a unit a reader
+already understands. The adjusted funnels use the same axis, which is where the
+levelling-off of §4.4 shows.
+
+This is the default on every funnel (`x_spacing=None` resolves to `"n"`). `x_spacing="x"`
+and `"rank"` remain available. A funnel whose denominators are all equal falls back to
+`"x"`, because a volume axis would stack every point on one line.
+
+**The contours.** `SPCResult.funnel_limits()` evaluates the limits on about 200
+geometric steps between the smallest and largest denominator, merged with every point's
+own n. It calls the same limit functions on the same path as the per-point limits
+(`compute.funnel_limits`), with the unrounded τ², so each curve passes exactly through
+the limit that decided that point's `sigma_signal` or `warn_signal`. A drawn point can
+therefore never sit inside the curve while being flagged, or outside it while not
+being flagged. A test pins this bit-for-bit on every funnel fixture. Between grid
+steps the plot interpolates linearly.
+
+**Binomial charts step in whole numbers.** A non-integer n has no binomial
+description and falls back to the normal approximation (§4.8, "Edge cases"), so a grid
+of fractional steps would mix the two. On p/pp the grid is rounded to integers. The
+Poisson and Poisson–gamma charts take any positive n.
+
+**Log scale.** `x_log=True` log-scales the axis, which spreads out a funnel whose
+providers span orders of magnitude. Plotly takes an annotation's position on a log axis
+as log10 of the value, so the center-line and limit labels and the signal labels are
+placed on that scale.
+
 ## 5. Evidence from simulation
 
 The engine was run on simulated cohorts, 300 replicates per row; reproduce the table
@@ -297,8 +330,6 @@ the nominal rate is 0.1%. "Outlier" is how often the planted outlier is detected
   τ = 0.3, K = 30), and the pooled center line can be pulled by one extreme provider
   (§4.2).
 - **Downward bias.** The published φ̂ is biased low, so the method under-adjusts (§4.3).
-- **X-axis.** Providers are plotted in volume-rank order with limits per point, not
-  against a continuous precision axis with smooth contours [1, §2].
 - **No outcome–volume test yet** [1, §4; 8, step 5]. A funnel assumes outcome does not
   depend on volume.
 - **Binary outcomes on an O/E chart.** Observed counts that are sums of yes/no outcomes

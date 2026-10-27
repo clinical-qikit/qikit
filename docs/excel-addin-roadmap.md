@@ -70,6 +70,9 @@ engine lacked or hadn't proven. All three parity items landed 2026-07-08.
    `funnelDispersion` in `spc-core.ts`, twins of `limits.py`). Time-ordered charts
    are unchanged. Methods and references are in `docs/methods.md`. Any UI work on
    funnels should surface `summary.dispersion_note` and `summary.limit_method`.
+   **Python 0.6.0** plots funnels against their denominator, with smooth contours from
+   `SPCResult.funnel_limits()` (methods §4.9). This is renderer-only, with no engine
+   math, so porting it is chart-builder work for when Phase 2 exposes funnels.
 2. ~~**Laney p′/u′ σ_z validation.**~~ ✅ Audit found this was already proven:
    both Laney fixtures are genuinely overdispersed (implied σ_z ≈ 3.2 / 3.6 —
    plain p/u limits would differ by >2×) and the TS snapshot comparison pins

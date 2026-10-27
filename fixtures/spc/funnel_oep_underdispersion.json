@@ -64,7 +64,7 @@
     "subtitle": null,
     "caption": null,
     "ylab": "Value",
-    "xlab": "Subgroup",
+    "xlab": "Expected events",
     "summary": {
       "n_obs": 12,
       "n_baseline": 12,

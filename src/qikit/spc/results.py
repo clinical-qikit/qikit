@@ -12,6 +12,44 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+# Geometric steps between a funnel's smallest and largest denominator. Dense enough
+# that the contours read as curves at any plot width; every point's own n is added
+# on top, so the steps only ever fill in between providers.
+_GRID_STEPS = 200
+
+
+def denominator_column(chart: str) -> str:
+    """The result.data column holding a funnel's denominator."""
+    return "expected" if chart in ("oe", "oep") else "n"
+
+
+def n_varies(data: pd.DataFrame, chart: str) -> bool:
+    """Whether a funnel's denominators differ, so a volume axis has a range to span."""
+    col = denominator_column(chart)
+    if col not in data.columns:
+        return False
+    vals = data[col].to_numpy(dtype=float)
+    vals = vals[np.isfinite(vals) & (vals > 0)]
+    return len(vals) > 0 and float(vals.min()) < float(vals.max())
+
+
+def _funnel_grid(n_obs: np.ndarray, integer: bool) -> np.ndarray:
+    """
+    Denominators to draw a funnel's contours at: geometric steps across the observed
+    range, merged with every observed n so each curve passes through the limit that
+    decided that point's signal. A binomial chart steps in whole numbers, since a
+    non-integer n would fall back to the normal approximation.
+    """
+    n_obs = np.asarray(n_obs, dtype=float)
+    n_obs = n_obs[np.isfinite(n_obs) & (n_obs > 0)]
+    if len(n_obs) == 0:
+        return n_obs
+    lo, hi = float(n_obs.min()), float(n_obs.max())
+    steps = np.geomspace(lo, hi, _GRID_STEPS) if hi > lo else np.array([lo])
+    if integer:
+        steps = np.round(steps)
+    return np.unique(np.concatenate([steps[steps > 0], n_obs]))
+
 
 @dataclass(frozen=True)
 class SPCResult:
@@ -53,6 +91,8 @@ class SPCResult:
                                            its own proportion or rate (y scale)
                    observed, expected    — oe/oep: event counts, echoed in plotted
                                            (post-funnel-sort) order
+                   n                     — p/pp/u/up with funnel=True: the
+                                           denominator, echoed in plotted order
     chart_type : "run", "i", "mr", "p", "u", "c", etc.
     method     : run-signal detection method ("anhoej", "ihi", "weco", "nelson")
     summary    : audit dict. Always: n_obs, n_baseline, signals, limit_basis,
@@ -114,6 +154,10 @@ class SPCResult:
     ylab: str = ""
     xlab: str = ""
     _plot_opts: dict[str, Any] = field(default_factory=dict, repr=False)
+    # What funnel_limits() needs to redraw the limits off the points: per facet value
+    # (None when unfaceted), the raw chart, cl, tau2 and limit_method, and multiply.
+    # None on charts without funnel contours.
+    _funnel: dict[Any, dict[str, Any]] | None = field(default=None, repr=False)
 
     def plot(self, **overrides: Any) -> go.Figure:
         """
@@ -121,15 +165,62 @@ class SPCResult:
 
         Trace names are a stable public contract, for callers who restyle the
         figure: "data" (the points), "Target", "CL", the outer limits "UCL"/"LCL"
-        ("99.8%+"/"99.8%-" on oe/oep), and the inner band, drawn with
-        show_95=True, "2σ+"/"2σ-" ("95%+"/"95%-" on oe/oep). The layout of the
-        data trace's customdata and hovertemplate is not part of that contract;
-        use point_labels= and hover_extra= on qic() to change what the tooltip says.
+        ("99.8%+"/"99.8%-" on funnels and oe/oep), and the inner band, drawn with
+        show_95=True, "2σ+"/"2σ-" ("95%+"/"95%-" there). On a volume axis
+        (x_spacing="n", a funnel's default) the limit traces are drawn on the
+        funnel_limits() grid rather than at the points, so do not assume they have
+        one value per point. The layout of the data trace's customdata and
+        hovertemplate is not part of that contract; use point_labels= and
+        hover_extra= on qic() to change what the tooltip says.
         """
         from qikit.render.spc_plots import plot_result
 
         opts = {**self._plot_opts, **overrides}
         return plot_result(self, **opts)
+
+    def funnel_limits(self, n: Any = None) -> pd.DataFrame:
+        """
+        The funnel's limits at any denominators, for drawing its contours.
+
+        n=None gives the grid a volume-axis plot draws: about 200 geometric steps
+        between the smallest and largest denominator, plus every point's own n, so
+        each curve passes exactly through the limit that decided that point's
+        signal. Pass n= (a sequence) to evaluate elsewhere. Denominators are those
+        of n=: expected events on oe/oep, the sample size or exposure on p/pp/u/up.
+
+        Returns columns n, cl, ucl, lcl, ucl_95, lcl_95 on the y scale (multiply=
+        applied, as in result.data), sorted by n for the default grid, plus facet on
+        a faceted result. Available on oe/oep and on p/pp/u/up with funnel=True.
+        """
+        if not self._funnel:
+            raise ValueError(
+                "funnel_limits() needs funnel contours: chart='oe'/'oep', or "
+                "chart='p'/'pp'/'u'/'up' with funnel=True."
+            )
+        from .compute import funnel_limits
+
+        col = denominator_column(self.chart_type)
+        frames = []
+        for facet, params in self._funnel.items():
+            if n is not None:
+                grid = np.asarray(n, dtype=float)
+            else:
+                rows = self.data if facet is None else self.data[self.data["facet"] == facet]
+                grid = _funnel_grid(rows[col].to_numpy(dtype=float), params["chart"] in ("p", "pp"))
+            lim = funnel_limits(
+                params["chart"], params["cl"], grid,
+                tau2=params["tau2"], limit_method=params["limit_method"],
+            )
+            scale = params["multiply"]
+            frame = pd.DataFrame({
+                "n": grid,
+                "cl": np.full(len(grid), params["cl"]) * scale,
+                **{k: v * scale for k, v in lim.items()},
+            })
+            if facet is not None:
+                frame["facet"] = facet
+            frames.append(frame)
+        return pd.concat(frames, ignore_index=True)
 
     def show_summary(self) -> None:
         """Print a text summary of the SPC analysis."""

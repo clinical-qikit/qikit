@@ -261,7 +261,7 @@ class TestShowXLabels:
         return qic(
             x=[f"Clinic {c}" for c in "ABCDEF"],
             y=[8, 15, 9, 33, 6, 20], n=[45, 120, 80, 260, 55, 150],
-            chart="p", funnel=True,
+            chart="p", funnel=True, x_spacing="x",
         )
 
     def test_show_x_labels_false_hides_ticks(self, i_result):
@@ -555,7 +555,7 @@ class TestFunnelLabeling:
             r.plot(x_spacing="rank", x_order=self.X)
 
     def test_labels_on_categorical_axis(self):
-        fig = self._r(point_labels=self.NAMES).plot()
+        fig = self._r(point_labels=self.NAMES, x_spacing="x").plot()
         assert list(fig.layout.xaxis.ticktext) == self.NAMES
         assert fig.data[0].x[0] == self.X[0]
 
@@ -591,3 +591,212 @@ class TestFunnelLabeling:
                   label_signals="both").plot()
         assert list(fig.layout.xaxis2.ticktext) == self.NAMES
         assert len(self._signal_annotations(fig)) == 8
+
+
+# ---------------------------------------------------------------------------
+# Volume axis: a funnel plotted against its denominator, as Spiegelhalter draws it
+# ---------------------------------------------------------------------------
+
+
+class TestVolumeAxis:
+    Y = [9, 6, 7, 11, 13, 17, 37, 29, 66, 40]
+    N = [4.0, 6.0, 8.0, 10.0, 14.0, 18.0, 24.0, 30.0, 40.0, 55.0]
+    X = [str(1234567890 + i) for i in range(10)]
+    PY = [8, 15, 9, 33, 6, 20, 41, 12]
+    PN = [45, 120, 80, 260, 55, 150, 300, 70]
+
+    def _oe(self, **kw):
+        return qic(x=self.X, y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0, **kw)
+
+    def _p(self, **kw):
+        return qic(x=[f"Clinic {c}" for c in "ABCDEFGH"], y=self.PY, n=self.PN,
+                   chart="p", funnel=True, **kw)
+
+    @staticmethod
+    def _trace(fig, name):
+        return next(t for t in fig.data if t.name == name)
+
+    # -- spacing resolution ------------------------------------------------
+
+    def test_funnel_defaults_to_volume_axis(self):
+        r = self._oe()
+        fig = r.plot()
+        assert list(fig.data[0].x) == list(r.data["expected"])
+        assert fig.layout.xaxis.type == "linear"
+        assert fig.layout.hovermode == "closest"
+        assert fig.layout.xaxis.ticktext is None
+
+    def test_p_funnel_plots_against_n(self):
+        r = self._p()
+        assert list(r.plot().data[0].x) == sorted(self.PN)
+        assert list(r.data["n"]) == sorted(self.PN)
+
+    def test_explicit_x_keeps_the_categorical_funnel(self):
+        fig = self._p(x_spacing="x").plot()
+        assert fig.layout.xaxis.type == "category"
+        assert fig.data[0].x[0] == "Clinic A"
+
+    def test_equal_denominators_fall_back_to_x(self):
+        fig = qic(x=list("abcd"), y=[40, 52, 61, 38], n=[400.0] * 4, chart="oe", funnel=True).plot()
+        assert list(fig.data[0].x) == list("abcd")
+
+    def test_time_ordered_charts_stay_on_x(self):
+        fig = qic(x=list("abcd"), y=[3, 2, 6, 2], n=[90, 113, 105, 102], chart="u").plot()
+        assert list(fig.data[0].x) == list("abcd")
+
+    def test_spacing_is_a_plot_override_both_ways(self):
+        assert self._oe().plot(x_spacing="x").layout.xaxis.type == "category"
+        r = self._oe(x_spacing="x")
+        assert list(r.plot(x_spacing="n").data[0].x) == self.N
+
+    # -- contours ----------------------------------------------------------
+
+    @pytest.mark.parametrize("name", ["CL", "99.8%+", "99.8%-", "95%+", "95%-"])
+    def test_limits_are_drawn_on_the_grid(self, name):
+        r = self._oe(show_95=True)
+        trace = self._trace(r.plot(), name)
+        grid = r.funnel_limits()
+        assert len(trace.x) == len(grid) > len(self.N)
+        assert list(trace.x) == list(grid["n"])
+
+    def test_curves_pass_through_each_points_limit(self):
+        r = self._p(show_95=True)
+        fig = r.plot()
+        for name, col in [("99.8%+", "ucl"), ("99.8%-", "lcl"), ("95%+", "ucl_95")]:
+            trace = self._trace(fig, name)
+            at = dict(zip(trace.x, trace.y))
+            for n_i, lim in zip(r.data["n"], r.data[col]):
+                assert at[n_i] == lim
+
+    def test_trace_names_unchanged(self):
+        names = [t.name for t in self._oe(show_95=True).plot().data]
+        assert names == ["data", "CL", "99.8%+", "99.8%-", "95%+", "95%-"]
+
+    # -- titles and hover --------------------------------------------------
+
+    def test_title_defaults_to_the_n_column(self):
+        df = pd.DataFrame({"site": list("abcdef"), "d": [3, 7, 4, 15, 9, 11],
+                           "e": [2.5, 4.0, 6.1, 8.0, 12.0, 14.0]})
+        r = qic(x="site", y="d", n="e", data=df, chart="oe", funnel=True)
+        assert r.xlab == "e"
+        assert r.plot().layout.xaxis.title.text == "e"
+
+    @pytest.mark.parametrize("chart,title", [
+        ("oe", "Expected events"), ("oep", "Expected events"),
+        ("p", "Sample size"), ("pp", "Sample size"),
+        ("u", "Exposure"), ("up", "Exposure"),
+    ])
+    def test_title_defaults_to_what_the_denominator_measures(self, chart, title):
+        r = qic(y=self.PY, n=self.PN, chart=chart, funnel=True)
+        assert r.plot().layout.xaxis.title.text == title
+
+    def test_explicit_xlab_titles_the_volume_axis(self):
+        r = self._p(xlab="Patients treated")
+        fig = r.plot()
+        assert fig.layout.xaxis.title.text == "Patients treated"
+        assert "Patients treated: %{x}" in fig.data[0].hovertemplate
+
+    def test_title_follows_a_spacing_override(self):
+        r = self._p()
+        assert r.plot(x_spacing="x").layout.xaxis.title.text == "Subgroup"
+        assert r.plot(x_spacing="rank").layout.xaxis.title.text == "Subgroup"
+        assert self._p(x_spacing="x").plot(x_spacing="n").layout.xaxis.title.text == "Sample size"
+
+    def test_hover_names_the_point_and_gives_its_denominator(self):
+        trace = self._p().plot().data[0]
+        assert trace.customdata[0][-1] == "Clinic A"
+        assert "Sample size: %{x}" in trace.hovertemplate
+
+    def test_oe_hover_keeps_its_counts(self):
+        tpl = self._oe().plot().data[0].hovertemplate
+        assert "Observed %{customdata[1]}" in tpl
+        assert "Expected events: %{x}" not in tpl
+
+    # -- log axis ----------------------------------------------------------
+
+    def test_log_axis_puts_annotations_on_log10(self):
+        r = self._oe(x_log=True, label_signals="both", point_labels=[f"Dr {c}" for c in "ABCDEFGHIJ"])
+        fig = r.plot()
+        assert fig.layout.xaxis.type == "log"
+        direct = [a for a in fig.layout.annotations if a.text and a.text.startswith(("CL=", "99.8%"))]
+        assert direct and all(a.x == pytest.approx(np.log10(max(self.N))) for a in direct)
+        by_name = dict(zip(r.data["label"], r.data["expected"]))
+        signal = [a for a in fig.layout.annotations if a.showarrow and a.arrowhead == 0]
+        assert len(signal) == 4
+        for a in signal:
+            assert a.x == pytest.approx(np.log10(by_name[a.text]))
+
+    def test_linear_axis_annotations_are_raw_n(self):
+        fig = self._oe(label_signals="outlier").plot()
+        signal = [a for a in fig.layout.annotations if a.showarrow and a.arrowhead == 0]
+        assert [a.x for a in signal] == [40.0]
+
+    def test_log_ticks_carry_full_labels(self):
+        fig = self._oe(x_log=True).plot()
+        assert list(fig.layout.xaxis.tickvals) == [5.0, 10.0, 20.0, 50.0]
+        assert list(fig.layout.xaxis.ticktext) == ["5", "10", "20", "50"]
+
+    @pytest.mark.parametrize("lo,hi,expected", [
+        (8.0, 95.0, [10.0, 20.0, 50.0]),
+        (40.0, 60.0, [40.0, 50.0, 60.0]),
+        (20.0, 50000.0, [20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0,
+                         10000.0, 20000.0, 50000.0]),
+        (51.0, 55.0, [51.0, 55.0]),
+    ])
+    def test_log_tick_values(self, lo, hi, expected):
+        from qikit.render.spc_plots import _log_ticks
+        assert _log_ticks(lo, hi) == pytest.approx(expected)
+
+    def test_log_axis_as_plot_override(self):
+        assert self._oe().plot(x_log=True).layout.xaxis.type == "log"
+
+    # -- facets ------------------------------------------------------------
+
+    def test_faceted_volume_axis(self):
+        df = pd.DataFrame({
+            "site": ["A"] * 5 + ["B"] * 5,
+            "y": [2, 5, 9, 4, 12, 20, 31, 18, 44, 60],
+            "n": [40, 90, 150, 210, 300, 120, 200, 260, 400, 650],
+        })
+        r = qic(y="y", n="n", data=df, chart="p", funnel=True, facets="site", x_log=True)
+        fig = r.plot()
+        grid = r.funnel_limits()
+        ucl = [t for t in fig.data if t.name == "99.8%+"]
+        assert len(ucl) == 2
+        for t, site in zip(ucl, ["A", "B"]):
+            assert list(t.x) == list(grid.loc[grid["facet"] == site, "n"])
+        assert fig.layout.xaxis.type == "log" and fig.layout.xaxis2.type == "log"
+        assert fig.layout.xaxis.title.text == "n"
+
+    # -- guards, on qic() and on plot() -----------------------------------
+
+    def test_n_needs_a_funnel(self):
+        with pytest.raises(ValueError, match="funnel=True"):
+            qic(y=self.PY, n=self.PN, chart="p", x_spacing="n")
+        with pytest.raises(ValueError, match="funnel=True"):
+            qic(y=self.PY, n=self.PN, chart="p").plot(x_spacing="n")
+
+    def test_n_needs_varying_denominators(self):
+        args = dict(y=[40, 52, 61, 38], n=[400.0] * 4, chart="oe", funnel=True)
+        with pytest.raises(ValueError, match="vary"):
+            qic(x_spacing="n", **args)
+        with pytest.raises(ValueError, match="vary"):
+            qic(**args).plot(x_spacing="n")
+
+    def test_x_log_needs_the_volume_axis(self):
+        with pytest.raises(ValueError, match="x_log"):
+            self._p(x_spacing="x", x_log=True)
+        with pytest.raises(ValueError, match="x_log"):
+            self._p(x_spacing="x").plot(x_log=True)
+        with pytest.raises(ValueError, match="x_log"):
+            qic(y=[1.0, 2.0, 3.0], chart="i", x_log=True)
+
+    @pytest.mark.parametrize("spacing", [None, "n"])
+    def test_x_order_needs_x_spacing_x_on_a_funnel(self, spacing):
+        order = [f"Clinic {c}" for c in "HGFEDCBA"]
+        with pytest.raises(ValueError, match="x_spacing='x'"):
+            self._p(x_spacing=spacing, x_order=order)
+        with pytest.raises(ValueError, match="x_spacing='x'"):
+            self._p().plot(x_spacing=spacing, x_order=order)
+        fig = self._p(x_spacing="x", x_order=order).plot()
+        assert list(fig.layout.xaxis.categoryarray) == order

@@ -46,7 +46,9 @@ All chart types are computed by the same `qic()` entry point via the `chart=` ar
 
 `qic(..., funnel=True)` renders a funnel plot instead, for cross-sectional comparison
 across p/pp/u/up/oe/oep charts sorted by denominator, with Spiegelhalter's exact 95% and
-99.8% probability contours in place of 3σ. Every method, reference and design choice
+99.8% probability contours in place of 3σ. Each provider is plotted at its own volume
+(sample size, exposure or expected events), with the contours drawn as smooth curves
+across that range. Every method, reference and design choice
 behind the funnels is recorded in [docs/methods.md](docs/methods.md), including where
 qikit follows Spiegelhalter (2005) and where it departs from him.
 
@@ -214,6 +216,32 @@ qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
     chart="oe", funnel=True).plot()
 ```
 
+#### The volume axis
+
+A funnel plots each point against its denominator, as Spiegelhalter draws them: sample
+size on p/pp, exposure on u/up, expected events on oe/oep. The limits are drawn as
+smooth curves on a grid across the volume range, and each curve passes exactly through
+every point's own limit, so a flagged point never appears inside the funnel.
+
+```python
+r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
+        chart="oe", funnel=True, show_95=True,
+        x_log=True)                  # log-scale the volume axis
+r.plot()                             # x-axis titled "expected_deaths"; xlab= to rename
+r.funnel_limits()                    # the drawn contours: n, cl, ucl, lcl, ucl_95, lcl_95
+r.data[["x", "expected", "y", "ucl"]]  # p/u funnels echo their denominator as "n"
+```
+
+- **`xlab`** titles whatever x-axis is drawn. Left unset, a volume axis takes the
+  `n=` column name, or "Expected events", "Sample size" or "Exposure".
+- **`x_spacing="x"`** plots by x value instead: the categorical funnel of releases
+  before 0.6.0. `x_order=` orders categories, so on a funnel it needs `x_spacing="x"`.
+  A funnel whose denominators are all equal has no volume to spread, and falls back to
+  `"x"` on its own.
+- **`funnel_limits(n=...)`** evaluates the contours at any denominators, for a figure
+  of your own. Use it rather than reading x and y off the traces: the trace names are
+  stable, but not how many points each trace has.
+
 #### Labeling flagged providers
 
 When x is an ID (an NPI, say) and the reader needs names, keep the ID as the key and
@@ -236,9 +264,10 @@ r.data[["x", "label", "sigma_signal", "warn_signal"]]
   With `show_95=True` these points are drawn amber.
 - **`label_signals=`** takes `"outlier"`, `"warn"`, `"both"` or `None`. Labels above the
   center line point up and those below point down, and neighbours are staggered.
-- **`x_spacing="rank"`** plots positions 1…k with the labels as tick text. Every trace
-  and annotation uses the same positions, so numeric-looking IDs are never coerced into
-  a stretched axis.
+- **`x_spacing="rank"`** plots positions 1…k in funnel order with the labels as tick
+  text, for when the names matter more than the volumes. Every trace and annotation
+  uses the same positions, so numeric-looking IDs are never coerced into a stretched
+  axis (the volume axis avoids that too, since IDs never reach it).
 - Trace names (`"data"`, `"CL"`, `"99.8%+"`, `"95%-"`, …) are a stable contract for
   restyling. The tooltip's `customdata` layout is not, so use the parameters above
   rather than editing it.

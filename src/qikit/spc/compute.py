@@ -182,5 +182,45 @@ def compute(
         "runs_signal": runs_sig,
         "runs_signal_localized": runs_loc,
         "summary": runs_summary,
+        # The τ² the limits were drawn with, unrounded. summary carries only √τ², and
+        # squaring that back can miss these limits by an ulp when funnel_limits()
+        # redraws them on a grid.
+        "tau2": tau2 if spec.adjusted else 0.0,
         **extra,
     }
+
+
+def funnel_limits(
+    chart: str,
+    cl: float,
+    n: np.ndarray,
+    tau2: float = 0.0,
+    limit_method: str = "exact",
+) -> dict[str, np.ndarray]:
+    """
+    A funnel's limits at arbitrary denominators, for drawing its contours.
+
+    The same limit functions compute() uses, on the same call path, so a contour
+    drawn through a point's own n passes exactly through the limit that decided its
+    signal. chart is one of p, pp, u, up (their funnel versions) or oe, oep; cl and
+    tau2 are on the raw scale, as compute() drew them; limit_method is the oe
+    chart's input ("exact" | "byar"). The funnel limit functions read neither y nor
+    the baseline mask, so neither is needed.
+
+    Returns ucl, lcl, ucl_95, lcl_95 aligned with n.
+    """
+    spec = FUNNEL_CHARTS.get(chart, CHARTS[chart])
+    if spec.limits_95 is None:
+        raise ValueError(f"chart={chart!r} has no funnel limits.")
+    n = np.asarray(n, dtype=float)
+    placeholder = np.full(len(n), np.nan)
+    mask = np.ones(len(n), dtype=bool)
+    limit_kw = dict(
+        limit_method=limit_method, tau2=tau2 if spec.adjusted else 0.0, diag={},
+    )
+    ucl, lcl = spec.limits(cl, placeholder, n, mask, None, **limit_kw)
+    ucl_95, lcl_95 = spec.limits_95(cl, placeholder, n, mask, None, **limit_kw)
+    if spec.floor_lcl:
+        lcl = np.where(lcl < 0, 0.0, lcl)
+        lcl_95 = np.where(lcl_95 < 0, 0.0, lcl_95)
+    return {"ucl": ucl, "lcl": lcl, "ucl_95": ucl_95, "lcl_95": lcl_95}
