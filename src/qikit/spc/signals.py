@@ -17,25 +17,52 @@ from typing import Any
 import numpy as np
 
 
+# Which side of the center line a funnel's sigma and warn tiers flag (signal_side=).
+#   both  — beyond either limit, the default
+#   above — beyond the upper limit only (higher than expected)
+#   below — beyond the lower limit only (lower than expected)
+# Runs rules are never side-filtered: a run is a pattern, not a point beyond a line.
+VALID_SIGNAL_SIDES = ("both", "above", "below")
+
+# What decides a funnel's sigma and warn tiers (signal_method=).
+#   limits — the point lies beyond the drawn 99.8% / 95% contour, the default
+#   exact  — its exact one-sided (or doubled, two-sided) p-value is below that
+#            contour's tail probability
+#   fdr    — its Benjamini–Hochberg q-value is below that tail probability
+# docs/methods.md §4.11 records why the first two differ at small counts.
+VALID_SIGNAL_METHODS = ("limits", "exact", "fdr")
+
+
 def _sigma_signals(
-    y: np.ndarray, ucl: np.ndarray, lcl: np.ndarray,
+    y: np.ndarray, ucl: np.ndarray, lcl: np.ndarray, side: str = "both",
 ) -> np.ndarray:
-    """Per-point boolean: True if beyond 3-sigma limits. Montgomery (2019), §5.2."""
+    """
+    Per-point boolean: True if beyond 3-sigma limits. Montgomery (2019), §5.2.
+
+    side keeps only the points beyond the upper ("above") or lower ("below")
+    limit; comparisons stay strict either way.
+    """
     above = ~np.isnan(ucl) & (y > ucl)
     below = ~np.isnan(lcl) & (y < lcl)
+    if side == "above":
+        return above
+    if side == "below":
+        return below
     return above | below
 
 
 def _warn_signals(
     y: np.ndarray, ucl_95: np.ndarray, lcl_95: np.ndarray, sigma_sig: np.ndarray,
+    side: str = "both",
 ) -> np.ndarray:
     """
     Per-point boolean: beyond the inner 95% band but not already a sigma signal.
 
     The two tiers are disjoint by construction, so a caller can colour or count
-    them independently without double-counting the outliers.
+    them independently without double-counting the outliers. side filters as
+    _sigma_signals does, and should match the side sigma_sig was computed with.
     """
-    return _sigma_signals(y, ucl_95, lcl_95) & ~np.asarray(sigma_sig, dtype=bool)
+    return _sigma_signals(y, ucl_95, lcl_95, side) & ~np.asarray(sigma_sig, dtype=bool)
 
 
 def _longest_run_threshold(n: int) -> int:

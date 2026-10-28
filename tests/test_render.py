@@ -478,6 +478,17 @@ class TestFunnelLabeling:
         colors = r.plot().data[0].marker.color
         assert all(c == NORMAL for c, w in zip(colors, r.data["warn_signal"]) if w)
 
+    def test_one_sided_leaves_the_other_side_plain(self):
+        # Two outliers at E = 20: 45 above the line, 4 below it.
+        y = [20, 19, 45, 4, 31, 10, 21, 18, 22, 20]
+        r = qic(y=y, n=[20.0] * 10, chart="oe", funnel=True, cl=1.0,
+                signal_side="above", show_95=True, label_signals="both")
+        fig = r.plot()
+        colors = fig.data[0].marker.color
+        assert colors[2] == SIGMA and colors[3] == NORMAL
+        assert colors[4] == RUNS and colors[5] == NORMAL
+        assert len(self._signal_annotations(fig)) == 2
+
     def test_non_funnel_oe_keeps_runs_coloring(self):
         r = qic(y=self.Y, n=self.N, chart="oe", cl=1.0, show_95=True)
         colors = r.plot().data[0].marker.color

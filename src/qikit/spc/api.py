@@ -33,7 +33,7 @@ from .options import (
     validate_x_spacing,
 )
 from .results import BChartResult, ParetoResult, SPCResult, n_varies
-from .signals import _runs_signals, _sigma_signals, _warn_signals
+from .signals import VALID_SIGNAL_SIDES, _runs_signals, _sigma_signals, _warn_signals
 
 # A doubling of risk-adjusted mortality is unambiguously material. If the typical
 # point cannot detect even that, the chart cannot clear anyone, and says so.
@@ -97,6 +97,7 @@ def qic(
     cl: float | None = None,
     funnel: bool = False,
     limit_method: str | None = None,
+    signal_side: str = "both",
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -230,6 +231,17 @@ def qic(
                show_95=True) and 99.8% (ucl/lcl, which drive sigma_signal). Every
                other funnel, and oep, always uses exact limits;
                summary["limit_method"] records which method drew them.
+    signal_side : which side of the center line a funnel flags. "both"
+               (default) flags points beyond either limit; "above" only those
+               beyond the upper limits (worse when higher, e.g. mortality),
+               "below" only those beyond the lower ones. Applies to sigma_signal
+               and warn_signal, and through them to the point colors, `signals`,
+               n_warn and label_signals=; the limits on the other side are still
+               drawn. Valid only on charts with funnel contours (oe/oep, or
+               p/pp/u/up with funnel=True): elsewhere the runs rules would keep
+               firing on both sides. Runs rules are never side-filtered, and
+               min_detectable* still describe the upper limit.
+               summary["signal_side"] records it.
     xlab   : x-axis title. When None (default) it follows the axis drawn: on a
                funnel's volume axis, the n= column name (or "Expected events" on
                oe/oep, "Sample size" on p/pp, "Exposure" on u/up); otherwise
@@ -354,6 +366,16 @@ def qic(
         raise ValueError(
             f"x_spacing must be one of {VALID_X_SPACING}, got {x_spacing!r}."
         )
+    if signal_side not in VALID_SIGNAL_SIDES:
+        raise ValueError(
+            f"signal_side must be one of {VALID_SIGNAL_SIDES}, got {signal_side!r}."
+        )
+    if signal_side != "both" and not _has_warn_tier(chart, funnel):
+        raise ValueError(
+            f"signal_side={signal_side!r} needs funnel contours: chart='oe'/'oep', or "
+            f"chart='p'/'pp'/'u'/'up' with funnel=True. On a time-ordered chart the "
+            f"runs rules would still fire on both sides of the center line."
+        )
     # The rest of the spacing rules need to know whether the denominators vary, so
     # they run once the data is assembled (validate_x_spacing, below).
 
@@ -422,6 +444,7 @@ def qic(
                 agg_fun=agg_fun,
                 funnel=funnel,
                 limit_method=limit_method if chart == "oe" else None,
+                signal_side=signal_side,
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
                 point_labels=_subset_per_facet(point_labels, facet_rows, n_rows),
                 hover_extra=hover_extra,
@@ -449,6 +472,9 @@ def qic(
             "signals": any_signals,
             "by_facet": by_facet,
         }
+        if has_contours:
+            # Uniform across facets, so a reader of the whole figure need not dig.
+            combined_summary["signal_side"] = signal_side
 
         facet_opts = dataclasses.replace(opts, part_indices=[])
         if funnel:
@@ -613,7 +639,7 @@ def qic(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
         s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
         funnel=funnel, exclude_mask=exclude_mask,
-        limit_method=limit_method or "exact",
+        limit_method=limit_method or "exact", signal_side=signal_side,
     )
 
     # ------------------------------------------------------------------
@@ -640,7 +666,7 @@ def qic(
     warn_sig = None
     if _has_warn_tier(chart, funnel):
         y_warn = np.where(exclude_mask, np.nan, y_calc)
-        warn_sig = _warn_signals(y_warn, ucl_95_arr, lcl_95_arr, sigma_sig)
+        warn_sig = _warn_signals(y_warn, ucl_95_arr, lcl_95_arr, sigma_sig, signal_side)
 
     # ------------------------------------------------------------------
     # 8. Assemble DataFrame
@@ -676,6 +702,7 @@ def qic(
         # Deliberately not folded into "signals": at one false alarm in twenty per
         # point, a funnel of a few hundred providers would always report a signal.
         summary["n_warn"] = int(np.sum(warn_sig))
+        summary["signal_side"] = signal_side
 
     if summary.get("overdispersed") and "dispersion_adjusted" not in summary:
         # An unadjusted funnel whose providers spread wider than its null model allows.
@@ -1053,6 +1080,7 @@ def _compute_spc_arrays(
     chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
     s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
     funnel: bool = False, exclude_mask=None, limit_method: str = "exact",
+    signal_side: str = "both",
 ):
     n_pts = len(y_calc)
     if exclude_mask is None:
@@ -1075,7 +1103,7 @@ def _compute_spc_arrays(
                 mask=seg_mask, cl_override=cl, method=method, s_bar=s_bar_val,
                 sigma_hat=sigma_hat_val, subgroup_n=subgroup_n_val,
                 exclude_mask=exclude_mask[start:end],
-                limit_method=limit_method, funnel=funnel,
+                limit_method=limit_method, funnel=funnel, signal_side=signal_side,
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
             seg_u95, seg_l95 = _inner_band(seg_raw, spec)
@@ -1092,7 +1120,7 @@ def _compute_spc_arrays(
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
                 for a in [cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr]
             ]
-            sigma_sig = _sigma_signals(y_plot_signal, ucl_arr, lcl_arr)
+            sigma_sig = _sigma_signals(y_plot_signal, ucl_arr, lcl_arr, signal_side)
             new_summaries = []
             for seg_i in range(len(boundaries) - 1):
                 s, e = boundaries[seg_i], boundaries[seg_i + 1]
@@ -1104,7 +1132,7 @@ def _compute_spc_arrays(
         res = compute(
             chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
             sigma_hat=sigma_hat_val, exclude_mask=exclude_mask,
-            limit_method=limit_method, funnel=funnel,
+            limit_method=limit_method, funnel=funnel, signal_side=signal_side,
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         ucl_95_arr, lcl_95_arr = _inner_band(res, spec)
@@ -1114,7 +1142,7 @@ def _compute_spc_arrays(
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
                 for a in [cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr]
             ]
-            sigma_sig = _sigma_signals(y_plot_signal, ucl_arr, lcl_arr)
+            sigma_sig = _sigma_signals(y_plot_signal, ucl_arr, lcl_arr, signal_side)
             runs_sig, runs_loc, runs_summary = _runs_signals(y_plot_signal, cl_arr, method=method)
         else:
             sigma_sig, runs_sig, runs_summary = res["sigma_signal"], res["runs_signal"], res["summary"]

@@ -2924,6 +2924,90 @@ class TestWarnSignal:
 
 
 # ---------------------------------------------------------------------------
+# signal_side= — one-sided funnels
+# ---------------------------------------------------------------------------
+
+class TestSignalSide:
+    # One outlier and one 95%-tier point on each side of cl=1.0, all at E = 20.
+    Y = [20, 19, 45, 4, 31, 10, 21, 18, 22, 20]
+    N = [20.0] * 10
+    SIGMA = {"both": [2, 3], "above": [2], "below": [3]}
+    WARN = {"both": [4, 5], "above": [4], "below": [5]}
+
+    def _oe(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0, **kw)
+
+    @staticmethod
+    def _idx(col):
+        return [i for i, v in enumerate(col) if v]
+
+    @pytest.mark.parametrize("side", ["both", "above", "below"])
+    def test_flags_only_the_chosen_side(self, side):
+        d = self._oe(signal_side=side).data
+        assert self._idx(d["sigma_signal"]) == self.SIGMA[side]
+        assert self._idx(d["warn_signal"]) == self.WARN[side]
+        assert not (d["sigma_signal"] & d["warn_signal"]).any()
+
+    def test_both_is_the_default(self):
+        pd.testing.assert_frame_equal(self._oe().data, self._oe(signal_side="both").data)
+
+    def test_summary_follows_the_side(self):
+        r = self._oe(signal_side="above")
+        assert r.summary["signal_side"] == "above"
+        assert r.summary["n_warn"] == 1
+        assert self._oe().summary["signal_side"] == "both"
+        below_only = qic(y=[20, 20, 4, 20], n=[20.0] * 4, chart="oe", funnel=True,
+                         cl=1.0, signal_side="above")
+        assert below_only.signals is False
+
+    @pytest.mark.parametrize("chart", ["p", "pp", "u", "up", "oep"])
+    def test_every_funnel_takes_it(self, chart):
+        n = [200.0] * 10 if chart in ("p", "pp") else self.N
+        r = qic(y=self.Y, n=n, chart=chart, funnel=True, signal_side="above")
+        d = r.data
+        assert not (d["sigma_signal"] & (d["y"] < d["cl"])).any()
+        assert not (d["warn_signal"] & (d["y"] < d["cl"])).any()
+        assert r.summary["signal_side"] == "above"
+
+    def test_time_ordered_oe_takes_it(self):
+        d = qic(y=self.Y, n=self.N, chart="oe", cl=1.0, signal_side="below").data
+        assert self._idx(d["sigma_signal"]) == self.SIGMA["below"]
+
+    @pytest.mark.parametrize("chart,kw", [("p", {}), ("i", {}), ("u", {})])
+    def test_rejected_without_contours(self, chart, kw):
+        n = self.N if chart != "i" else None
+        with pytest.raises(ValueError, match="needs funnel contours"):
+            qic(y=self.Y, n=n, chart=chart, signal_side="above", **kw)
+
+    def test_invalid_value(self):
+        with pytest.raises(ValueError, match="signal_side must be one of"):
+            self._oe(signal_side="up")
+
+    def test_facets_forward_it(self):
+        df = pd.DataFrame({
+            "o": self.Y * 2, "e": self.N * 2, "site": ["A"] * 10 + ["B"] * 10,
+        })
+        r = qic(y="o", n="e", data=df, chart="oe", funnel=True, cl=1.0,
+                facets="site", signal_side="above")
+        assert self._idx(r.data["sigma_signal"]) == [2, 12]
+        assert r.summary["signal_side"] == "above"
+        assert all(s["signal_side"] == "above" for s in r.summary["by_facet"].values())
+
+    def test_physician_example(self):
+        """Pooled over three years, SURG-21 is the one below the line."""
+        df = TestPhysicianExampleWorkflow._df()
+        agg = df.groupby("physician", as_index=False)[
+            ["observed_deaths", "expected_deaths"]
+        ].sum()
+        flagged = {}
+        for side in ("above", "below"):
+            r = qic(x="physician", y="observed_deaths", n="expected_deaths",
+                    data=agg, chart="oe", funnel=True, signal_side=side)
+            flagged[side] = set(r.data.loc[r.data["sigma_signal"], "x"])
+        assert flagged == {"above": {"SURG-07", "SURG-15"}, "below": {"SURG-21"}}
+
+
+# ---------------------------------------------------------------------------
 # point_labels= and hover_extra=
 # ---------------------------------------------------------------------------
 

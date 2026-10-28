@@ -96,6 +96,7 @@
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "n_warn": 1,
+      "signal_side": "both",
       "min_detectable_ratio_median": 4.808957779846296,
       "n_underpowered": 10,
       "underpowered": true,

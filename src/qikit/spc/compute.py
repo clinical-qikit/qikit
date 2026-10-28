@@ -30,6 +30,7 @@ def compute(
     sigma_hat: float | None = None,
     limit_method: str = "exact",
     funnel: bool = False,
+    signal_side: str = "both",
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
@@ -59,6 +60,8 @@ def compute(
                    probability contours, and for pp/up the additive over-dispersion
                    adjustment. No effect on other charts. This does not sort — the
                    caller (qic) owns the ordering.
+    signal_side  : which side sigma_signal flags — "both" (default), "above" (y > ucl
+                   only) or "below" (y < lcl only). Runs rules are unaffected.
 
     Returns
     -------
@@ -158,7 +161,7 @@ def compute(
         y_signal = y
     else:
         y_signal = np.where(np.asarray(exclude_mask, dtype=bool), np.nan, y)
-    sigma_sig = _sigma_signals(y_signal, ucl_arr, lcl_arr)
+    sigma_sig = _sigma_signals(y_signal, ucl_arr, lcl_arr, signal_side)
     runs_sig, runs_loc, runs_summary = _runs_signals(y_signal, cl_arr, method=method, ucl=ucl_arr, lcl=lcl_arr)
 
     if spec.limits_95 is not None:

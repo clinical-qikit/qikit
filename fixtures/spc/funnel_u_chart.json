@@ -73,6 +73,7 @@
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "n_warn": 0,
+      "signal_side": "both",
       "dispersion_note": "Providers vary more than chance can explain: the estimated spread of true rates between them is \u03c4 = 0.0012. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='up' with funnel=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_ratio_median": 3.367677635662801,
       "n_underpowered": 8,
