@@ -33,7 +33,10 @@ from .options import (
     validate_x_spacing,
 )
 from .results import BChartResult, ParetoResult, SPCResult, n_varies
-from .signals import VALID_SIGNAL_SIDES, _runs_signals, _sigma_signals, _warn_signals
+from .pvalues import bh_q_values, signal_thresholds
+from .signals import (
+    VALID_SIGNAL_METHODS, VALID_SIGNAL_SIDES, _runs_signals, _sigma_signals, _warn_signals,
+)
 
 # A doubling of risk-adjusted mortality is unambiguously material. If the typical
 # point cannot detect even that, the chart cannot clear anyone, and says so.
@@ -46,7 +49,7 @@ _RESERVED_COLUMNS = frozenset({
     "sigma_signal", "warn_signal", "runs_signal", "runs_signal_localized",
     "baseline", "excluded", "notes", "label", "target", "part", "facet",
     "min_detectable_oe", "min_detectable", "ci_95_lower", "ci_95_upper",
-    "observed", "expected", "n",
+    "observed", "expected", "n", "p_value", "q_value",
 })
 
 # What a volume axis is titled when the caller gives no xlab and n= is not a column
@@ -98,6 +101,7 @@ def qic(
     funnel: bool = False,
     limit_method: str | None = None,
     signal_side: str = "both",
+    signal_method: str = "limits",
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -242,6 +246,24 @@ def qic(
                firing on both sides. Runs rules are never side-filtered, and
                min_detectable* still describe the upper limit.
                summary["signal_side"] records it.
+    signal_method : what decides a funnel's sigma and warn tiers. Every chart
+               with funnel contours reports p_value — each point's exact p-value
+               against the null model its limits are drawn from (Poisson,
+               Poisson–gamma, binomial or beta-binomial at the center line, with
+               the limits' τ²): P(X ≥ O) for signal_side="above", P(X ≤ O) for
+               "below", and min(1, 2·min of the two) for "both" — and q_value, its
+               Benjamini–Hochberg adjustment across the chart's non-excluded
+               points (each facet separately). "limits" (default) flags points
+               beyond the drawn contours, as before. "exact" flags p_value below
+               the contours' own tail probability: 0.001 (sigma) and 0.025 (warn)
+               one-sided, doubled to 0.002 and 0.05 two-sided. "fdr" holds q_value
+               to the same levels. At small counts "exact" is stricter than
+               "limits" above the line (Spiegelhalter's interpolated limit is
+               not the exact test there; docs/methods.md §4.11) and identical
+               below it. Under "exact"/"fdr" the contours no longer decide the
+               colours, and an unset caption says so. summary records
+               signal_method, count_model, p_value_method ("normal" if any point
+               fell back to the normal model) and n_tested (the K of the BH step).
     xlab   : x-axis title. When None (default) it follows the axis drawn: on a
                funnel's volume axis, the n= column name (or "Expected events" on
                oe/oep, "Sample size" on p/pp, "Exposure" on u/up); otherwise
@@ -370,6 +392,16 @@ def qic(
         raise ValueError(
             f"signal_side must be one of {VALID_SIGNAL_SIDES}, got {signal_side!r}."
         )
+    if signal_method not in VALID_SIGNAL_METHODS:
+        raise ValueError(
+            f"signal_method must be one of {VALID_SIGNAL_METHODS}, got {signal_method!r}."
+        )
+    if signal_method != "limits" and not _has_warn_tier(chart, funnel):
+        raise ValueError(
+            f"signal_method={signal_method!r} needs funnel contours: chart='oe'/'oep', "
+            f"or chart='p'/'pp'/'u'/'up' with funnel=True. Other charts have no count "
+            f"model to compute an exact p-value from."
+        )
     if signal_side != "both" and not _has_warn_tier(chart, funnel):
         raise ValueError(
             f"signal_side={signal_side!r} needs funnel contours: chart='oe'/'oep', or "
@@ -444,7 +476,7 @@ def qic(
                 agg_fun=agg_fun,
                 funnel=funnel,
                 limit_method=limit_method if chart == "oe" else None,
-                signal_side=signal_side,
+                signal_side=signal_side, signal_method=signal_method,
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
                 point_labels=_subset_per_facet(point_labels, facet_rows, n_rows),
                 hover_extra=hover_extra,
@@ -475,6 +507,7 @@ def qic(
         if has_contours:
             # Uniform across facets, so a reader of the whole figure need not dig.
             combined_summary["signal_side"] = signal_side
+            combined_summary["signal_method"] = signal_method
 
         facet_opts = dataclasses.replace(opts, part_indices=[])
         if funnel:
@@ -634,7 +667,7 @@ def qic(
     # ------------------------------------------------------------------
     (
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc,
-        runs_summary, tau2,
+        runs_summary, tau2, p_value,
     ) = _compute_spc_arrays(
         chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
         s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
@@ -659,14 +692,26 @@ def qic(
     )
 
     # ------------------------------------------------------------------
-    # 7c. Warn tier: past the 95% band but inside the outer limits
+    # 7c. Signal tiers on a funnel: the warn tier, and under signal_method=
+    #     "exact"/"fdr" both tiers from the p- or q-values
     # ------------------------------------------------------------------
-    # Ghosted points are blanked exactly as compute() blanks them for sigma_signal.
-    # On the raw scale, so multiply cannot move a point between tiers.
+    # Ghosted points are blanked exactly as compute() blanks them for sigma_signal
+    # (their p_value is NaN, which never flags). On the raw scale, so multiply cannot
+    # move a point between tiers. Benjamini–Hochberg runs here rather than in
+    # compute() because it needs the whole chart, not one part of it.
     warn_sig = None
+    q_value = None
     if _has_warn_tier(chart, funnel):
-        y_warn = np.where(exclude_mask, np.nan, y_calc)
-        warn_sig = _warn_signals(y_warn, ucl_95_arr, lcl_95_arr, sigma_sig, signal_side)
+        q_value = bh_q_values(p_value)
+        if signal_method == "limits":
+            y_warn = np.where(exclude_mask, np.nan, y_calc)
+            warn_sig = _warn_signals(y_warn, ucl_95_arr, lcl_95_arr, sigma_sig, signal_side)
+        else:
+            stat = p_value if signal_method == "exact" else q_value
+            alpha_outer, alpha_inner = signal_thresholds(signal_side)
+            with np.errstate(invalid="ignore"):
+                sigma_sig = stat < alpha_outer
+                warn_sig = (stat < alpha_inner) & ~sigma_sig
 
     # ------------------------------------------------------------------
     # 8. Assemble DataFrame
@@ -677,6 +722,7 @@ def qic(
         exclude_mask=exclude_mask, oe_stats=oe_stats, funnel_stats=funnel_stats,
         warn_sig=warn_sig, point_labels=point_labels, hover_extra=hover_extra,
         n_echo=n_vals if (spec is not None and spec.needs_n) else None,
+        p_value=p_value if q_value is not None else None, q_value=q_value,
     )
     spacing = validate_x_spacing(x_spacing, funnel, n_varies(df), x_order, x_log)
 
@@ -703,6 +749,8 @@ def qic(
         # point, a funnel of a few hundred providers would always report a signal.
         summary["n_warn"] = int(np.sum(warn_sig))
         summary["signal_side"] = signal_side
+        summary["signal_method"] = signal_method
+        summary["n_tested"] = int(np.sum(np.isfinite(p_value)))
 
     if summary.get("overdispersed") and "dispersion_adjusted" not in summary:
         # An unadjusted funnel whose providers spread wider than its null model allows.
@@ -1094,6 +1142,7 @@ def _compute_spc_arrays(
         boundaries = [0] + [p - 1 for p in part_indices] + [n_pts]
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [np.empty(n_pts) for _ in range(5)]
         sigma_sig, runs_sig, runs_loc = [np.zeros(n_pts, dtype=bool) for _ in range(3)]
+        p_value = np.full(n_pts, np.nan)
         per_part_summaries = []
         for seg_i in range(len(boundaries) - 1):
             start, end = boundaries[seg_i], boundaries[seg_i + 1]
@@ -1110,9 +1159,14 @@ def _compute_spc_arrays(
             ucl_95_arr[start:end], lcl_95_arr[start:end] = seg_u95, seg_l95
             sigma_sig[start:end], runs_sig[start:end] = seg_raw["sigma_signal"], seg_raw["runs_signal"]
             runs_loc[start:end] = seg_raw["runs_signal_localized"]
+            if "p_value" in seg_raw:
+                p_value[start:end] = seg_raw["p_value"]
             per_part_summaries.append({"part": seg_i + 1, **seg_raw["summary"]})
 
         runs_summary = {**per_part_summaries[-1], "parts": per_part_summaries}
+        if any(s.get("p_value_method") == "normal" for s in per_part_summaries):
+            # Like limit_method, a statement about every point, not the last part's.
+            runs_summary["p_value_method"] = "normal"
         # Parts are rejected on funnels, so no part has a τ² to draw with.
         tau2 = 0.0
         if chart == "t":
@@ -1137,6 +1191,7 @@ def _compute_spc_arrays(
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         ucl_95_arr, lcl_95_arr = _inner_band(res, spec)
         tau2 = res["tau2"]
+        p_value = res.get("p_value", np.full(n_pts, np.nan))
         if chart == "t":
             cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
                 np.where(np.isnan(a), np.nan, np.where(a < 0, 0.0, a) ** 3.6)
@@ -1156,7 +1211,7 @@ def _compute_spc_arrays(
 
     return (
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc,
-        runs_summary, tau2,
+        runs_summary, tau2, p_value,
     )
 
 
@@ -1264,7 +1319,7 @@ def _assemble_final_df(
     x_vals, y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr,
     sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
     exclude_mask=None, oe_stats=None, funnel_stats=None, warn_sig=None,
-    point_labels=None, hover_extra=None, n_echo=None,
+    point_labels=None, hover_extra=None, n_echo=None, p_value=None, q_value=None,
 ):
     if multiply != 1.0:
         y_plot, cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr = [
@@ -1344,6 +1399,11 @@ def _assemble_final_df(
         # a volume axis plots. On oe/oep it duplicates `expected`, kept for callers
         # written against 0.6.
         df_dict["n"] = np.asarray(n_echo, dtype=float)
+
+    if q_value is not None:
+        # Probabilities, not on the y scale, so multiply leaves them alone.
+        df_dict["p_value"] = np.asarray(p_value, dtype=float)
+        df_dict["q_value"] = np.asarray(q_value, dtype=float)
 
     if part_indices:
         n_pts = len(y_plot)

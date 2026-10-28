@@ -14,6 +14,7 @@ import numpy as np
 import math
 
 from .limits import CHARTS, FUNNEL_CHARTS, VALID_CHARTS, funnel_dispersion
+from .pvalues import funnel_p_values
 from .signals import _runs_signals, _sigma_signals
 
 
@@ -61,7 +62,8 @@ def compute(
                    adjustment. No effect on other charts. This does not sort — the
                    caller (qic) owns the ordering.
     signal_side  : which side sigma_signal flags — "both" (default), "above" (y > ucl
-                   only) or "below" (y < lcl only). Runs rules are unaffected.
+                   only) or "below" (y < lcl only). Runs rules are unaffected. On a
+                   funnel it also picks the tail p_value reports.
 
     Returns
     -------
@@ -72,6 +74,11 @@ def compute(
     model (spec.family) the over-dispersion keys dispersion_phi, dispersion_tau and
     overdispersed, plus dispersion_method and dispersion_adjusted when the limits use
     the estimate. A time-ordered pp/up reports dispersion_method = "laney".
+    Funnel charts also return p_value: each point's exact p-value against the null
+    model its limits are drawn from, on signal_side's tail (pvalues.py; NaN for ghosted
+    points), with count_model and p_value_method in summary. sigma_signal stays the
+    limit test either way; signal_method= is applied by qic(), because the
+    Benjamini–Hochberg step needs the whole chart.
     """
     if chart not in CHARTS:
         raise ValueError(
@@ -175,6 +182,15 @@ def compute(
             ),
         }
     runs_summary = {**runs_summary, **dispersion}
+
+    if spec.limits_95 is not None and spec.family is not None and n is not None:
+        # Against the τ² the limits were drawn with, never the diagnostic estimate an
+        # unadjusted chart also carries: an over-dispersed oe chart is still Poisson.
+        p_value, p_method, model = funnel_p_values(
+            cl_val, y_signal, n, tau2 if spec.adjusted else 0.0, spec.family, signal_side,
+        )
+        extra["p_value"] = p_value
+        runs_summary = {**runs_summary, "count_model": model, "p_value_method": p_method}
 
     return {
         "y": y,

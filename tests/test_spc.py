@@ -3008,6 +3008,272 @@ class TestSignalSide:
 
 
 # ---------------------------------------------------------------------------
+# Exact p-values, q-values and signal_method= (docs/methods.md §4.11)
+# ---------------------------------------------------------------------------
+
+def _brute_tails(pmf, k, support):
+    """(P(X ≤ k), P(X ≥ k)) by direct lgamma summation, smallest terms first."""
+    lower = sorted(pmf(j) for j in support if j <= k)
+    upper = sorted(pmf(j) for j in support if j >= k)
+    return math.fsum(lower), math.fsum(upper)
+
+
+class TestTailProbabilities:
+    @staticmethod
+    def _close(got, want):
+        for g, w in zip(got, want):
+            assert g == pytest.approx(w, rel=1e-10, abs=1e-300)
+
+    @pytest.mark.parametrize("lam,k", [(5.0, 13), (5.0, 0), (0.7, 3), (40.0, 75), (40.0, 18)])
+    def test_poisson(self, lam, k):
+        pmf = lambda j: math.exp(j * math.log(lam) - lam - math.lgamma(j + 1))  # noqa: E731
+        self._close(_dist.poisson_tails(k, lam), _brute_tails(pmf, k, range(400)))
+
+    @pytest.mark.parametrize("m,theta,k", [(10, 0.1, 3), (50, 0.12, 0), (200, 0.3, 95), (30, 0.6, 9)])
+    def test_binomial(self, m, theta, k):
+        def pmf(j):
+            return math.exp(math.lgamma(m + 1) - math.lgamma(j + 1) - math.lgamma(m - j + 1)
+                            + j * math.log(theta) + (m - j) * math.log1p(-theta))
+        self._close(_dist.binomial_tails(k, m, theta), _brute_tails(pmf, k, range(m + 1)))
+
+    @pytest.mark.parametrize("lam,size,k", [(5.0, 4.0, 14), (12.0, 0.8, 1), (30.0, 25.0, 70)])
+    def test_poisson_gamma(self, lam, size, k):
+        def pmf(j):
+            return math.exp(math.lgamma(j + size) - math.lgamma(size) - math.lgamma(j + 1)
+                            + size * math.log(size / (size + lam)) + j * math.log(lam / (size + lam)))
+        self._close(_dist.poisson_gamma_tails(k, lam, size), _brute_tails(pmf, k, range(3000)))
+
+    @pytest.mark.parametrize("m,a,b,k", [(40, 2.0, 15.0, 20), (120, 6.0, 30.0, 2), (15, 0.7, 0.9, 7)])
+    def test_beta_binomial(self, m, a, b, k):
+        def lbeta(x, y):
+            return math.lgamma(x) + math.lgamma(y) - math.lgamma(x + y)
+
+        def pmf(j):
+            return math.exp(math.lgamma(m + 1) - math.lgamma(j + 1) - math.lgamma(m - j + 1)
+                            + lbeta(j + a, m - j + b) - lbeta(a, b))
+        self._close(_dist.beta_binomial_tails(k, m, a, b), _brute_tails(pmf, k, range(m + 1)))
+
+    def test_tiny_tails_keep_their_digits(self):
+        """Summed directly, not as a complement: 1 − F would keep ~4 digits here."""
+        lam, k = 5.0, 30
+        pmf = lambda j: math.exp(j * math.log(lam) - lam - math.lgamma(j + 1))  # noqa: E731
+        want = _brute_tails(pmf, k, range(400))[1]
+        assert 1e-14 < want < 1e-10
+        assert _dist.poisson_tails(k, lam)[1] == pytest.approx(want, rel=1e-10)
+
+    def test_the_two_tails_overlap_by_the_pmf(self):
+        lam, k = 7.3, 9
+        lower, upper = _dist.poisson_tails(k, lam)
+        pmf = math.exp(k * math.log(lam) - lam - math.lgamma(k + 1))
+        assert lower + upper - 1.0 == pytest.approx(pmf, rel=1e-12)
+
+    def test_out_of_support_and_degenerate(self):
+        assert _dist.binomial_tails(11, 10, 0.3) == (1.0, 0.0)
+        assert _dist.binomial_tails(-1, 10, 0.3) == (0.0, 1.0)
+        assert _dist.binomial_tails(0, 10, 0.0) == (1.0, 1.0)
+        assert _dist.binomial_tails(10, 10, 1.0) == (1.0, 1.0)
+        assert all(math.isnan(v) for v in _dist.poisson_tails(3, 0.0))
+        assert all(math.isnan(v) for v in _dist.poisson_tails(3, math.nan))
+
+
+class TestPValues:
+    # Heavily over-dispersed, so the adjusted charts have a τ̂ to use.
+    Y = [2, 30, 5, 40, 3, 50, 8, 60, 1, 70]
+    N = [20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0]
+
+    def test_worked_example(self):
+        """13 deaths against 5 expected: beyond the 99.8% line, yet P(X ≥ 13) = 0.20%."""
+        r = qic(y=[13, 10, 20], n=[5.0, 10.0, 20.0], chart="oe", funnel=True, cl=1.0,
+                signal_side="above")
+        row = r.data.iloc[0]
+        assert row["y"] > row["ucl"] and row["sigma_signal"]
+        assert row["p_value"] == pytest.approx(0.0020188516274, rel=1e-9)
+        exact = qic(y=[13, 10, 20], n=[5.0, 10.0, 20.0], chart="oe", funnel=True,
+                    cl=1.0, signal_side="above", signal_method="exact")
+        assert not exact.data["sigma_signal"].iloc[0]
+        assert exact.data["warn_signal"].iloc[0]
+
+    @pytest.mark.parametrize("chart,model", [
+        ("oe", "poisson"), ("oep", "poisson_gamma"), ("u", "poisson"),
+        ("up", "poisson_gamma"), ("p", "binomial"), ("pp", "beta_binomial"),
+    ])
+    def test_count_model(self, chart, model):
+        n = [v * 4 for v in self.N] if chart in ("p", "pp") else self.N
+        r = qic(y=self.Y, n=n, chart=chart, funnel=True)
+        assert r.summary["count_model"] == model
+        assert r.summary["p_value_method"] == "exact"
+        assert r.summary["n_tested"] == 10
+        assert {"p_value", "q_value"} <= set(r.data.columns)
+
+    def test_adjusted_chart_without_spread_is_the_plain_one(self):
+        y = [4, 6, 8, 10, 14, 18, 24, 30, 40, 55]
+        n = [4.0, 6.0, 8.0, 10.0, 14.0, 18.0, 24.0, 30.0, 40.0, 55.0]
+        oe, oep = (qic(y=y, n=n, chart=c, funnel=True) for c in ("oe", "oep"))
+        assert oep.summary["dispersion_tau"] == 0.0
+        assert oep.summary["count_model"] == "poisson"
+        assert list(oe.data["p_value"]) == list(oep.data["p_value"])
+        pn = [v * 10 for v in n]
+        p, pp = (qic(y=y, n=pn, chart=c, funnel=True) for c in ("p", "pp"))
+        assert pp.summary["count_model"] == "binomial"
+        assert list(p.data["p_value"]) == list(pp.data["p_value"])
+
+    def test_two_sided_doubles_the_smaller_tail(self):
+        args = dict(y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0)
+        up = qic(signal_side="above", **args).data["p_value"].to_numpy()
+        down = qic(signal_side="below", **args).data["p_value"].to_numpy()
+        both = qic(**args).data["p_value"].to_numpy()
+        assert np.allclose(both, np.minimum(1.0, 2.0 * np.minimum(up, down)), rtol=0, atol=0)
+
+    def test_overdispersed_oe_stays_poisson(self):
+        """The diagnostic τ̂ on an unadjusted chart must not leak into its p-values."""
+        r = qic(y=self.Y, n=self.N, chart="oe", funnel=True, signal_side="above")
+        assert r.summary["overdispersed"]
+        cl = r.data["cl"].iloc[0]
+        for o, e, p in zip(self.Y, r.data["n"], r.data["p_value"]):
+            assert p == pytest.approx(_dist.poisson_tails(round(o), cl * e)[1], rel=1e-12)
+
+    def test_excluded_points_are_not_tested(self):
+        r = qic(y=self.Y, n=self.N, chart="oe", funnel=True, exclude=[3])
+        row = r.data.loc[r.data["excluded"]].iloc[0]
+        assert math.isnan(row["p_value"]) and math.isnan(row["q_value"])
+        assert r.summary["n_tested"] == 9
+
+    def test_non_integer_denominator_falls_back_to_normal(self):
+        r = qic(y=[3, 4, 9, 2], n=[30.5, 40.0, 50.0, 60.0], chart="p", funnel=True)
+        assert r.summary["p_value_method"] == "normal"
+        assert r.data["p_value"].notna().all()
+
+    def test_multiply_leaves_them_alone(self):
+        args = dict(y=self.Y, n=self.N, chart="u", funnel=True)
+        a, b = qic(**args).data, qic(multiply=1000, **args).data
+        assert list(a["p_value"]) == list(b["p_value"])
+        assert list(a["q_value"]) == list(b["q_value"])
+
+    def test_physician_example(self):
+        df = TestPhysicianExampleWorkflow._df()
+        agg = df.groupby("physician", as_index=False)[
+            ["observed_deaths", "expected_deaths"]
+        ].sum()
+        p = {}
+        for side in ("above", "below"):
+            r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
+                    chart="oe", funnel=True, cl=1.0, signal_side=side)
+            p[side] = r.data.set_index("x")["p_value"]
+        assert 1e-5 < p["above"]["SURG-07"] < 1e-4
+        assert 1e-6 < p["above"]["SURG-15"] < 1e-4
+        assert 1e-6 < p["below"]["SURG-21"] < 1e-4
+
+    def test_absent_without_contours(self):
+        r = qic(y=[3, 4, 5], n=[10, 20, 30], chart="p")
+        assert "p_value" not in r.data.columns
+        assert "count_model" not in r.summary
+
+
+class TestBenjaminiHochberg:
+    def test_hand_worked(self):
+        from qikit.spc.pvalues import bh_q_values
+        q = bh_q_values(np.array([0.01, 0.04, 0.03, 0.005, 0.5]))
+        assert q.tolist() == pytest.approx([0.025, 0.05, 0.05, 0.025, 0.5])
+
+    def test_nan_is_untested(self):
+        from qikit.spc.pvalues import bh_q_values
+        q = bh_q_values(np.array([0.01, np.nan, 0.04]))
+        assert math.isnan(q[1])
+        assert q[[0, 2]].tolist() == pytest.approx([0.02, 0.04])
+
+    def test_monotone_bounded_and_capped(self):
+        from qikit.spc.pvalues import bh_q_values
+        rng = np.random.default_rng(7)
+        p = rng.uniform(size=200) ** 3
+        q = bh_q_values(p)
+        order = np.argsort(p)
+        assert (np.diff(q[order]) >= 0).all()
+        assert (q >= p).all() and (q <= 1.0).all()
+
+
+class TestSignalMethod:
+    Y = TestPValues.Y
+    N = TestPValues.N
+
+    def _oe(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0, **kw)
+
+    @pytest.mark.parametrize("side", ["both", "above", "below"])
+    @pytest.mark.parametrize("method,col", [("exact", "p_value"), ("fdr", "q_value")])
+    def test_tiers_follow_the_statistic(self, side, method, col):
+        from qikit.spc.pvalues import signal_thresholds
+        d = self._oe(signal_side=side, signal_method=method).data
+        outer, inner = signal_thresholds(side)
+        stat = d[col].to_numpy()
+        assert (d["sigma_signal"].to_numpy() == (stat < outer)).all()
+        assert (d["warn_signal"].to_numpy() == ((stat < inner) & ~(stat < outer))).all()
+
+    def test_summary_and_signals(self):
+        r = self._oe(signal_method="fdr")
+        assert r.summary["signal_method"] == "fdr"
+        assert r.signals == bool(r.data["sigma_signal"].any())
+        assert r.summary["n_warn"] == int(r.data["warn_signal"].sum())
+        assert self._oe().summary["signal_method"] == "limits"
+
+    def test_excluded_point_never_flags(self):
+        d = self._oe(signal_method="exact", exclude=[10]).data
+        assert not d.loc[d["excluded"], ["sigma_signal", "warn_signal"]].any().any()
+
+    @pytest.mark.parametrize("chart", ["p", "i"])
+    def test_rejected_without_contours(self, chart):
+        n = self.N if chart == "p" else None
+        with pytest.raises(ValueError, match="needs funnel contours"):
+            qic(y=self.Y, n=n, chart=chart, signal_method="exact")
+
+    def test_invalid_value(self):
+        with pytest.raises(ValueError, match="signal_method must be one of"):
+            self._oe(signal_method="bonferroni")
+
+    def test_facets_adjust_separately(self):
+        df = pd.DataFrame({
+            "o": self.Y * 2, "e": self.N * 2, "site": ["A"] * 10 + ["B"] * 10,
+        })
+        r = qic(y="o", n="e", data=df, chart="oe", funnel=True, cl=1.0,
+                facets="site", signal_method="fdr")
+        alone = self._oe(signal_method="fdr").data["q_value"].tolist()
+        for site in ("A", "B"):
+            assert r.data.loc[r.data["facet"] == site, "q_value"].tolist() == alone
+        assert r.summary["signal_method"] == "fdr"
+
+    @staticmethod
+    def _random_funnel(rng, chart):
+        k = 40
+        if chart in ("p", "pp"):
+            n = rng.integers(5, 300, size=k).astype(float)
+            theta = np.clip(0.12 * rng.lognormal(0, 0.5, size=k), 0, 0.9)
+            y = rng.binomial(n.astype(int), theta).astype(float)
+        else:
+            n = np.round(rng.uniform(0.5, 80, size=k), 2)
+            y = rng.poisson(n * rng.lognormal(0, 0.45, size=k)).astype(float)
+        return y, n
+
+    @pytest.mark.parametrize("chart", ["oe", "oep", "u", "up", "p", "pp"])
+    def test_exact_against_limits(self, chart):
+        """For integer counts on exact limits, the exact test agrees below the line and
+        is stricter above it: Spiegelhalter's interpolation tests P(X > O), not P(X ≥ O).
+        Holds for sigma and for "beyond 95%", not for the warn tier alone."""
+        rng = np.random.default_rng(11)
+        for _ in range(15):
+            y, n = self._random_funnel(rng, chart)
+            for side in ("above", "below"):
+                args = dict(y=y, n=n, chart=chart, funnel=True, signal_side=side)
+                lim, ex = qic(**args), qic(signal_method="exact", **args)
+                if "normal" in (lim.summary["limit_method"], ex.summary["p_value_method"]):
+                    continue
+                ls, es = lim.data["sigma_signal"], ex.data["sigma_signal"]
+                lb, eb = ls | lim.data["warn_signal"], es | ex.data["warn_signal"]
+                if side == "below":
+                    assert (ls == es).all() and (lb == eb).all()
+                else:
+                    assert not (es & ~ls).any() and not (eb & ~lb).any()
+
+
+# ---------------------------------------------------------------------------
 # point_labels= and hover_extra=
 # ---------------------------------------------------------------------------
 

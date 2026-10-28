@@ -23,6 +23,7 @@ from plotly.subplots import make_subplots
 from qikit.spc.options import (
     DEFAULT_XLAB, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, validate_x_spacing,
 )
+from qikit.spc.pvalues import signal_thresholds
 from qikit.spc.results import n_varies
 
 from .utils import (
@@ -108,6 +109,19 @@ def _signal_label_offsets(
     return out
 
 
+def _fmt_p(v: Any) -> str:
+    """A p- or q-value for the hover: two significant figures, floored for display."""
+    if v is None or np.isnan(v):
+        return "n/a"
+    if v < 1e-4:
+        return "<0.0001"
+    return f"{v:.2g}"
+
+
+# How the hover names the tail a p-value was taken from.
+_SIDE_TEXT = {"above": "above", "below": "below", "both": "two-sided"}
+
+
 def _fmt_hover(v: Any) -> str:
     """One hover_extra value as display text; pre-formatted for the same NaN reason as the O/E fields."""
     if v is None or (isinstance(v, (float, np.floating)) and np.isnan(v)):
@@ -164,6 +178,7 @@ def _add_chart_traces(
     curve: Any = None,
     x_log: bool = False,
     x_title: str = "",
+    signal_side: str = "both",
 ) -> None:
     """
     Add data/CL/UCL/LCL traces, part boundaries, notes and signal labels to fig.
@@ -312,6 +327,15 @@ def _add_chart_traces(
             # O/E already leads with its counts; a proportion or rate needs its
             # denominator, which the volume axis has taken over from the name.
             hovertemplate += f"<br>{x_title}: %{{x}}"
+
+    if "p_value" in df.columns and "q_value" in df.columns:
+        # Straight after the chart's own fields, so hover_extra and the header keep
+        # their order behind it.
+        k = len(customdata[0])
+        side = _SIDE_TEXT.get(signal_side, signal_side)
+        for row_cd, pv, qv in zip(customdata, df["p_value"], df["q_value"]):
+            row_cd.append(f"{_fmt_p(pv)} ({side}), q = {_fmt_p(qv)}")
+        hovertemplate += f"<br>p = %{{customdata[{k}]}}"
 
     for name in extras:
         k = len(customdata[0]) if customdata else 0
@@ -554,13 +578,68 @@ _UNDERPOWERED_CAPTION = (
 )
 
 
-def _effective_caption(result: Any) -> str | None:
-    """The caller's caption, or the underpowered warning when they gave none."""
+def _signal_setting(result: Any, key: str, default: Any = None) -> Any:
+    """
+    A funnel's signal_side / signal_method from its summary. A faceted result keeps
+    them at the top level too, but fall back to the first panel's for a result built
+    without them.
+    """
+    summary = getattr(result, "summary", None) or {}
+    if key in summary:
+        return summary[key]
+    for sub in (summary.get("by_facet") or {}).values():
+        if key in sub:
+            return sub[key]
+    return default
+
+
+def _signal_caption(result: Any, show_95: bool, funnel: bool) -> str | None:
+    """
+    Say what flagged the points when the drawn contours did not. Under
+    signal_method="exact"/"fdr" a point beyond a line can be unflagged and the colours
+    answer a different question from the curves; a screenshot carries no summary keys,
+    so the figure has to say so itself.
+    """
+    method = _signal_setting(result, "signal_method", "limits")
+    if method == "limits":
+        return None
+    side = _signal_setting(result, "signal_side", "both")
+    outer, inner = signal_thresholds(side)
+    if method == "exact":
+        tail = "two-sided" if side == "both" else f"one-sided ({side} the center line)"
+        test, stat = f"exact {tail} test", "p"
+    else:
+        summary = getattr(result, "summary", None) or {}
+        if "by_facet" in summary:
+            scope = "within each panel"
+        else:
+            scope = f"across {summary.get('n_tested', 0)} points"
+        test, stat = f"Benjamini–Hochberg false discovery rate {scope}", "q"
+    # Amber marks the warn tier only on a funnel drawn with its 95% band.
+    amber = show_95 and funnel
+    levels = f"{stat} < {outer:g} (red)" + (f", {stat} < {inner:g} (amber)" if amber else "")
+    curves = "99.8% and 95% limits" if show_95 else "99.8% limits"
+    tail_note = (
+        "for reference" if method == "exact" else "not adjusted for multiple comparisons"
+    )
+    return f"Signals: {test}, {levels}. The curves show the {curves}, {tail_note}."
+
+
+def _effective_caption(result: Any, show_95: bool = False, funnel: bool = False) -> str | None:
+    """
+    The caller's caption, or, when they gave none, every automatic note that applies:
+    what flagged the points (signal_method="exact"/"fdr") and the underpowered warning.
+    """
     caption = getattr(result, "caption", None)
     if caption:
         return caption
     summary = getattr(result, "summary", None) or {}
-    return _UNDERPOWERED_CAPTION if summary.get("underpowered") else None
+    notes = [
+        _signal_caption(result, show_95, funnel),
+        _UNDERPOWERED_CAPTION if summary.get("underpowered") else None,
+    ]
+    notes = [n for n in notes if n]
+    return "<br>".join(notes) if notes else None
 
 
 def _configure_layout(
@@ -581,6 +660,8 @@ def _configure_layout(
     x_spacing: str | None = None,
     x_log: bool = False,
     x_title: str = "",
+    show_95: bool = False,
+    funnel: bool = False,
 ) -> None:
     """Shared layout and axis styling for single and faceted plots."""
     apply_tufte_theme(fig)
@@ -643,7 +724,7 @@ def _configure_layout(
         **size_kwargs,
     )
 
-    caption = _effective_caption(result)
+    caption = _effective_caption(result, show_95, funnel)
     if caption:
         fig.add_annotation(
             text=caption, xref="paper", yref="paper",
@@ -761,6 +842,7 @@ def _plot_faceted(
             curve=None if curve is None else curve[curve["facet"] == fv],
             x_log=x_log,
             x_title=x_title,
+            signal_side=_signal_setting(result, "signal_side", "both"),
         )
 
     _configure_layout(
@@ -768,7 +850,7 @@ def _plot_faceted(
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
         show_x_labels=show_x_labels, x_spacing=x_spacing,
-        x_log=x_log, x_title=x_title,
+        x_log=x_log, x_title=x_title, show_95=show_95, funnel=funnel,
     )
 
     # Shared axes hide the tick labels on inner panels; the tick marks left
@@ -1036,6 +1118,7 @@ def plot_result(
         curve=curve,
         x_log=x_log,
         x_title=x_title,
+        signal_side=_signal_setting(result, "signal_side", "both"),
     )
 
     _configure_layout(
@@ -1043,7 +1126,7 @@ def plot_result(
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
         show_x_labels=show_x_labels, x_spacing=x_spacing,
-        x_log=x_log, x_title=x_title,
+        x_log=x_log, x_title=x_title, show_95=show_95, funnel=funnel,
     )
 
     return fig

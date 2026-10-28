@@ -451,6 +451,58 @@ class TestOEHoverAndCaption:
         assert "95% CI" not in tpl
 
 
+class TestSignalMethodRendering:
+    """Under signal_method="exact"/"fdr" the curves no longer decide the colours, and a
+    screenshot has to say so."""
+
+    Y = [2, 30, 5, 40, 3, 50, 8, 60, 1, 70]
+    N = [20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0]
+
+    def _captions(self, fig):
+        return [a.text for a in fig.layout.annotations if a.yref == "paper"]
+
+    def _r(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="up", funnel=True, **kw)
+
+    def test_limits_adds_no_signal_caption(self):
+        # This chart is underpowered, so the power caveat stays; nothing else joins it.
+        (cap,) = self._captions(self._r().plot())
+        assert "Signals:" not in cap
+
+    def test_exact_says_which_test(self):
+        (cap,) = self._captions(self._r(signal_method="exact", signal_side="above").plot())
+        assert cap.startswith("Signals: exact one-sided (above the center line) test, p < 0.001 (red).")
+        assert "99.8% limits, for reference" in cap
+
+    def test_fdr_names_its_scope_and_amber_tier(self):
+        (cap,) = self._captions(self._r(signal_method="fdr", show_95=True).plot())
+        assert "Benjamini–Hochberg false discovery rate across 10 points" in cap
+        assert "q < 0.002 (red), q < 0.05 (amber)" in cap
+        assert "not adjusted for multiple comparisons" in cap
+
+    def test_faceted_fdr_is_per_panel(self):
+        df = pd.DataFrame({"o": self.Y * 2, "e": self.N * 2, "site": ["A"] * 10 + ["B"] * 10})
+        fig = qic(y="o", n="e", data=df, chart="up", funnel=True, facets="site",
+                  signal_method="fdr").plot()
+        assert any("within each panel" in c for c in self._captions(fig))
+
+    def test_joins_the_underpowered_caption(self):
+        fig = qic(y=TestOEHoverAndCaption.Y, n=TestOEHoverAndCaption.N, chart="oe",
+                  funnel=True, signal_method="exact").plot()
+        (cap,) = self._captions(fig)
+        assert cap.startswith("Signals: exact two-sided test")
+        assert "<br>" in cap and cap.endswith("not evidence of acceptable performance.")
+
+    def test_user_caption_wins(self):
+        fig = self._r(signal_method="fdr", caption="Source: registry").plot()
+        assert self._captions(fig) == ["Source: registry"]
+
+    def test_hover_reports_p_and_q(self):
+        trace = self._r(signal_side="below").plot().data[0]
+        assert "<br>p = %{customdata[1]}" in trace.hovertemplate
+        assert all(" (below), q = " in row[1] for row in trace.customdata)
+
+
 # ---------------------------------------------------------------------------
 # Funnel ergonomics: warn tier, signal labels, rank spacing, labels and hover
 # ---------------------------------------------------------------------------
@@ -577,13 +629,15 @@ class TestFunnelLabeling:
         trace = fig.data[0]
         tpl = trace.hovertemplate
         row = trace.customdata[0]
-        # O/E fields keep their indices; extras then header are appended.
+        # O/E fields keep their indices; p/q, then extras, then header are appended.
         assert "Observed %{customdata[1]}" in tpl
-        assert "<br>Encounters: %{customdata[4]}" in tpl
-        assert "<br>Practice: %{customdata[5]}" in tpl
-        assert tpl.startswith("%{customdata[6]}: %{y}")
-        assert row[4] == "100" and row[5] == "East"
-        assert row[6] == f"Dr A ({self.X[0]})"
+        assert "<br>p = %{customdata[4]}" in tpl
+        assert "<br>Encounters: %{customdata[5]}" in tpl
+        assert "<br>Practice: %{customdata[6]}" in tpl
+        assert tpl.startswith("%{customdata[7]}: %{y}")
+        assert " (two-sided), q = " in row[4]
+        assert row[5] == "100" and row[6] == "East"
+        assert row[7] == f"Dr A ({self.X[0]})"
 
     def test_hover_extra_on_plain_chart(self):
         fig = qic(y=[1.0, 2.0, 3.0], chart="i",
