@@ -23,7 +23,7 @@ from plotly.subplots import make_subplots
 from qikit.spc.options import (
     DEFAULT_XLAB, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, validate_x_spacing,
 )
-from qikit.spc.results import denominator_column, n_varies
+from qikit.spc.results import n_varies
 
 from .utils import (
     apply_tufte_theme,
@@ -191,7 +191,7 @@ def _add_chart_traces(
     rank = x_spacing == "rank"
     by_n = x_spacing == "n"
     if by_n:
-        x = df[denominator_column(chart_type)].astype(float).tolist()
+        x = df["n"].astype(float).tolist()
     elif rank:
         x = list(range(1, len(x_raw) + 1))
     else:
@@ -595,7 +595,7 @@ def _configure_layout(
         fig.update_xaxes(type="log" if x_log else "linear")
         fig.update_layout(hovermode="closest")
         if x_log:
-            n_vals = result.data[denominator_column(result.chart_type)].to_numpy(dtype=float)
+            n_vals = result.data["n"].to_numpy(dtype=float)
             n_vals = n_vals[np.isfinite(n_vals) & (n_vals > 0)]
             ticks = _log_ticks(float(n_vals.min()), float(n_vals.max()))
             # A caller's x_format still decides how the labels read.
@@ -985,7 +985,7 @@ def plot_result(
         )
     # The same rule qic() applied, re-run because an override can change any input.
     x_spacing = validate_x_spacing(
-        x_spacing, funnel, n_varies(result.data, result.chart_type), x_order, x_log,
+        x_spacing, funnel, n_varies(result.data), x_order, x_log,
     )
     curve = result.funnel_limits() if x_spacing == "n" else None
     # A title the caller gave is theirs on any axis; otherwise it names the axis drawn,

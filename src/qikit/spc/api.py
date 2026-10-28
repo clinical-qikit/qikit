@@ -215,8 +215,8 @@ def qic(
                order and are re-ordered along with the data; summary["excluded"]
                reports positions in the sorted (plotted) order. freeze= and
                part= are rejected — they assume the points are in time order.
-               result.data gains n, the denominator in plotted order (oe/oep
-               echo it as expected), and warn_signal: points past the 95% band that
+               result.data carries n, the denominator in plotted order (as every
+               chart with denominators does), and warn_signal: points past the 95% band that
                are not already sigma signals (also always present on oe/oep).
                With show_95=True those points are drawn amber, the color runs
                signals use on a time-ordered chart.
@@ -437,7 +437,7 @@ def qic(
 
         combined_df = pd.concat([r[2] for r in sub_results], ignore_index=True)
         spacing = validate_x_spacing(
-            x_spacing, funnel, n_varies(combined_df, chart), x_order, x_log,
+            x_spacing, funnel, n_varies(combined_df), x_order, x_log,
         )
         total_n_obs = sum(r[1].summary.get("n_obs", 0) for r in sub_results)
         total_n_baseline = sum(r[1].summary.get("n_baseline", 0) for r in sub_results)
@@ -650,9 +650,9 @@ def qic(
         sigma_sig, runs_sig, runs_loc, mask, notes, target, multiply, chart, part_indices, part_labels,
         exclude_mask=exclude_mask, oe_stats=oe_stats, funnel_stats=funnel_stats,
         warn_sig=warn_sig, point_labels=point_labels, hover_extra=hover_extra,
-        n_echo=n_vals if funnel_stats is not None else None,
+        n_echo=n_vals if (spec is not None and spec.needs_n) else None,
     )
-    spacing = validate_x_spacing(x_spacing, funnel, n_varies(df, chart), x_order, x_log)
+    spacing = validate_x_spacing(x_spacing, funnel, n_varies(df), x_order, x_log)
 
     # ------------------------------------------------------------------
     # 9. Summary
@@ -1311,8 +1311,10 @@ def _assemble_final_df(
         df_dict["ci_95_upper"] = ci_hi * scale
 
     if n_echo is not None:
-        # The denominator, echoed for the reason observed/expected are on oe/oep: the
-        # funnel sort has reordered the rows. It is also what a volume axis plots.
+        # The denominator, on every chart that takes one, so callers find it under one
+        # name whatever the chart: a funnel sort has reordered the rows, and it is what
+        # a volume axis plots. On oe/oep it duplicates `expected`, kept for callers
+        # written against 0.6.
         df_dict["n"] = np.asarray(n_echo, dtype=float)
 
     if part_indices:

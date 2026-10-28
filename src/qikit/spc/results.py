@@ -18,17 +18,11 @@ import plotly.graph_objects as go
 _GRID_STEPS = 200
 
 
-def denominator_column(chart: str) -> str:
-    """The result.data column holding a funnel's denominator."""
-    return "expected" if chart in ("oe", "oep") else "n"
-
-
-def n_varies(data: pd.DataFrame, chart: str) -> bool:
+def n_varies(data: pd.DataFrame) -> bool:
     """Whether a funnel's denominators differ, so a volume axis has a range to span."""
-    col = denominator_column(chart)
-    if col not in data.columns:
+    if "n" not in data.columns:
         return False
-    vals = data[col].to_numpy(dtype=float)
+    vals = data["n"].to_numpy(dtype=float)
     vals = vals[np.isfinite(vals) & (vals > 0)]
     return len(vals) > 0 and float(vals.min()) < float(vals.max())
 
@@ -91,8 +85,11 @@ class SPCResult:
                                            its own proportion or rate (y scale)
                    observed, expected    — oe/oep: event counts, echoed in plotted
                                            (post-funnel-sort) order
-                   n                     — p/pp/u/up with funnel=True: the
-                                           denominator, echoed in plotted order
+                   n                     — every chart with denominators (ip, p,
+                                           pp, u, up, oe, oep): the denominator in
+                                           plotted order, never scaled by multiply;
+                                           expected events on oe/oep, where it
+                                           equals `expected`
     chart_type : "run", "i", "mr", "p", "u", "c", etc.
     method     : run-signal detection method ("anhoej", "ihi", "weco", "nelson")
     summary    : audit dict. Always: n_obs, n_baseline, signals, limit_basis,
@@ -199,14 +196,13 @@ class SPCResult:
             )
         from .compute import funnel_limits
 
-        col = denominator_column(self.chart_type)
         frames = []
         for facet, params in self._funnel.items():
             if n is not None:
                 grid = np.asarray(n, dtype=float)
             else:
                 rows = self.data if facet is None else self.data[self.data["facet"] == facet]
-                grid = _funnel_grid(rows[col].to_numpy(dtype=float), params["chart"] in ("p", "pp"))
+                grid = _funnel_grid(rows["n"].to_numpy(dtype=float), params["chart"] in ("p", "pp"))
             lim = funnel_limits(
                 params["chart"], params["cl"], grid,
                 tau2=params["tau2"], limit_method=params["limit_method"],

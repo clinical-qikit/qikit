@@ -3252,11 +3252,16 @@ class TestFunnelLimits:
         with pytest.raises(ValueError, match="funnel contours"):
             qic(y=[3, 4, 5], n=[10, 20, 30], chart="p").funnel_limits()
 
-    def test_n_column_only_on_p_u_funnels(self):
+    def test_n_column_on_every_denominator_chart(self):
         args = dict(y=[3, 4, 5, 9], n=[10, 20, 30, 50])
         assert list(qic(chart="p", funnel=True, **args).data["n"]) == [10, 20, 30, 50]
-        assert "n" not in qic(chart="p", **args).data.columns
-        assert "n" not in qic(chart="oe", funnel=True, **args).data.columns
+        assert list(qic(chart="p", **args).data["n"]) == [10, 20, 30, 50]
+        for funnel in (False, True):
+            oe = qic(chart="oe", funnel=funnel, **args).data
+            assert list(oe["n"]) == list(oe["expected"])
+        assert "n" not in qic(y=[3, 4, 5, 9], chart="i").data.columns
+        # A y-scale rescale; the denominator is not on the y scale.
+        assert list(qic(chart="u", multiply=100, **args).data["n"]) == [10, 20, 30, 50]
 
     def test_n_column_follows_the_funnel_sort(self):
         r = qic(x=list("abcd"), y=[9, 4, 5, 3], n=[50, 20, 30, 10], chart="u", funnel=True)
