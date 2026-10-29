@@ -4,6 +4,7 @@ results.py — result dataclasses returned by qic(), paretochart(), and bchart()
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -18,17 +19,11 @@ import plotly.graph_objects as go
 _GRID_STEPS = 200
 
 
-def denominator_column(chart: str) -> str:
-    """The result.data column holding a funnel's denominator."""
-    return "expected" if chart in ("oe", "oep") else "n"
-
-
-def n_varies(data: pd.DataFrame, chart: str) -> bool:
+def n_varies(data: pd.DataFrame) -> bool:
     """Whether a funnel's denominators differ, so a volume axis has a range to span."""
-    col = denominator_column(chart)
-    if col not in data.columns:
+    if "n" not in data.columns:
         return False
-    vals = data[col].to_numpy(dtype=float)
+    vals = data["n"].to_numpy(dtype=float)
     vals = vals[np.isfinite(vals) & (vals > 0)]
     return len(vals) > 0 and float(vals.min()) < float(vals.max())
 
@@ -91,8 +86,20 @@ class SPCResult:
                                            its own proportion or rate (y scale)
                    observed, expected    — oe/oep: event counts, echoed in plotted
                                            (post-funnel-sort) order
-                   n                     — p/pp/u/up with funnel=True: the
-                                           denominator, echoed in plotted order
+                   n                     — every chart with denominators (ip, p,
+                                           pp, u, up, oe, oep): the denominator in
+                                           plotted order, never scaled by multiply;
+                                           expected events on oe/oep, where it
+                                           equals `expected`
+                   p_value, q_value      — charts with funnel contours (oe/oep, and
+                                           p/pp/u/up with funnel=True): the point's
+                                           exact p-value against the null model its
+                                           limits are drawn from, on signal_side's
+                                           tail (two-sided: doubled, capped at 1),
+                                           and its Benjamini–Hochberg q-value across
+                                           the chart's tested points. NaN on
+                                           excluded points. Never scaled by multiply.
+                                           docs/methods.md §4.11
     chart_type : "run", "i", "mr", "p", "u", "c", etc.
     method     : run-signal detection method ("anhoej", "ihi", "weco", "nelson")
     summary    : audit dict. Always: n_obs, n_baseline, signals, limit_basis,
@@ -118,6 +125,19 @@ class SPCResult:
                                          "laney" on time-ordered pp/up
                    dispersion_adjusted — adjusted charts only: τ̂ > 0, i.e. the
                                          limits actually moved
+                   signal_side         — "both", "above" or "below" (qic's
+                                         signal_side=)
+                   signal_method       — "limits", "exact" or "fdr": what decided
+                                         sigma_signal and warn_signal
+                   count_model         — the null model behind the limits and
+                                         p_value: "poisson", "poisson_gamma",
+                                         "binomial" or "beta_binomial" (an adjusted
+                                         chart whose τ̂ = 0 reports the plain one)
+                   p_value_method      — "exact", or "normal" if any point's
+                                         p-value fell back to the normal model (a
+                                         non-integer count or binomial n, say)
+                   n_tested            — points with a p-value: the K of the
+                                         Benjamini–Hochberg step
                  docs/methods.md records the method behind each of these.
                  O/E charts also add:
                    min_detectable_oe_median — median of min_detectable_oe over
@@ -161,7 +181,10 @@ class SPCResult:
 
     def plot(self, **overrides: Any) -> go.Figure:
         """
-        Render as a Plotly Figure. Keyword args override stored display options.
+        Render as a Plotly Figure. Keyword args override stored display options:
+        any qic() display parameter (show_95, show_labels, label_signals,
+        x_spacing, x_log, x_range, y_range, styles, show_legend, width, height, …).
+        An unknown name raises TypeError rather than being ignored.
 
         Trace names are a stable public contract, for callers who restyle the
         figure: "data" (the points), "Target", "CL", the outer limits "UCL"/"LCL"
@@ -172,9 +195,24 @@ class SPCResult:
         one value per point. The layout of the data trace's customdata and
         hovertemplate is not part of that contract; use point_labels= and
         hover_extra= on qic() to change what the tooltip says.
+
+        styles={role: {"name": ...}} renames a trace, and from then on the name is
+        yours to rely on. With show_legend=True each signal color drawn also gets a
+        legend-only trace: "Beyond 99.8%" (sigma; "Beyond UCL/LCL" off a funnel),
+        "Beyond 95%" (warn) or "Run signal" (runs), or "p < …"/"q < …" under
+        signal_method="exact"/"fdr".
         """
         from qikit.render.spc_plots import plot_result
 
+        from .options import PlotOptions
+
+        valid = {f.name for f in dataclasses.fields(PlotOptions)}
+        unknown = sorted(set(overrides) - valid)
+        if unknown:
+            raise TypeError(
+                f"plot() got unexpected keyword argument(s) {unknown}. Valid names: "
+                f"{sorted(valid)}."
+            )
         opts = {**self._plot_opts, **overrides}
         return plot_result(self, **opts)
 
@@ -199,14 +237,13 @@ class SPCResult:
             )
         from .compute import funnel_limits
 
-        col = denominator_column(self.chart_type)
         frames = []
         for facet, params in self._funnel.items():
             if n is not None:
                 grid = np.asarray(n, dtype=float)
             else:
                 rows = self.data if facet is None else self.data[self.data["facet"] == facet]
-                grid = _funnel_grid(rows[col].to_numpy(dtype=float), params["chart"] in ("p", "pp"))
+                grid = _funnel_grid(rows["n"].to_numpy(dtype=float), params["chart"] in ("p", "pp"))
             lim = funnel_limits(
                 params["chart"], params["cl"], grid,
                 tau2=params["tau2"], limit_method=params["limit_method"],
@@ -251,6 +288,7 @@ class SPCResult:
 
         # Reorder and pick key columns
         cols = ["x", "y", "cl", "ucl", "lcl", "signal_type"]
+        cols += [c for c in ("p_value", "q_value") if c in df.columns]
         if "label" in df.columns:
             cols.insert(1, "label")
         if "part" in df.columns:

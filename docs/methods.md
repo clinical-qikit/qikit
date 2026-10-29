@@ -67,7 +67,7 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 | Under-dispersion | Never narrow the limits | Same |
 | X-axis | Indicator against precision ρ, smooth pre-drawn limits (§2) | Same in effect: against volume (n, or E), which is proportional to ρ, with smooth contours (§4.9) |
 | Outcome–volume association | Formal regression test (§4) | **Not yet** (§6) |
-| Multiple comparisons | Small P values; FDR "best carried out separately" (§6) | Same; the 95% band is a warn tier kept out of `signals` |
+| Multiple comparisons | Small P values; FDR "best carried out separately" (§6) | Same by default; the 95% band is a warn tier kept out of `signals`. Exact P values and Benjamini–Hochberg q-values on request (§4.11) |
 | Change data, continuous outcomes | A.1.2, A.2.2, A.3 | Not offered |
 | Per-point power and intervals | Not part of the method | Extension on `oe`/`oep` and p/u funnels (§4.8) |
 
@@ -94,6 +94,41 @@ The natural-scale version's upper limit is too tight, so it over-flags high outl
 
 R's `qpois`/`qbinom` return r_p without the interpolation, so an external cross-check
 should bracket qikit's value between r_p − 1 and r_p.
+
+**Shape at small counts.** At small denominators the upper contours wiggle: on the
+ratio scale they climb briefly before falling again. The cause is the interpolation,
+not the grid, so a denser grid cannot remove it. Within each integer step α runs from 1
+to 0 as λ = θ₀n grows, and the count-scale limit q = r_p − α has slope
+q′(λ) = 1 + α(r_p/λ − 1). At the start of a step q = r_p − 1 and q′ = r_p/λ, so the
+ratio-scale limit q/λ has slope proportional to q′λ − q = 1 > 0. It climbs at the start
+of every step. The lower contours are monotone. The largest climb above the running
+minimum, on a dense grid:
+
+| Upper contour | Range | 99.8% | 95% |
+|---|---|---|---|
+| O/E, θ₀ = 1 | E 0.3–2 | 0.067 | 0.085 |
+| | E 2–10 | 0.003 | 0.008 |
+| | E 10–50 | 0.0002 | 0.0003 |
+| | E 50–200 | < 0.0001 | < 0.0001 |
+| Proportion, θ₀ = 0.1 | n 3–300 | 0.021 | 0.020 |
+
+Below E ≈ 0.3 the climbs grow quickly: 0.24 and 0.40 for E between 0.1 and 0.3.
+
+No signal depends on them. For an integer count, a point is beyond the upper line
+exactly when P(X > O) < 0.001 (§4.11), which depends only on where each integer step
+falls, so any curve through the same steps would flag the same providers. To keep the
+wiggles off a figure, start the axis where volumes become informative, for example
+`x_range=(2, None)` on an O/E funnel or about n = 20 on a proportion, or spread the axis
+with `x_log=True`. To reproduce the first row:
+
+```python
+import numpy as np
+from qikit.spc.compute import funnel_limits
+
+E = np.geomspace(0.3, 2, 20000)
+ucl = funnel_limits("oe", 1.0, E)["ucl"]
+print(np.max(ucl - np.minimum.accumulate(ucl)))   # ≈ 0.067
+```
 
 ### 4.2 Center line
 
@@ -206,8 +241,10 @@ signals. In 0.5, `pp`/`up` use the additive method inside a funnel and Laney out
 The 95% contour marks `warn_signal` points, which are counted in `n_warn` and kept out
 of `signals`: at one chance alarm in twenty per provider, a large funnel would always
 report a signal. The 99.8% contour drives `sigma_signal`. With 99.8% limits about 0.2%
-of providers flag by chance, roughly one in a 500-provider funnel. Formal FDR control
-[12] is deferred, as [1, §6] recommends doing it separately.
+of providers flag by chance, roughly one in a 500-provider funnel. [1, §6] recommends
+carrying out formal FDR control [12] separately from the plot. Every funnel reports
+Benjamini–Hochberg q-values, and `signal_method="fdr"` flags by them on request
+(§4.11).
 
 ### 4.8 Power and intervals
 
@@ -294,6 +331,129 @@ providers span orders of magnitude. Plotly takes an annotation's position on a l
 as log10 of the value, so the center-line and limit labels and the signal labels are
 placed on that scale.
 
+### 4.10 One-sided signalling
+
+Many indicators matter in one direction only; excess mortality is the usual example.
+`signal_side="above"` flags only points beyond the upper contours, and `"below"` only
+those beyond the lower ones. `"both"`, the default, is the two-sided chart of [1]. The
+filter applies to `sigma_signal` and `warn_signal`, and through them to the point
+colours, `signals`, `n_warn` and `label_signals=`. `summary["signal_side"]` records it.
+
+- **Each side keeps its own tail probability.** A one-sided chart flags at 0.1% and 2.5%
+  per provider by chance, half the two-sided chart's 0.2% and 5%.
+- **The other side's limits are still drawn,** because they are still where the null
+  model puts them. Hide them with
+  `styles={"lcl": {"visible": False}, "lcl_95": {"visible": False}}`.
+- **Only on charts with funnel contours** (`oe`/`oep`, and p/pp/u/up with
+  `funnel=True`). Runs rules describe patterns, not points beyond a line, and are never
+  side-filtered. On a time-ordered chart they would keep firing on both sides, so
+  `signal_side` raises an error there instead.
+- **Detectability is still about the upper limit.** `min_detectable` and
+  `min_detectable_oe` describe the upper limit whatever the side. Under `"below"` they
+  say what an above-centre provider would have needed, which the chart no longer flags.
+
+### 4.11 P-values and the false discovery rate
+
+Every chart with funnel contours reports two values per point:
+
+- **`p_value`:** an exact p-value against the null model its limits are drawn from;
+- **`q_value`:** its Benjamini–Hochberg adjustment [15], the procedure [12] applies to
+  provider comparisons.
+
+`signal_method="exact"` or `"fdr"` lets either decide the two tiers.
+
+**The null model.** It uses the same distribution, center line and τ² as the limits.
+`summary["count_model"]` names it:
+
+| Chart | `count_model` | Count X |
+|---|---|---|
+| `oe`, `u` funnel | `poisson` | Poisson(θ₀n) |
+| `oep`, `up` funnel | `poisson_gamma` (`poisson` when τ̂ = 0) | Poisson–gamma, mean θ₀n, size θ₀²/τ² [7] |
+| `p` funnel | `binomial` | Binomial(n, θ₀) |
+| `pp` funnel | `beta_binomial` (`binomial` when τ̂ = 0) | Binomial(n, θ), θ ~ Beta(θ₀s, (1 − θ₀)s), s = θ₀(1 − θ₀)/τ² − 1 |
+
+A few rules follow from using the limits' own model:
+
+- The unadjusted charts ignore their diagnostic τ̂, as their limits do.
+- An `oe` chart with `limit_method="byar"` still gets exact Poisson p-values.
+- θ₀ is treated as known, as in [1].
+
+**The p-value.** These are conventional exact tail probabilities of the observed count
+O = y·n:
+
+| `signal_side` | p-value |
+|---|---|
+| `"above"` | P(X ≥ O) |
+| `"below"` | P(X ≤ O) |
+| `"both"` | min(1, 2·min of the two) |
+
+They are valid p-values (uniform or conservative under the null), which the
+Benjamini–Hochberg step needs.
+
+- **Computation.** Each tail is summed directly from its own terms, never as one minus
+  the other, on the lgamma-free walk the mixture quantiles use (§4.5). A small p-value
+  therefore keeps its digits, and the result is identical across platforms. Terms the
+  walk drops sit below 1e-16 of the mass, so p-values smaller than that read 0.
+- **Normal fallback.** Where the limits fall back to the normal approximation, the
+  p-values do too, with the same mean and variance and no continuity correction. That
+  happens for:
+  - a count that is not a whole number (an averaged aggregate);
+  - a non-integer binomial denominator;
+  - a `pp` spread no beta distribution can have;
+  - a walk past its term limit.
+
+  `summary["p_value_method"]` is `"normal"` if any point fell back, else `"exact"`.
+
+**Why "exact" and "limits" differ.** Spiegelhalter's interpolated limit (§4.1) is not
+the exact test. For an integer count:
+
+- a point is beyond the upper 99.8% line exactly when P(X > O) < 0.001;
+- a point is beyond the lower line exactly when P(X ≤ O) < 0.001.
+
+The lower side is the exact test. The upper side leaves out the probability of the
+observed count itself, which makes it the less conservative of the two. At 5 expected
+events and θ₀ = 1:
+
+| Quantity | Value |
+|---|---|
+| Upper 99.8% limit | 12.77 events (O/E 2.55) |
+| O = 13 | beyond the line, so `"limits"` flags it |
+| P(X ≥ 13), the exact p-value | 0.20%, so `"exact"` does not flag it at 0.1% |
+| P(X > 13) | 0.07% |
+| Mid-p | 0.14% |
+
+So below the line `"exact"` flags exactly the points `"limits"` flags, and above it a
+subset of them. The test suite checks both on random funnels of all six charts, for
+`sigma_signal` and for "beyond 95%". The warn tier alone has no such relation: the
+13-against-5 point moves from sigma to warn. The gap closes as counts grow.
+
+**`signal_method`** decides the two tiers:
+
+| `signal_method` | `sigma_signal` | `warn_signal` |
+|---|---|---|
+| `"limits"` (default) | beyond the 99.8% contour | beyond the 95% contour, not sigma |
+| `"exact"` | `p_value` < 0.001 | `p_value` < 0.025, not sigma |
+| `"fdr"` | `q_value` < 0.001 | `q_value` < 0.025, not sigma |
+
+These are the one-sided levels. A two-sided p-value is held to twice them, 0.002 and
+0.05. They are the contours' own tail probabilities and deliberately not a parameter.
+As a result, amber on a two-sided chart means a false discovery rate of 5%.
+
+**The q-value.** Take the K points that have a p-value (`summary["n_tested"]`;
+excluded points have none) and sort them by p-value, ascending. The q-value at rank i is
+the minimum over ranks j ≥ i of p₍ⱼ₎·K/j, capped at 1. A point is significant at false
+discovery rate α exactly when q < α. Each chart, and each facet, is adjusted on its own.
+
+**On the figure.**
+
+- **Caption.** Under `"exact"` or `"fdr"` the curves no longer decide the colours. A
+  figure without a caption of its own therefore says which test did, at what level, and
+  that the curves are the 99.8% (and 95%) limits.
+- **Hover.** It shows each point's p and q.
+- **Detectability.** `min_detectable` and `min_detectable_oe` still describe the drawn
+  99.8% limit. Under `"exact"` they can be off by one count at small volumes. Under
+  `"fdr"` what a point needs depends on every other point.
+
 ## 5. Evidence from simulation
 
 The engine was run on simulated cohorts, 300 replicates per row; reproduce the table
@@ -335,8 +495,8 @@ the nominal rate is 0.1%. "Outlier" is how often the planted outlier is detected
 - **Binary outcomes on an O/E chart.** Observed counts that are sums of yes/no outcomes
   have variance Σp(1 − p) < Σp = E. Poisson limits are therefore slightly too wide for
   common outcomes: about 8% at a 15% event rate, negligible for mortality.
-- **Planned:** a pre-specified τ [9], the volume test,
-  binomial variance for binary-outcome O/E when case counts are known, and FDR [12].
+- **Planned:** a pre-specified τ [9], the volume test, and binomial variance for
+  binary-outcome O/E when case counts are known.
 
 ## References
 
@@ -373,3 +533,6 @@ the nominal rate is 0.1%. "Outlier" is how often the planted outlier is detected
     package). https://github.com/chrismainey/FunnelPlotR
 14. Clopper CJ, Pearson ES. The use of confidence or fiducial limits illustrated in the
     case of the binomial. *Biometrika* 1934;26(4):404–413.
+15. Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical and
+    powerful approach to multiple testing. *Journal of the Royal Statistical Society,
+    Series B* 1995;57(1):289–300.

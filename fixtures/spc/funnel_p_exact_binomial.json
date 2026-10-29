@@ -95,9 +95,14 @@
       "dispersion_phi": 1.4721718639737258,
       "dispersion_tau": 0.02897739837166815,
       "overdispersed": true,
+      "count_model": "binomial",
+      "p_value_method": "exact",
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "n_warn": 0,
+      "signal_side": "both",
+      "signal_method": "limits",
+      "n_tested": 14,
       "dispersion_note": "Providers vary more than chance can explain: the estimated spread of true proportions between them is \u03c4 = 0.029. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='pp' with funnel=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_ratio_median": 2.2648125601017908,
       "n_underpowered": 9,
@@ -122,7 +127,9 @@
         "min_detectable": 0.5158800092171627,
         "ci_95_lower": 0.0014055561673695927,
         "ci_95_upper": 0.2729435996733689,
-        "n": 18.0
+        "n": 18.0,
+        "p_value": 0.48308951545018264,
+        "q_value": 0.5636044346918797
       },
       {
         "x": 2,
@@ -141,7 +148,9 @@
         "min_detectable": 0.46418660048394633,
         "ci_95_lower": 0.09356443933174274,
         "ci_95_upper": 0.45128801781668626,
-        "n": 25.0
+        "n": 25.0,
+        "p_value": 0.28740330137448555,
+        "q_value": 0.514176104227428
       },
       {
         "x": 3,
@@ -160,7 +169,9 @@
         "min_detectable": 0.4134883285524009,
         "ci_95_lower": 0.007910983461854482,
         "ci_95_upper": 0.21421615716340225,
-        "n": 31.0
+        "n": 31.0,
+        "p_value": 0.3052992879728706,
+        "q_value": 0.514176104227428
       },
       {
         "x": 4,
@@ -179,7 +190,9 @@
         "min_detectable": 0.4030512262329542,
         "ci_95_lower": 0.10839663898407226,
         "ci_95_upper": 0.3845116773034225,
-        "n": 40.0
+        "n": 40.0,
+        "p_value": 0.23178582638653272,
+        "q_value": 0.514176104227428
       },
       {
         "x": 5,
@@ -198,7 +211,9 @@
         "min_detectable": 0.37560419305427706,
         "ci_95_lower": 0.0242030708029346,
         "ci_95_upper": 0.20791732488394787,
-        "n": 46.0
+        "n": 46.0,
+        "p_value": 0.3672686458767343,
+        "q_value": 0.514176104227428
       },
       {
         "x": 6,
@@ -217,7 +232,9 @@
         "min_detectable": 0.35456444985894864,
         "ci_95_lower": 0.10429591692576823,
         "ci_95_upper": 0.3297285062876143,
-        "n": 55.0
+        "n": 55.0,
+        "p_value": 0.33103278557186777,
+        "q_value": 0.514176104227428
       },
       {
         "x": 7,
@@ -236,7 +253,9 @@
         "min_detectable": 0.34428485164406153,
         "ci_95_lower": 0.04585662371687116,
         "ci_95_upper": 0.2156242487025284,
-        "n": 63.0
+        "n": 63.0,
+        "p_value": 0.5781098664870281,
+        "q_value": 0.6225798562167995
       },
       {
         "x": 8,
@@ -255,7 +274,9 @@
         "min_detectable": 0.3126010223615574,
         "ci_95_lower": 0.11885908640498544,
         "ci_95_upper": 0.3043688670054645,
-        "n": 80.0
+        "n": 80.0,
+        "p_value": 0.22142805256097758,
+        "q_value": 0.514176104227428
       },
       {
         "x": 9,
@@ -274,7 +295,9 @@
         "min_detectable": 0.30698290243873805,
         "ci_95_lower": 0.05336993945693047,
         "ci_95_upper": 0.19082333326711032,
-        "n": 92.0
+        "n": 92.0,
+        "p_value": 0.405732531764793,
+        "q_value": 0.5163868586097365
       },
       {
         "x": 10,
@@ -293,7 +316,9 @@
         "min_detectable": 0.28646841759514574,
         "ci_95_lower": 0.1222334120453552,
         "ci_95_upper": 0.2768977428636332,
-        "n": 110.0
+        "n": 110.0,
+        "p_value": 0.2230409926681759,
+        "q_value": 0.514176104227428
       },
       {
         "x": 11,
@@ -312,7 +337,9 @@
         "min_detectable": 0.27545055175012,
         "ci_95_lower": 0.054328692827203984,
         "ci_95_upper": 0.1649316732793138,
-        "n": 130.0
+        "n": 130.0,
+        "p_value": 0.17336838764410756,
+        "q_value": 0.514176104227428
       },
       {
         "x": 12,
@@ -331,7 +358,9 @@
         "min_detectable": 0.2638398688275365,
         "ci_95_lower": 0.1302258088343291,
         "ci_95_upper": 0.2567194821762402,
-        "n": 160.0
+        "n": 160.0,
+        "p_value": 0.1641107145029923,
+        "q_value": 0.514176104227428
       },
       {
         "x": 13,
@@ -350,7 +379,9 @@
         "min_detectable": 0.256890715171481,
         "ci_95_lower": 0.0629749249503937,
         "ci_95_upper": 0.1557320590388458,
-        "n": 185.0
+        "n": 185.0,
+        "p_value": 0.11648547420128334,
+        "q_value": 0.514176104227428
       },
       {
         "x": 14,
@@ -369,7 +400,9 @@
         "min_detectable": 0.2449679231155799,
         "ci_95_lower": 0.10555727839495743,
         "ci_95_upper": 0.20415745418494735,
-        "n": 220.0
+        "n": 220.0,
+        "p_value": 0.8915070831655232,
+        "q_value": 0.8915070831655232
       }
     ]
   }

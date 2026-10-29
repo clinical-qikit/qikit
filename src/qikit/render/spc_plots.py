@@ -17,13 +17,16 @@ import math
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from qikit.spc.options import (
-    DEFAULT_XLAB, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, validate_x_spacing,
+    DEFAULT_XLAB, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT,
+    validate_range, validate_styles, validate_x_spacing,
 )
-from qikit.spc.results import denominator_column, n_varies
+from qikit.spc.pvalues import signal_thresholds
+from qikit.spc.results import n_varies
 
 from .utils import (
     apply_tufte_theme,
@@ -47,12 +50,75 @@ def _resolve_runs_signal(df: Any, runs_highlight: str) -> np.ndarray:
     return df["runs_signal"].to_numpy()
 
 
-def _point_colors(sigma_sig: np.ndarray, runs_sig: np.ndarray) -> list[str]:
-    """Per-point colors: brick (sigma) > amber (runs) > data ink (normal)."""
+def _amber_tier(
+    df: Any, funnel: bool, show_95: bool, runs_highlight: str,
+) -> tuple[np.ndarray, str]:
+    """
+    The points drawn amber, and the styles= role that colors them.
+
+    A funnel has no time order, so runs carry nothing there (and are zeroed
+    upstream); the amber tier goes to the 95% band instead. Only while that band is
+    drawn, though: amber with no line to explain it would be color without a referent.
+    """
+    if funnel and show_95 and "warn_signal" in df.columns:
+        return df["warn_signal"].to_numpy(), "warn"
+    return _resolve_runs_signal(df, runs_highlight), "runs"
+
+
+def _point_colors(
+    sigma_sig: np.ndarray, runs_sig: np.ndarray,
+    normal: str = NORMAL, sigma: str = SIGMA, amber: str = RUNS,
+) -> list[str]:
+    """Per-point colors: brick (sigma) > amber (runs or warn) > data ink (normal)."""
     return [
-        SIGMA if s else RUNS if r else NORMAL
+        sigma if s else amber if r else normal
         for s, r in zip(sigma_sig, runs_sig)
     ]
+
+
+def _limit_names(chart_type: str, funnel: bool) -> tuple[tuple[str, str], tuple[str, str]]:
+    """
+    Default trace names for the outer and inner limit pairs. Funnel and O/E limits are
+    probability contours, not sigma multiples, so naming them "UCL"/"2σ" would
+    misreport what the reader is looking at.
+    """
+    if chart_type in ("oe", "oep") or funnel:
+        return ("99.8%+", "99.8%-"), ("95%+", "95%-")
+    return ("UCL", "LCL"), ("2σ+", "2σ-")
+
+
+def _resolve_styles(styles: Any, chart_type: str, funnel: bool) -> dict[str, dict]:
+    """
+    Every styles= role with its defaults, overlaid with the caller's attributes. The
+    defaults are exactly the figure drawn before styles= existed; a dash of None means
+    the attribute is left unset, as it always was on the solid lines.
+    """
+    outer, inner = _limit_names(chart_type, funnel)
+    line = {"width": 1, "dash": None, "visible": True}
+    base: dict[str, dict] = {
+        "data": {"color": NORMAL, "width": 1, "name": "data"},
+        "sigma": {"color": SIGMA, "name": None},
+        "warn": {"color": RUNS, "name": None},
+        "runs": {"color": RUNS, "name": None},
+        "cl": {**line, "color": CL, "name": "CL"},
+        "ucl": {**line, "color": LIMIT, "name": outer[0]},
+        "lcl": {**line, "color": LIMIT, "name": outer[1]},
+        "ucl_95": {**line, "color": WARN, "dash": "dot", "name": inner[0]},
+        "lcl_95": {**line, "color": WARN, "dash": "dot", "name": inner[1]},
+        "target": {**line, "color": TARGET, "dash": "dot", "name": "Target"},
+        "end_labels": {"color": TEXT_MUTED, "size": 10},
+    }
+    for role, attrs in validate_styles(styles).items():
+        base[role] = {**base[role], **attrs}
+    return base
+
+
+def _line(style: dict) -> dict:
+    """A Plotly line dict from a resolved line role."""
+    out = {"color": style["color"], "width": style["width"]}
+    if style.get("dash") is not None:
+        out["dash"] = style["dash"]
+    return out
 
 
 def _point_symbols(sigma_sig: np.ndarray, runs_sig: np.ndarray) -> list[str]:
@@ -106,6 +172,19 @@ def _signal_label_offsets(
             out[i] = (ax, -ay if side else ay)
             prev = positions[i]
     return out
+
+
+def _fmt_p(v: Any) -> str:
+    """A p- or q-value for the hover: two significant figures, floored for display."""
+    if v is None or np.isnan(v):
+        return "n/a"
+    if v < 1e-4:
+        return "<0.0001"
+    return f"{v:.2g}"
+
+
+# How the hover names the tail a p-value was taken from.
+_SIDE_TEXT = {"above": "above", "below": "below", "both": "two-sided"}
 
 
 def _fmt_hover(v: Any) -> str:
@@ -164,21 +243,24 @@ def _add_chart_traces(
     curve: Any = None,
     x_log: bool = False,
     x_title: str = "",
-) -> None:
+    signal_side: str = "both",
+    styles: Any = None,
+    legend: bool | None = None,
+) -> dict[str, Any]:
     """
     Add data/CL/UCL/LCL traces, part boundaries, notes and signal labels to fig.
 
     x_spacing is already resolved. Under "n", curve is this panel's slice of
     result.funnel_limits(): the reference lines are drawn from it rather than at
     the points, and x_log puts every annotation on the log10 scale Plotly expects
-    on a log axis.
+    on a log axis. styles is the caller's styles= as given. legend is None when no
+    legend is drawn (the traces are left exactly as before), else whether this
+    panel's traces carry the legend entries.
+
+    Returns what _fit_ranges needs to fit this panel's axes: the plotted points and
+    the drawn reference lines.
     """
-    # Funnel and O/E limits are probability contours, not sigma multiples, so
-    # naming them "UCL"/"2σ" would misreport what the reader is looking at.
-    if chart_type in ("oe", "oep") or funnel:
-        outer_names, inner_names = ("99.8%+", "99.8%-"), ("95%+", "95%-")
-    else:
-        outer_names, inner_names = ("UCL", "LCL"), ("2σ+", "2σ-")
+    st = _resolve_styles(styles, chart_type, funnel)
     x_raw = df["x"].tolist()
     labels = df["label"].tolist() if "label" in df.columns else None
     # What a reader should see for each point: its label when one was given, else x.
@@ -191,7 +273,7 @@ def _add_chart_traces(
     rank = x_spacing == "rank"
     by_n = x_spacing == "n"
     if by_n:
-        x = df[denominator_column(chart_type)].astype(float).tolist()
+        x = df["n"].astype(float).tolist()
     elif rank:
         x = list(range(1, len(x_raw) + 1))
     else:
@@ -227,15 +309,11 @@ def _add_chart_traces(
         df["warn_signal"].to_numpy() if "warn_signal" in df.columns
         else np.zeros(len(df), dtype=bool)
     )
-    # A funnel has no time order, so runs carry nothing there (and are zeroed
-    # upstream); the amber tier goes to the 95% band instead. Only while that band
-    # is drawn, though: amber with no line to explain it would be color without a
-    # referent.
-    if funnel and show_95 and "warn_signal" in df.columns:
-        amber = warn_sig
-    else:
-        amber = _resolve_runs_signal(df, runs_highlight)
-    colors = _point_colors(sigma_sig, amber)
+    amber, amber_role = _amber_tier(df, funnel, show_95, runs_highlight)
+    amber_color = st[amber_role]["color"]
+    colors = _point_colors(
+        sigma_sig, amber, st["data"]["color"], st["sigma"]["color"], amber_color,
+    )
     symbols = _point_symbols(sigma_sig, amber)
     sizes = _point_sizes(sigma_sig, amber, point_size)
 
@@ -247,6 +325,15 @@ def _add_chart_traces(
     add_kwargs: dict[str, Any] = {}
     if row is not None and col is not None:
         add_kwargs = {"row": row, "col": col}
+
+    def _legend(group: str | None = None, entry: bool = True) -> dict[str, Any]:
+        """Legend settings for one trace; none at all when no legend is drawn."""
+        if legend is None:
+            return {}
+        out: dict[str, Any] = {"showlegend": bool(legend and entry)}
+        if group is not None:
+            out["legendgroup"] = group
+        return out
 
     # Connectivity: explicit override > auto-detection
     if connect is not None:
@@ -313,6 +400,15 @@ def _add_chart_traces(
             # denominator, which the volume axis has taken over from the name.
             hovertemplate += f"<br>{x_title}: %{{x}}"
 
+    if "p_value" in df.columns and "q_value" in df.columns:
+        # Straight after the chart's own fields, so hover_extra and the header keep
+        # their order behind it.
+        k = len(customdata[0])
+        side = _SIDE_TEXT.get(signal_side, signal_side)
+        for row_cd, pv, qv in zip(customdata, df["p_value"], df["q_value"]):
+            row_cd.append(f"{_fmt_p(pv)} ({side}), q = {_fmt_p(qv)}")
+        hovertemplate += f"<br>p = %{{customdata[{k}]}}"
+
     for name in extras:
         k = len(customdata[0]) if customdata else 0
         for row_cd, v in zip(customdata, df[name]):
@@ -336,53 +432,65 @@ def _add_chart_traces(
     fig.add_trace(go.Scatter(
         x=x, y=y,
         mode=mode,
-        line=dict(color=NORMAL, width=1),
+        line=dict(color=st["data"]["color"], width=st["data"]["width"]),
         marker=dict(color=colors, symbol=symbols, size=sizes, line=dict(width=0), opacity=opacities),
-        name="data",
+        name=st["data"]["name"],
         text=text,
         customdata=customdata,
         hovertemplate=hovertemplate,
         connectgaps=False,
         cliponaxis=False,
         zorder=2,
+        # Plotly draws a legend icon in the first point's color, which may be a
+        # signal's; _add_legend_entries gives the series an entry of its own instead.
+        **_legend("data", entry=False),
     ), **add_kwargs)
 
     # Target line
     if "target" in df:
         target = df["target"].to_numpy(dtype=float)
         has_target = not np.all(np.isnan(target))
-        if has_target:
+        if has_target and st["target"]["visible"]:
             fig.add_trace(go.Scatter(
                 x=x, y=target,
                 mode="lines",
-                line=dict(color=TARGET, width=1, dash="dot"),
-                name="Target",
+                line=_line(st["target"]),
+                name=st["target"]["name"],
                 hoverinfo="skip",
                 zorder=1,
+                **_legend(),
             ), **add_kwargs)
 
     # Center line
-    fig.add_trace(go.Scatter(
-        x=ref_x, y=ref_cl,
-        mode="lines",
-        line=dict(color=CL, width=1),
-        name="CL",
-        hoverinfo="skip",
-        zorder=1,
-    ), **add_kwargs)
+    if st["cl"]["visible"]:
+        fig.add_trace(go.Scatter(
+            x=ref_x, y=ref_cl,
+            mode="lines",
+            line=_line(st["cl"]),
+            name=st["cl"]["name"],
+            hoverinfo="skip",
+            zorder=1,
+            **_legend(),
+        ), **add_kwargs)
+
+    # The limit lines actually drawn, (values, upper side?), for _fit_ranges.
+    drawn_limits: list[tuple[np.ndarray, bool]] = []
 
     # UCL/LCL — light solid hairlines; the direct labels say which is which,
     # so neither a dash pattern nor a fill between them has to carry meaning.
-    for arr, name in [(ref_ucl, outer_names[0]), (ref_lcl, outer_names[1])]:
-        if not np.all(np.isnan(arr)):
+    # A legend shows each pair once: the upper line carries the entry for both.
+    for arr, role in [(ref_ucl, "ucl"), (ref_lcl, "lcl")]:
+        if not np.all(np.isnan(arr)) and st[role]["visible"]:
             fig.add_trace(go.Scatter(
                 x=ref_x, y=arr,
                 mode="lines",
-                line=dict(color=LIMIT, width=1),
-                name=name,
+                line=_line(st[role]),
+                name=st[role]["name"],
                 hoverinfo="skip",
                 zorder=1,
+                **_legend("limits", entry=role == "ucl" or not st["ucl"]["visible"]),
             ), **add_kwargs)
+            drawn_limits.append((arr, role == "ucl"))
 
     # 2-sigma warning lines
     if show_95 and not np.all(np.isnan(ucl)):
@@ -391,15 +499,19 @@ def _add_chart_traces(
         else:
             warn_upper = cl + (ucl - cl) * (2.0 / 3.0)
             warn_lower = cl - (ucl - cl) * (2.0 / 3.0)
-        for warn_y, name in [(warn_upper, inner_names[0]), (warn_lower, inner_names[1])]:
+        for warn_y, role in [(warn_upper, "ucl_95"), (warn_lower, "lcl_95")]:
+            if not st[role]["visible"]:
+                continue
             fig.add_trace(go.Scatter(
                 x=ref_x, y=warn_y,
                 mode="lines",
-                line=dict(color=WARN, width=1, dash="dot"),
-                name=name,
+                line=_line(st[role]),
+                name=st[role]["name"],
                 hoverinfo="skip",
                 zorder=1,
+                **_legend("limits_95", entry=role == "ucl_95" or not st["ucl_95"]["visible"]),
             ), **add_kwargs)
+            drawn_limits.append((np.asarray(warn_y, dtype=float), role == "ucl_95"))
 
     # Direct labels — work in both single and faceted mode
     if show_labels and len(x) > 0:
@@ -414,7 +526,10 @@ def _add_chart_traces(
         ann_kwargs: dict[str, Any] = {}
         if row is not None and col is not None:
             ann_kwargs = {"row": row, "col": col}
-        for arr, label in [(ref_cl, "CL"), (ref_ucl, outer_names[0]), (ref_lcl, outer_names[1])]:
+        for arr, role in [(ref_cl, "cl"), (ref_ucl, "ucl"), (ref_lcl, "lcl")]:
+            if not st[role]["visible"]:
+                continue
+            label = st[role]["name"]
             valid_idx = np.flatnonzero(~np.isnan(arr))
             if len(valid_idx) == 0:
                 continue
@@ -428,7 +543,7 @@ def _add_chart_traces(
                 text=f"{label}={value_fmt.format(val)}",
                 xshift=8 + x_pad * 4,
                 showarrow=False, xanchor="left",
-                font=dict(size=10, color=TEXT_MUTED),
+                font=dict(size=st["end_labels"]["size"], color=st["end_labels"]["color"]),
                 **ann_kwargs,
             )
 
@@ -494,7 +609,7 @@ def _add_chart_traces(
                 text=f"{display[i]} — {note}" if note else display[i],
                 showarrow=True, arrowhead=0,
                 arrowcolor=AXIS, arrowwidth=1,
-                font=dict(size=10, color=SIGMA if sigma_sig[i] else RUNS),
+                font=dict(size=10, color=st["sigma"]["color"] if sigma_sig[i] else amber_color),
                 ax=ax, ay=ay,
                 **ann_kwargs,
             )
@@ -520,6 +635,197 @@ def _add_chart_traces(
     # categorical axis. A numeric, date or volume axis keeps its own scale.
     if not by_n and (rank or (labels and all(isinstance(v, str) for v in x_raw))):
         fig.update_xaxes(tickvals=x, ticktext=display, **add_kwargs)
+
+    return {
+        "row": row, "col": col, "x": x, "y": y,
+        "ref_x": ref_x, "cl": np.asarray(ref_cl, dtype=float), "limits": drawn_limits,
+    }
+
+
+# Padding on an axis end the data decides, as a share of the span; an end the
+# caller gave is used as given.
+_X_PAD = 0.02
+_Y_PAD = 0.05
+
+
+def _x_coords(values: Any) -> tuple[Any, bool]:
+    """
+    Plotted x values in a comparable form: floats, or datetimes (True) on a date axis.
+    Missing values come back NaN / NaT, which every range test treats as outside.
+    """
+    vals = list(values)
+    if all(
+        v is None or (isinstance(v, (int, float, np.number)) and not isinstance(v, bool))
+        for v in vals
+    ):
+        return np.array([np.nan if v is None else float(v) for v in vals]), False
+    return pd.to_datetime(pd.Series(vals, dtype=object), errors="coerce").to_numpy(), True
+
+
+def _within(coords: Any, lo: Any, hi: Any) -> np.ndarray:
+    """Which coords fall inside [lo, hi]; an end of None is open."""
+    c = np.asarray(coords)
+    mask = ~pd.isna(c)
+    if lo is not None:
+        mask &= c >= lo
+    if hi is not None:
+        mask &= c <= hi
+    return np.asarray(mask, dtype=bool)
+
+
+def _fit_ranges(
+    panels: list[dict[str, Any]], x_range: Any, y_range: Any, x_log: bool,
+    y_neg: bool, y_expand: float | None, shared_y: bool,
+) -> tuple[tuple | None, list[tuple] | None]:
+    """
+    Axis ranges for x_range= / y_range=: (x bounds or None, per-panel y bounds or None).
+
+    The y axis is fitted, wherever x_range is set or y_range leaves an end open, to
+    the points inside the x range, the center line there, and each drawn limit's
+    in-range value nearest the center line. That last term keeps a funnel's narrow
+    high-volume end in view while its low-volume flare, like the trimmed points, no
+    longer stretches the axis. y_neg=False floors the fit at 0 and y_expand widens it
+    to include that value, as they do without a range; an end the caller gave wins.
+    """
+    if x_range is None and y_range is None:
+        return None, None
+    x_bounds = None
+    if x_range is not None:
+        is_date = _x_coords(panels[0]["x"])[1]
+        conv = pd.Timestamp if is_date else float
+        lo, hi = (None if v is None else conv(v) for v in x_range)
+        if x_log and any(v is not None and v <= 0 for v in (lo, hi)):
+            raise ValueError("x_range on a log axis needs positive ends.")
+        if lo is None or hi is None:
+            data = np.concatenate([
+                np.asarray(_x_coords(p[key])[0]) for p in panels for key in ("x", "ref_x")
+            ])
+            data = data[~pd.isna(data)]
+            if x_log and not is_date:
+                data = data[data > 0]
+            if len(data):
+                d_lo, d_hi = data.min(), data.max()
+                if is_date:
+                    pad = (d_hi - d_lo) * _X_PAD
+                    lo = pd.Timestamp(d_lo - pad) if lo is None else lo
+                    hi = pd.Timestamp(d_hi + pad) if hi is None else hi
+                elif x_log:
+                    span = math.log10(d_hi) - math.log10(d_lo)
+                    lo = 10 ** (math.log10(d_lo) - span * _X_PAD) if lo is None else lo
+                    hi = 10 ** (math.log10(d_hi) + span * _X_PAD) if hi is None else hi
+                else:
+                    pad = (d_hi - d_lo) * _X_PAD
+                    lo = float(d_lo - pad) if lo is None else lo
+                    hi = float(d_hi + pad) if hi is None else hi
+        x_bounds = (lo, hi)
+
+    given = (None, None) if y_range is None else tuple(y_range)
+    if x_range is None and None not in given:
+        return x_bounds, [given] * len(panels)
+
+    lo_x, hi_x = x_bounds if x_bounds is not None else (None, None)
+    fits = []
+    for p in panels:
+        inside = _within(_x_coords(p["x"])[0], lo_x, hi_x)
+        ref_inside = _within(_x_coords(p["ref_x"])[0], lo_x, hi_x)
+        y = np.asarray(p["y"], dtype=float)
+        vals = list(y[inside & np.isfinite(y)])
+        cl = p["cl"]
+        vals += list(cl[ref_inside & np.isfinite(cl)])
+        for arr, upper in p["limits"]:
+            a = arr[ref_inside & np.isfinite(arr)]
+            if len(a):
+                vals.append(float(a.min() if upper else a.max()))
+        fits.append((min(vals), max(vals)) if vals else None)
+
+    if shared_y:
+        known = [f for f in fits if f is not None]
+        union = (min(f[0] for f in known), max(f[1] for f in known)) if known else None
+        fits = [union] * len(fits)
+
+    out = []
+    for f in fits:
+        if f is None:
+            out.append(given)
+            continue
+        lo, hi = f
+        pad = (hi - lo) * _Y_PAD or abs(hi) * _Y_PAD or 1.0
+        lo, hi = lo - pad, hi + pad
+        if not y_neg:
+            lo = max(lo, 0.0)
+        if y_expand is not None:
+            lo, hi = min(lo, y_expand), max(hi, y_expand)
+        out.append((given[0] if given[0] is not None else lo,
+                    given[1] if given[1] is not None else hi))
+    return x_bounds, out
+
+
+def _apply_ranges(
+    fig: go.Figure, panels: list[dict[str, Any]], x_bounds: tuple | None,
+    y_bounds: list[tuple] | None, x_log: bool, flip: bool,
+) -> None:
+    """Write _fit_ranges' bounds to the axes; a log axis takes log10 of its ends."""
+    if x_bounds is not None:
+        lo, hi = x_bounds
+        if x_log:
+            lo, hi = math.log10(lo), math.log10(hi)
+        fig.update_xaxes(range=[hi, lo] if flip else [lo, hi])
+    if y_bounds is None:
+        return
+    for p, bounds in zip(panels, y_bounds):
+        if bounds is None or None in bounds:
+            continue
+        where = {"row": p["row"], "col": p["col"]} if p["row"] is not None else {}
+        fig.update_yaxes(range=list(bounds), **where)
+
+
+def _add_legend_entries(
+    fig: go.Figure, result: Any, styles: Any, funnel: bool, show_95: bool,
+    runs_highlight: str, point_size: float,
+) -> None:
+    """
+    Legend-only markers for the series and for each signal color the figure draws:
+    the point colors live on the one data trace, so without these a legend could not
+    say what red or amber means, and would draw the series in whatever color its first
+    point happens to be. The series entry shares the data trace's legendgroup, so
+    clicking it still hides the points. Signal entries are named for what decided
+    them, unless styles= names them.
+    """
+    df = result.data
+    st = _resolve_styles(styles, result.chart_type, funnel)
+    drawn = np.isfinite(df["y"].to_numpy(dtype=float))
+    sigma = df["sigma_signal"].to_numpy().astype(bool) & drawn
+    amber, amber_role = _amber_tier(df, funnel, show_95, runs_highlight)
+    amber = np.asarray(amber, dtype=bool) & ~sigma & drawn
+    contour = result.chart_type in ("oe", "oep") or funnel
+    method = _signal_setting(result, "signal_method", "limits")
+    outer, inner = signal_thresholds(_signal_setting(result, "signal_side", "both"))
+    stat = {"exact": "p", "fdr": "q"}.get(method)
+    defaults = {
+        "sigma": f"{stat} < {outer:g}" if stat else (
+            "Beyond 99.8%" if contour else "Beyond UCL/LCL"
+        ),
+        "warn": f"{stat} < {inner:g}" if stat else "Beyond 95%",
+        "runs": "Run signal",
+    }
+    size = point_size * 6
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode="markers",
+        marker=dict(color=st["data"]["color"], symbol="circle", size=size),
+        name=st["data"]["name"], legendgroup="data",
+        showlegend=True, hoverinfo="skip", legendrank=1,  # first, before the lines
+    ))
+    for role, present, symbol in (
+        ("sigma", sigma.any(), "circle"), (amber_role, amber.any(), "diamond"),
+    ):
+        if not present:
+            continue
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode="markers",
+            marker=dict(color=st[role]["color"], symbol=symbol, size=size * 1.3),
+            name=st[role]["name"] or defaults[role],
+            showlegend=True, hoverinfo="skip",
+        ))
 
 
 def _log_ticks(lo: float, hi: float) -> list[float]:
@@ -554,13 +860,68 @@ _UNDERPOWERED_CAPTION = (
 )
 
 
-def _effective_caption(result: Any) -> str | None:
-    """The caller's caption, or the underpowered warning when they gave none."""
+def _signal_setting(result: Any, key: str, default: Any = None) -> Any:
+    """
+    A funnel's signal_side / signal_method from its summary. A faceted result keeps
+    them at the top level too, but fall back to the first panel's for a result built
+    without them.
+    """
+    summary = getattr(result, "summary", None) or {}
+    if key in summary:
+        return summary[key]
+    for sub in (summary.get("by_facet") or {}).values():
+        if key in sub:
+            return sub[key]
+    return default
+
+
+def _signal_caption(result: Any, show_95: bool, funnel: bool) -> str | None:
+    """
+    Say what flagged the points when the drawn contours did not. Under
+    signal_method="exact"/"fdr" a point beyond a line can be unflagged and the colours
+    answer a different question from the curves; a screenshot carries no summary keys,
+    so the figure has to say so itself.
+    """
+    method = _signal_setting(result, "signal_method", "limits")
+    if method == "limits":
+        return None
+    side = _signal_setting(result, "signal_side", "both")
+    outer, inner = signal_thresholds(side)
+    if method == "exact":
+        tail = "two-sided" if side == "both" else f"one-sided ({side} the center line)"
+        test, stat = f"exact {tail} test", "p"
+    else:
+        summary = getattr(result, "summary", None) or {}
+        if "by_facet" in summary:
+            scope = "within each panel"
+        else:
+            scope = f"across {summary.get('n_tested', 0)} points"
+        test, stat = f"Benjamini–Hochberg false discovery rate {scope}", "q"
+    # Amber marks the warn tier only on a funnel drawn with its 95% band.
+    amber = show_95 and funnel
+    levels = f"{stat} < {outer:g} (red)" + (f", {stat} < {inner:g} (amber)" if amber else "")
+    curves = "99.8% and 95% limits" if show_95 else "99.8% limits"
+    tail_note = (
+        "for reference" if method == "exact" else "not adjusted for multiple comparisons"
+    )
+    return f"Signals: {test}, {levels}. The curves show the {curves}, {tail_note}."
+
+
+def _effective_caption(result: Any, show_95: bool = False, funnel: bool = False) -> str | None:
+    """
+    The caller's caption, or, when they gave none, every automatic note that applies:
+    what flagged the points (signal_method="exact"/"fdr") and the underpowered warning.
+    """
     caption = getattr(result, "caption", None)
     if caption:
         return caption
     summary = getattr(result, "summary", None) or {}
-    return _UNDERPOWERED_CAPTION if summary.get("underpowered") else None
+    notes = [
+        _signal_caption(result, show_95, funnel),
+        _UNDERPOWERED_CAPTION if summary.get("underpowered") else None,
+    ]
+    notes = [n for n in notes if n]
+    return "<br>".join(notes) if notes else None
 
 
 def _configure_layout(
@@ -581,9 +942,28 @@ def _configure_layout(
     x_spacing: str | None = None,
     x_log: bool = False,
     x_title: str = "",
+    show_95: bool = False,
+    funnel: bool = False,
+    show_legend: bool = False,
+    x_range_set: bool = False,
+    fit_y: bool = False,
 ) -> None:
-    """Shared layout and axis styling for single and faceted plots."""
+    """
+    Shared layout and axis styling for single and faceted plots. x_range_set and fit_y
+    say that _apply_ranges will write the axis ranges, so flip= and y_expand= leave
+    them to it.
+    """
     apply_tufte_theme(fig)
+    if show_legend:
+        # Above the plot, right-aligned: clear of the left-aligned title and of the
+        # end labels down the right edge.
+        fig.update_layout(
+            showlegend=True,
+            legend=dict(
+                orientation="h", x=1, xanchor="right", y=1.02, yanchor="bottom",
+                font=dict(size=11, color=TEXT_MUTED), bgcolor="rgba(0,0,0,0)",
+            ),
+        )
 
     # Categorical x-axis: explicit type + optional ordering
     x_vals = result.data["x"].tolist()
@@ -595,7 +975,7 @@ def _configure_layout(
         fig.update_xaxes(type="log" if x_log else "linear")
         fig.update_layout(hovermode="closest")
         if x_log:
-            n_vals = result.data[denominator_column(result.chart_type)].to_numpy(dtype=float)
+            n_vals = result.data["n"].to_numpy(dtype=float)
             n_vals = n_vals[np.isfinite(n_vals) & (n_vals > 0)]
             ticks = _log_ticks(float(n_vals.min()), float(n_vals.max()))
             # A caller's x_format still decides how the labels read.
@@ -643,12 +1023,14 @@ def _configure_layout(
         **size_kwargs,
     )
 
-    caption = _effective_caption(result)
+    caption = _effective_caption(result, show_95, funnel)
     if caption:
         fig.add_annotation(
             text=caption, xref="paper", yref="paper",
             x=0, y=-0.2, showarrow=False,
             font=dict(size=10, color=TEXT_FAINT), xanchor="left",
+            # Plotly centers each line of a multi-line annotation on the widest.
+            **({"align": "left"} if "<br>" in caption else {}),
         )
 
     grid_color = GRID if show_grid else "rgba(0,0,0,0)"
@@ -658,7 +1040,7 @@ def _configure_layout(
     if not y_neg:
         fig.update_yaxes(rangemode="nonnegative")
     
-    if y_expand is not None:
+    if y_expand is not None and not fit_y:
         y_vals = result.data["y"].to_numpy(dtype=float)
         y_valid = y_vals[~np.isnan(y_vals)]
         curr_min = np.nanmin(y_valid) if len(y_valid) > 0 else 0
@@ -673,7 +1055,7 @@ def _configure_layout(
         fig.update_xaxes(tickangle=x_angle)
     if x_format is not None:
         fig.update_xaxes(tickformat=x_format)
-    if flip:
+    if flip and not x_range_set:
         fig.update_layout(xaxis=dict(autorange="reversed"))
 
 
@@ -708,6 +1090,10 @@ def _plot_faceted(
     curve: Any = None,
     x_log: bool = False,
     x_title: str = "",
+    x_range: Any = None,
+    y_range: Any = None,
+    styles: Any = None,
+    show_legend: bool = False,
 ) -> go.Figure:
     """Render a faceted SPCResult as a multi-panel Plotly Figure."""
     facet_vals = list(result.data["facet"].unique())
@@ -736,12 +1122,13 @@ def _plot_faceted(
     for ann in fig.layout.annotations:
         ann.font = dict(size=11, color=TEXT_MUTED)
 
+    panels = []
     for idx, fv in enumerate(facet_vals):
         r_row = idx // ncol + 1
         r_col = idx % ncol + 1
         df_sub = result.data[result.data["facet"] == fv]
-        
-        _add_chart_traces(
+
+        panels.append(_add_chart_traces(
             fig, df_sub,
             show_labels=show_labels,
             decimals=decimals,
@@ -761,15 +1148,27 @@ def _plot_faceted(
             curve=None if curve is None else curve[curve["facet"] == fv],
             x_log=x_log,
             x_title=x_title,
-        )
+            signal_side=_signal_setting(result, "signal_side", "both"),
+            styles=styles,
+            # One set of legend entries for the figure, from the first panel.
+            legend=(idx == 0) if show_legend else None,
+        ))
 
+    if show_legend:
+        _add_legend_entries(fig, result, styles, funnel, show_95, runs_highlight, point_size)
+    x_bounds, y_bounds = _fit_ranges(
+        panels, x_range, y_range, x_log, y_neg, y_expand, shared_y=scales == "fixed",
+    )
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
         show_x_labels=show_x_labels, x_spacing=x_spacing,
-        x_log=x_log, x_title=x_title,
+        x_log=x_log, x_title=x_title, show_95=show_95, funnel=funnel,
+        show_legend=show_legend, x_range_set=x_bounds is not None,
+        fit_y=y_bounds is not None,
     )
+    _apply_ranges(fig, panels, x_bounds, y_bounds, x_log, flip)
 
     # Shared axes hide the tick labels on inner panels; the tick marks left
     # behind carry no information, so drop them. Runs after _configure_layout,
@@ -963,6 +1362,10 @@ def plot_result(
     x_log: bool = False,
     xlab_given: bool = True,
     n_name: str | None = None,
+    x_range: Any = None,
+    y_range: Any = None,
+    styles: Any = None,
+    show_legend: bool = False,
     **_kwargs: Any,
 ) -> go.Figure:
     """
@@ -985,8 +1388,20 @@ def plot_result(
         )
     # The same rule qic() applied, re-run because an override can change any input.
     x_spacing = validate_x_spacing(
-        x_spacing, funnel, n_varies(result.data, result.chart_type), x_order, x_log,
+        x_spacing, funnel, n_varies(result.data), x_order, x_log,
     )
+    validate_styles(styles)
+    x_range = validate_range("x_range", x_range, numeric=False)
+    y_range = validate_range("y_range", y_range, numeric=True)
+    if (
+        x_range is not None and x_spacing == "x"
+        and all(isinstance(v, str) for v in result.data["x"])
+    ):
+        raise ValueError(
+            "x_range= needs a numeric, date, rank or volume axis, and this x axis is "
+            "categorical. Plotly ranges a category axis by position, so pass "
+            "x_spacing='rank' to range by position, or x_order= to choose categories."
+        )
     curve = result.funnel_limits() if x_spacing == "n" else None
     # A title the caller gave is theirs on any axis; otherwise it names the axis drawn,
     # which an x_spacing override may have changed since qic() resolved result.xlab.
@@ -1010,12 +1425,13 @@ def plot_result(
             funnel=funnel, label_signals=label_signals,
             x_spacing=x_spacing, hover_extra=hover_extra,
             curve=curve, x_log=x_log, x_title=x_title,
+            x_range=x_range, y_range=y_range, styles=styles, show_legend=show_legend,
         )
 
     df = result.data
     fig = go.Figure()
 
-    _add_chart_traces(
+    panel = _add_chart_traces(
         fig, df,
         show_labels=show_labels,
         decimals=decimals,
@@ -1036,14 +1452,25 @@ def plot_result(
         curve=curve,
         x_log=x_log,
         x_title=x_title,
+        signal_side=_signal_setting(result, "signal_side", "both"),
+        styles=styles,
+        legend=True if show_legend else None,
     )
 
+    if show_legend:
+        _add_legend_entries(fig, result, styles, funnel, show_95, runs_highlight, point_size)
+    x_bounds, y_bounds = _fit_ranges(
+        [panel], x_range, y_range, x_log, y_neg, y_expand, shared_y=True,
+    )
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
         y_percent, x_angle, x_format, flip, x_order=x_order,
         height=height, width=width, x_nticks_all=x_nticks_all,
         show_x_labels=show_x_labels, x_spacing=x_spacing,
-        x_log=x_log, x_title=x_title,
+        x_log=x_log, x_title=x_title, show_95=show_95, funnel=funnel,
+        show_legend=show_legend, x_range_set=x_bounds is not None,
+        fit_y=y_bounds is not None,
     )
+    _apply_ranges(fig, [panel], x_bounds, y_bounds, x_log, flip)
 
     return fig

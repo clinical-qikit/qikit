@@ -458,3 +458,113 @@ def beta_binomial_quantiles(probs, n, alpha, beta, zs):
         var = m * theta * (1.0 - theta) * (alpha + beta + m) / (alpha + beta + 1.0)
         return _normal_quantiles(probs, m * theta, var, zs), False
     return out, True
+
+
+# ---------------------------------------------------------------------------
+# Tail probabilities, for exact p-values (docs/methods.md §4.11)
+# ---------------------------------------------------------------------------
+#
+# The same lgamma-free walk as the quantiles above, so a p-value is bit-identical
+# across platforms and between this file and stats.ts. Each tail is summed directly
+# from its own terms, never as 1 − (the other tail): a p-value of 1e-12 taken as a
+# complement keeps only four significant digits. Terms dropped by the walk's
+# _TAIL_EPS cut sit below 1e-16 of the mass, so a p-value smaller than that reads 0.
+
+
+def _walk_tails(k, ratio, start, upper):
+    """
+    (P(X ≤ k), P(X ≥ k)) for a unimodal pmf given only its term ratio.
+
+    Arguments as _walk_terms, plus the integer k. The lower tail is summed ascending
+    from the first kept term and the upper tail descending from the last, so each
+    accumulates its smallest terms first; the TypeScript twin must keep that order.
+    A k outside the kept support gives (0, 1) below it and (1, 0) above it. None when
+    the walk exceeds _MAX_TERMS, for the caller's normal fallback.
+    """
+    walk = _walk_terms(ratio, start, upper)
+    if walk is None:
+        return None
+    k_lo, terms, total = walk
+    j = k - k_lo
+    last = len(terms) - 1
+    if j < 0:
+        return 0.0, 1.0
+    if j > last:
+        return 1.0, 0.0
+    lower = 0.0
+    for i in range(j + 1):
+        lower += terms[i]
+    upper_sum = 0.0
+    for i in range(last, j - 1, -1):
+        upper_sum += terms[i]
+    return min(1.0, lower / total), min(1.0, upper_sum / total)
+
+
+def poisson_tails(k: int, lam: float):
+    """
+    (P(X ≤ k), P(X ≥ k)) for X ~ Poisson(λ), from the lgamma-free walk.
+
+    Unlike poisson_cdf this never calls lgamma, so it is bit-identical across
+    platforms. (NaN, NaN) for a NaN or non-positive λ, where the limits are NaN too.
+    """
+    if math.isnan(lam) or not (lam > 0):
+        return math.nan, math.nan
+
+    def ratio(j):
+        return lam / (j + 1)
+
+    return _walk_tails(int(k), ratio, int(math.floor(lam)), None)
+
+
+def binomial_tails(k: int, m: int, theta: float):
+    """
+    (P(X ≤ k), P(X ≥ k)) for X ~ Binomial(m, θ), from the walk binomial_cdf uses.
+
+    θ at 0 or 1 is a point mass at 0 or m, as binomial_quantiles treats it.
+    """
+    if math.isnan(theta) or not (m > 0):
+        return math.nan, math.nan
+    k = int(k)
+    if theta <= 0.0:
+        return 1.0, (1.0 if k <= 0 else 0.0)
+    if theta >= 1.0:
+        return (1.0 if k >= m else 0.0), (1.0 if k <= m else 0.0)
+    odds = theta / (1.0 - theta)
+
+    def ratio(j):
+        return (m - j) / (j + 1) * odds
+
+    start = min(m, int(math.floor((m + 1) * theta)))
+    return _walk_tails(k, ratio, start, m)
+
+
+def poisson_gamma_tails(k: int, lam: float, size: float):
+    """
+    (P(X ≤ k), P(X ≥ k)) for the Poisson–gamma count of poisson_gamma_quantiles:
+    mean λ, size r, variance λ + λ²/r.
+    """
+    if math.isnan(lam) or not (lam > 0) or not (size > 0):
+        return math.nan, math.nan
+    q = lam / (size + lam)
+
+    def ratio(j):
+        return (j + size) / (j + 1) * q
+
+    start = int(math.floor((size - 1.0) * lam / size)) if size > 1.0 else 0
+    return _walk_tails(int(k), ratio, start, None)
+
+
+def beta_binomial_tails(k: int, m: int, alpha: float, beta: float):
+    """
+    (P(X ≤ k), P(X ≥ k)) for the beta-binomial count of beta_binomial_quantiles:
+    Binomial(m, θ) with θ ~ Beta(α, β).
+    """
+    if not (m > 0) or not (alpha > 0) or not (beta > 0):
+        return math.nan, math.nan
+    theta = alpha / (alpha + beta)
+
+    def ratio(j):
+        return (m - j) * (alpha + j) / ((j + 1) * (beta + m - j - 1))
+
+    start = min(m, int(math.floor(m * theta)))
+    return _walk_tails(int(k), ratio, start, m)

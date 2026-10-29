@@ -601,6 +601,28 @@ def binomial_point_ci(x: float, n: float) -> tuple[float, float]:
     return (lo, hi)
 
 
+def gamma_size(cl: float, tau2: float) -> float:
+    """
+    Size r of the gamma mixing distribution behind the adjusted count funnels: true
+    rates (or O/E) with mean θ₀ and variance τ² give r = θ₀²/τ². Shared by the limits
+    and the p-values (pvalues.py), so the two always describe one model.
+    """
+    return cl * cl / tau2
+
+
+def beta_params(cl: float, tau2: float) -> tuple[float, float] | None:
+    """
+    (α, β) of the beta mixing distribution behind the adjusted proportion funnels:
+    mean θ₀ and variance τ² give α + β = s = θ₀(1 − θ₀)/τ² − 1. None when s ≤ 0, where
+    no beta distribution has that mean and variance and both the limits and the
+    p-values fall back to [1, eq. 11]'s normal model.
+    """
+    s = cl * (1.0 - cl) / tau2 - 1.0
+    if not (s > 0):
+        return None
+    return cl * s, (1.0 - cl) * s
+
+
 def _mixture_funnel_pair(
     cl: float, n: np.ndarray | None, tau2: float, family: str,
     p_lower: float, p_upper: float, z: float, diag: dict | None = None,
@@ -636,7 +658,7 @@ def _mixture_funnel_pair(
     lcl = np.full(len(e), np.nan)
 
     if family == "poisson":
-        size = cl * cl / tau2
+        size = gamma_size(cl, tau2)
         for i, ei in enumerate(e):
             if not (ei > 0):
                 continue
@@ -646,8 +668,8 @@ def _mixture_funnel_pair(
             ucl[i], lcl[i] = hi / ei, lo / ei
         return ucl, lcl
 
-    s = cl * (1.0 - cl) / tau2 - 1.0
-    if not (s > 0):
+    params = beta_params(cl, tau2)
+    if params is None:
         # No beta distribution has this mean and variance: the providers spread wider
         # than a proportion can. Fall back to [1, eq. 11] exactly as published.
         if diag is not None:
@@ -656,7 +678,7 @@ def _mixture_funnel_pair(
             half = z * np.sqrt(cl * (1.0 - cl) / np.where(e > 0, e, np.nan) + tau2)
         return cl + half, cl - half
 
-    alpha, beta = cl * s, (1.0 - cl) * s
+    alpha, beta = params
     for i, ei in enumerate(e):
         if not (ei > 0):
             continue

@@ -71,7 +71,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 2,
@@ -85,7 +86,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 3,
@@ -99,7 +101,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 4,
@@ -113,7 +116,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 5,
@@ -127,7 +131,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": false,
-        "excluded": true
+        "excluded": true,
+        "n": 100.0
       },
       {
         "x": 6,
@@ -141,7 +146,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 7,
@@ -155,7 +161,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 8,
@@ -169,7 +176,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 9,
@@ -183,7 +191,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       },
       {
         "x": 10,
@@ -197,7 +206,8 @@
         "runs_signal": false,
         "runs_signal_localized": false,
         "baseline": true,
-        "excluded": false
+        "excluded": false,
+        "n": 100.0
       }
     ]
   }

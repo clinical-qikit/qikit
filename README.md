@@ -229,7 +229,7 @@ r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
         x_log=True)                  # log-scale the volume axis
 r.plot()                             # x-axis titled "expected_deaths"; xlab= to rename
 r.funnel_limits()                    # the drawn contours: n, cl, ucl, lcl, ucl_95, lcl_95
-r.data[["x", "expected", "y", "ucl"]]  # p/u funnels echo their denominator as "n"
+r.data[["x", "n", "y", "ucl"]]       # "n" is the denominator on every chart
 ```
 
 - **`xlab`** titles whatever x-axis is drawn. Left unset, a volume axis takes the
@@ -269,12 +269,108 @@ r.data[["x", "label", "sigma_signal", "warn_signal"]]
   uses the same positions, so numeric-looking IDs are never coerced into a stretched
   axis (the volume axis avoids that too, since IDs never reach it).
 - Trace names (`"data"`, `"CL"`, `"99.8%+"`, `"95%-"`, …) are a stable contract for
-  restyling. The tooltip's `customdata` layout is not, so use the parameters above
-  rather than editing it.
+  restyling, unless you rename a trace with `styles={role: {"name": ...}}` (below).
+  The tooltip's `customdata` layout is not, so use the parameters above rather than
+  editing it.
 
 A last caution for anyone reading these in a credentialing context: at 5 expected
 deaths, a confidence interval that contains 1.0 means *insufficient information*, not
 exoneration. The honest report of a low-volume physician is the interval, not a verdict.
+
+#### Flagging one direction, or by p-value and FDR
+
+```python
+r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
+        chart="oe", funnel=True, cl=1.0,
+        signal_side="above",     # only excess deaths flag
+        signal_method="fdr")     # flag by Benjamini–Hochberg q-value
+r.data[["x", "y", "p_value", "q_value", "sigma_signal"]]
+r.summary["count_model"]         # "poisson": the model behind the limits and p-values
+```
+
+- **`signal_side=`** is `"both"` (default), `"above"` or `"below"`. It filters
+  `sigma_signal` and `warn_signal`, and with them the colors, `signals` and labels.
+  The other side's limits are still drawn; hide them with `styles` (below). Pooled over
+  2023–2025, the bundled surgeons flag SURG-07 and SURG-15 above, and SURG-21 below.
+  It is valid only on charts with funnel contours.
+- **`p_value` and `q_value`** are on every funnel and O/E chart:
+  - `p_value` is the exact p-value against the same Poisson, Poisson–gamma, binomial or
+    beta-binomial model, and the same τ, that the limits use: P(X ≥ O) above, P(X ≤ O)
+    below, doubled for two-sided.
+  - `q_value` is its Benjamini–Hochberg adjustment within the chart (each facet
+    separately).
+- **`signal_method=`** chooses what decides the flags:
+  - `"limits"` (default): the drawn contours.
+  - `"exact"`: p < 0.001 for red and p < 0.025 for amber, doubled for two-sided.
+  - `"fdr"`: the same levels, applied to q.
+
+  At small counts `"exact"` is stricter than the line above the center: 13 deaths
+  against 5 expected sits above the 99.8% line, but P(X ≥ 13) = 0.2%.
+  [docs/methods.md §4.11](docs/methods.md) explains why. When the curves do not decide
+  the colors, an uncaptioned figure says what did.
+
+#### Slide-quality figures
+
+```python
+r.plot(
+    show_95=True,
+    x_range=(2, None),          # start at 2 expected deaths; the y axis refits
+    styles={
+        "limits_95": {"color": "#777", "width": 1.5, "dash": "solid"},
+        "lcl": {"visible": False}, "lcl_95": {"visible": False},
+        "ucl": {"name": "99.8% limit"}, "ucl_95": {"name": "95% limit"},
+    },
+    show_legend=True,
+    width=1000, height=560,
+)
+```
+
+- **`styles=`** restyles by role.
+  - Roles: `data`, `sigma`, `warn`, `runs`, `cl`, `ucl`, `lcl`, `ucl_95`, `lcl_95`,
+    `target` and `end_labels`, plus the groups `limits` and `limits_95`.
+  - Attributes: `color`, `width`, `dash`, `visible`, `name`, and `size` on
+    `end_labels`.
+  - A specific role overrides its group.
+  - `name` renames the trace, its legend entry and its end label.
+  - The defaults draw exactly the figure you get without `styles=`.
+- **`x_range=` / `y_range=`** take `(low, high)`, and either end may be `None`.
+  - `x_range` is in the units drawn: the denominator on a volume axis, positions under
+    `"rank"`, numbers or dates otherwise. It is rejected on a categorical axis.
+  - With `x_range` set, the y axis fits only the points inside it, the center line,
+    and each limit's narrowest in-range value. Trimmed points and the funnel's
+    low-volume flare then stop stretching it.
+- **`show_legend=True`** groups each limit pair into one entry and adds an entry per
+  signal color: "Beyond 99.8%" and "Beyond 95%", or "p < …"/"q < …" under
+  `signal_method`.
+- **`show_labels=False`** hides the end-of-line labels ("CL=…", "99.8%+=…").
+- **`width`/`height`** default to `None`, which keeps the figure responsive in notebooks
+  and Streamlit. Plotly's static export then draws it at 700×500, so set both for
+  slides.
+- **Unknown names raise.** Every option here can be passed to `qic()` or overridden
+  per call with `r.plot(...)`. An unknown name raises `TypeError` rather than being
+  ignored.
+
+#### Funnel options at a glance
+
+| Parameter | Values | What it does |
+|---|---|---|
+| `funnel` | `False` (default), `True` | Makes p/pp/u/up a funnel: sorted by denominator, exact 95%/99.8% contours, no runs rules. `oe`/`oep` have contours either way. |
+| `limit_method` | `"exact"` (default), `"byar"` | `oe` only: exact interpolated Poisson limits, or Byar's approximation. |
+| `signal_side` | `"both"` (default), `"above"`, `"below"` | Which side of the center line flags. |
+| `signal_method` | `"limits"` (default), `"exact"`, `"fdr"` | What decides the flags: the contours, `p_value`, or `q_value`. |
+| `label_signals` | `None` (default), `"outlier"`, `"warn"`, `"both"` | Text labels on flagged points. |
+| `show_95` | `False` (default), `True` | Draws the 95% contours and colors the warn tier amber. |
+| `show_labels` | `True` (default), `False` | The CL/limit labels at the end of each line. |
+| `x_spacing` | `None` (default), `"n"`, `"x"`, `"rank"` | See the four rows below. |
+| ↳ `None` | | Resolves to `"n"` on a funnel whose denominators vary, and to `"x"` otherwise. |
+| ↳ `"n"` | | The volume axis, with smooth contours. Needs `funnel=True` and denominators that vary. |
+| ↳ `"x"` | | Places points by x value, as categories or as numbers/dates. It is the only spacing `x_order=` applies to. |
+| ↳ `"rank"` | | Places points at 1…k in funnel order, with labels as tick text. |
+| `x_log` | `False` (default), `True` | Log-scales the volume axis; needs `x_spacing="n"`. |
+| `x_range`, `y_range` | `(low, high)`, either end `None` | Axis ranges; `x_range` also refits the y axis to what is in range. |
+| `styles` | `{role: {attribute: value}}` | Colors, widths, dashes, visibility and names by role. |
+| `show_legend` | `False` (default), `True` | Legend with one entry per limit pair and per signal color. |
+| `width`, `height` | pixels, default `None` | Figure size; `None` is responsive. |
 
 Beyond `qic()`, the package also provides:
 

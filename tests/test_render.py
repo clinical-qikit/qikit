@@ -451,6 +451,58 @@ class TestOEHoverAndCaption:
         assert "95% CI" not in tpl
 
 
+class TestSignalMethodRendering:
+    """Under signal_method="exact"/"fdr" the curves no longer decide the colours, and a
+    screenshot has to say so."""
+
+    Y = [2, 30, 5, 40, 3, 50, 8, 60, 1, 70]
+    N = [20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0]
+
+    def _captions(self, fig):
+        return [a.text for a in fig.layout.annotations if a.yref == "paper"]
+
+    def _r(self, **kw):
+        return qic(y=self.Y, n=self.N, chart="up", funnel=True, **kw)
+
+    def test_limits_adds_no_signal_caption(self):
+        # This chart is underpowered, so the power caveat stays; nothing else joins it.
+        (cap,) = self._captions(self._r().plot())
+        assert "Signals:" not in cap
+
+    def test_exact_says_which_test(self):
+        (cap,) = self._captions(self._r(signal_method="exact", signal_side="above").plot())
+        assert cap.startswith("Signals: exact one-sided (above the center line) test, p < 0.001 (red).")
+        assert "99.8% limits, for reference" in cap
+
+    def test_fdr_names_its_scope_and_amber_tier(self):
+        (cap,) = self._captions(self._r(signal_method="fdr", show_95=True).plot())
+        assert "Benjamini–Hochberg false discovery rate across 10 points" in cap
+        assert "q < 0.002 (red), q < 0.05 (amber)" in cap
+        assert "not adjusted for multiple comparisons" in cap
+
+    def test_faceted_fdr_is_per_panel(self):
+        df = pd.DataFrame({"o": self.Y * 2, "e": self.N * 2, "site": ["A"] * 10 + ["B"] * 10})
+        fig = qic(y="o", n="e", data=df, chart="up", funnel=True, facets="site",
+                  signal_method="fdr").plot()
+        assert any("within each panel" in c for c in self._captions(fig))
+
+    def test_joins_the_underpowered_caption(self):
+        fig = qic(y=TestOEHoverAndCaption.Y, n=TestOEHoverAndCaption.N, chart="oe",
+                  funnel=True, signal_method="exact").plot()
+        (cap,) = self._captions(fig)
+        assert cap.startswith("Signals: exact two-sided test")
+        assert "<br>" in cap and cap.endswith("not evidence of acceptable performance.")
+
+    def test_user_caption_wins(self):
+        fig = self._r(signal_method="fdr", caption="Source: registry").plot()
+        assert self._captions(fig) == ["Source: registry"]
+
+    def test_hover_reports_p_and_q(self):
+        trace = self._r(signal_side="below").plot().data[0]
+        assert "<br>p = %{customdata[1]}" in trace.hovertemplate
+        assert all(" (below), q = " in row[1] for row in trace.customdata)
+
+
 # ---------------------------------------------------------------------------
 # Funnel ergonomics: warn tier, signal labels, rank spacing, labels and hover
 # ---------------------------------------------------------------------------
@@ -477,6 +529,17 @@ class TestFunnelLabeling:
         r = self._r()
         colors = r.plot().data[0].marker.color
         assert all(c == NORMAL for c, w in zip(colors, r.data["warn_signal"]) if w)
+
+    def test_one_sided_leaves_the_other_side_plain(self):
+        # Two outliers at E = 20: 45 above the line, 4 below it.
+        y = [20, 19, 45, 4, 31, 10, 21, 18, 22, 20]
+        r = qic(y=y, n=[20.0] * 10, chart="oe", funnel=True, cl=1.0,
+                signal_side="above", show_95=True, label_signals="both")
+        fig = r.plot()
+        colors = fig.data[0].marker.color
+        assert colors[2] == SIGMA and colors[3] == NORMAL
+        assert colors[4] == RUNS and colors[5] == NORMAL
+        assert len(self._signal_annotations(fig)) == 2
 
     def test_non_funnel_oe_keeps_runs_coloring(self):
         r = qic(y=self.Y, n=self.N, chart="oe", cl=1.0, show_95=True)
@@ -566,13 +629,15 @@ class TestFunnelLabeling:
         trace = fig.data[0]
         tpl = trace.hovertemplate
         row = trace.customdata[0]
-        # O/E fields keep their indices; extras then header are appended.
+        # O/E fields keep their indices; p/q, then extras, then header are appended.
         assert "Observed %{customdata[1]}" in tpl
-        assert "<br>Encounters: %{customdata[4]}" in tpl
-        assert "<br>Practice: %{customdata[5]}" in tpl
-        assert tpl.startswith("%{customdata[6]}: %{y}")
-        assert row[4] == "100" and row[5] == "East"
-        assert row[6] == f"Dr A ({self.X[0]})"
+        assert "<br>p = %{customdata[4]}" in tpl
+        assert "<br>Encounters: %{customdata[5]}" in tpl
+        assert "<br>Practice: %{customdata[6]}" in tpl
+        assert tpl.startswith("%{customdata[7]}: %{y}")
+        assert " (two-sided), q = " in row[4]
+        assert row[5] == "100" and row[6] == "East"
+        assert row[7] == f"Dr A ({self.X[0]})"
 
     def test_hover_extra_on_plain_chart(self):
         fig = qic(y=[1.0, 2.0, 3.0], chart="i",
@@ -800,3 +865,187 @@ class TestVolumeAxis:
             self._p().plot(x_spacing=spacing, x_order=order)
         fig = self._p(x_spacing="x", x_order=order).plot()
         assert list(fig.layout.xaxis.categoryarray) == order
+
+
+# ---------------------------------------------------------------------------
+# styles=, x_range=/y_range=, show_legend= — slide-quality figures without patching
+# ---------------------------------------------------------------------------
+
+_Y = [9, 6, 7, 11, 13, 17, 37, 29, 66, 40]
+_N = [4.0, 6.0, 8.0, 10.0, 14.0, 18.0, 24.0, 30.0, 40.0, 55.0]
+
+
+def _oe_funnel(**kw):
+    return qic(y=_Y, n=_N, chart="oe", funnel=True, cl=1.0, **kw)
+
+
+def _trace(fig, name):
+    matches = [t for t in fig.data if t.name == name]
+    return matches[0] if matches else None
+
+
+def _end_labels(fig):
+    return [a.text for a in _end_label_annotations(fig)]
+
+
+def _end_label_annotations(fig):
+    """The CL/limit labels: unarrowed, left-anchored, on the data axes (not the caption)."""
+    return [a for a in fig.layout.annotations
+            if not a.showarrow and a.xanchor == "left" and a.xref != "paper"]
+
+
+class TestPlotStyles:
+    def test_unknown_override_is_an_error(self):
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            _oe_funnel().plot(x_rnage=(1, 10))
+
+    @pytest.mark.parametrize("styles,match", [
+        ({"limit": {"color": "red"}}, "unknown role"),
+        ({"cl": {"colour": "red"}}, "unknown attribute"),
+        ({"sigma": {"width": 2}}, "unknown attribute"),
+        ({"ucl_95": {"dash": "dotted"}}, "dash"),
+        ({"cl": {"width": 0}}, "positive number"),
+        ({"cl": "red"}, "must be a dict"),
+    ])
+    def test_validation(self, styles, match):
+        with pytest.raises(ValueError, match=match):
+            _oe_funnel(styles=styles)
+        with pytest.raises(ValueError, match=match):
+            _oe_funnel().plot(styles=styles)
+
+    def test_group_then_specific(self):
+        fig = _oe_funnel(show_95=True, styles={
+            "limits_95": {"color": "#777", "width": 1.5, "dash": "solid"},
+            "limits": {"width": 2}, "ucl": {"color": "#000"},
+        }).plot()
+        for name in ("95%+", "95%-"):
+            line = _trace(fig, name).line
+            assert (line.color, line.width, line.dash) == ("#777", 1.5, "solid")
+        assert (_trace(fig, "99.8%+").line.color, _trace(fig, "99.8%+").line.width) == ("#000", 2)
+        assert _trace(fig, "99.8%-").line.width == 2
+
+    def test_invisible_line_and_its_label_go(self):
+        fig = _oe_funnel(styles={"lcl": {"visible": False}}).plot()
+        assert _trace(fig, "99.8%-") is None
+        assert not any(t.startswith("99.8%-=") for t in _end_labels(fig))
+        assert any(t.startswith("99.8%+=") for t in _end_labels(fig))
+
+    def test_name_renames_trace_and_end_label(self):
+        fig = _oe_funnel(styles={"ucl": {"name": "Upper 99.8%"}}).plot()
+        assert _trace(fig, "Upper 99.8%") is not None and _trace(fig, "99.8%+") is None
+        assert any(t.startswith("Upper 99.8%=") for t in _end_labels(fig))
+
+    def test_point_and_label_colors(self):
+        fig = _oe_funnel(label_signals="outlier", styles={
+            "sigma": {"color": "#c00000"}, "data": {"color": "#111111", "width": 2},
+        }).plot()
+        d = fig.data[0]
+        assert d.marker.color[8] == "#c00000" and d.marker.color[0] == "#111111"
+        assert d.line.width == 2
+        labels = [a for a in fig.layout.annotations if a.showarrow and a.arrowhead == 0]
+        assert [a.font.color for a in labels] == ["#c00000"]
+
+    def test_warn_role_colors_the_funnel_amber_tier(self):
+        fig = _oe_funnel(show_95=True, styles={"warn": {"color": "#ff8800"}}).plot()
+        assert fig.data[0].marker.color.count("#ff8800") == 3
+
+    def test_end_label_style(self):
+        fig = _oe_funnel(styles={"end_labels": {"color": "#222", "size": 14}}).plot()
+        anns = _end_label_annotations(fig)
+        assert anns and all(a.font.size == 14 and a.font.color == "#222" for a in anns)
+
+    def test_round_trips_through_plot_opts(self):
+        styles = {"limits": {"width": 2}}
+        r = _oe_funnel(styles=styles, show_legend=True, x_range=(10, None))
+        assert r._plot_opts["styles"] == styles
+        assert r._plot_opts["show_legend"] is True
+        assert r._plot_opts["x_range"] == (10, None)
+
+
+class TestPlotRanges:
+    def test_x_range_with_an_open_end(self):
+        lo, hi = _oe_funnel(x_range=(10, None)).plot().layout.xaxis.range
+        assert lo == 10 and hi > 55
+
+    def test_log_axis_takes_log10(self):
+        lo, hi = _oe_funnel(x_log=True, x_range=(5, 50)).plot().layout.xaxis.range
+        assert (lo, hi) == pytest.approx((np.log10(5), np.log10(50)))
+
+    def test_trimmed_points_no_longer_stretch_y(self):
+        r = _oe_funnel(x_range=(10, None))
+        lo, hi = r.plot().layout.yaxis.range
+        assert hi < 9 / 4                     # the E = 4 point, now off the axis
+        assert hi > 66 / 40                   # the largest point still on it
+        assert lo < r.data["ucl"].iloc[-1] < hi  # the narrow end of the funnel too
+
+    def test_y_range_wins_and_can_be_half_open(self):
+        assert list(_oe_funnel(y_range=(0, 3)).plot().layout.yaxis.range) == [0, 3]
+        lo, hi = _oe_funnel(y_range=(0, None)).plot().layout.yaxis.range
+        assert lo == 0 and hi > 9 / 4
+
+    def test_flip_reverses_the_range(self):
+        fig = _oe_funnel(x_range=(10, 50), flip=True).plot()
+        assert list(fig.layout.xaxis.range) == [50, 10]
+        assert fig.layout.xaxis.autorange != "reversed"
+
+    def test_categorical_axis_is_rejected(self):
+        r = qic(x=list("abcdefghij"), y=_Y, n=_N, chart="oe", funnel=True, x_spacing="x")
+        with pytest.raises(ValueError, match="categorical"):
+            r.plot(x_range=(1, 3))
+
+    def test_rank_axis_ranges_by_position(self):
+        fig = _oe_funnel(x_spacing="rank", x_range=(3, 8)).plot()
+        assert list(fig.layout.xaxis.range) == [3, 8]
+
+    @pytest.mark.parametrize("bad", [(1,), "1,5", (5, 1)])
+    def test_bad_ranges(self, bad):
+        with pytest.raises(ValueError):
+            _oe_funnel(x_range=bad)
+
+    def test_faceted_shares_x_and_fits_each_panel(self):
+        df = pd.DataFrame({"o": _Y * 2, "e": _N * 2, "site": ["A"] * 10 + ["B"] * 10})
+        fig = qic(y="o", n="e", data=df, chart="oe", funnel=True, facets="site",
+                  x_range=(10, None)).plot()
+        assert fig.layout.xaxis.range[0] == 10 and fig.layout.xaxis2.range[0] == 10
+        assert fig.layout.yaxis.range[1] < 9 / 4
+
+
+class TestLegend:
+    def test_off_by_default(self):
+        fig = _oe_funnel().plot()
+        assert fig.layout.showlegend is False
+        assert all(t.showlegend is None for t in fig.data)
+
+    def test_pairs_share_an_entry_and_signals_get_one(self):
+        fig = _oe_funnel(show_legend=True, show_95=True).plot()
+        assert fig.layout.showlegend is True
+        upper, lower = _trace(fig, "99.8%+"), _trace(fig, "99.8%-")
+        assert upper.legendgroup == lower.legendgroup == "limits"
+        assert upper.showlegend is True and lower.showlegend is False
+        assert _trace(fig, "95%-").showlegend is False
+        assert _trace(fig, "Beyond 99.8%").x == (None,)
+        assert _trace(fig, "Beyond 95%") is not None
+        # The series gets its own entry in its routine color, grouped with the points.
+        series = [t for t in fig.data if t.name == "data"]
+        assert [t.showlegend for t in series] == [False, True]
+        assert all(t.legendgroup == "data" for t in series)
+        assert series[1].marker.color == NORMAL
+
+    def test_entries_follow_signal_method_and_styles(self):
+        fig = _oe_funnel(show_legend=True, signal_method="exact",
+                         signal_side="above").plot()
+        assert _trace(fig, "p < 0.001") is not None
+        named = _oe_funnel(show_legend=True, styles={"sigma": {"name": "Outlier"}}).plot()
+        assert _trace(named, "Outlier") is not None
+
+    def test_no_signal_entry_without_signals(self):
+        fig = qic(y=[400] * 6, n=[400.0] * 6, chart="oe", funnel=True,
+                  show_legend=True).plot()
+        assert _trace(fig, "Beyond 99.8%") is None
+
+    def test_faceted_entries_come_from_one_panel(self):
+        df = pd.DataFrame({"o": _Y * 2, "e": _N * 2, "site": ["A"] * 10 + ["B"] * 10})
+        fig = qic(y="o", n="e", data=df, chart="oe", funnel=True, facets="site",
+                  show_legend=True).plot()
+        assert sum(1 for t in fig.data if t.name == "CL" and t.showlegend) == 1
+        assert sum(1 for t in fig.data if t.name == "data" and t.showlegend) == 1

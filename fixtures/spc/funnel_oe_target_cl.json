@@ -64,9 +64,14 @@
       "dispersion_phi": 4.207807299490506,
       "dispersion_tau": 0.38980700791782563,
       "overdispersed": true,
+      "count_model": "poisson",
+      "p_value_method": "exact",
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "n_warn": 1,
+      "signal_side": "both",
+      "signal_method": "limits",
+      "n_tested": 8,
       "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is \u03c4 = 0.39. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='oep', which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_oe_median": 2.4737924503485775,
       "n_underpowered": 5,
@@ -92,7 +97,10 @@
         "ci_95_lower": 0.4359461496,
         "ci_95_upper": 4.09663547,
         "observed": 4.0,
-        "expected": 2.5
+        "expected": 2.5,
+        "n": 2.5,
+        "p_value": 0.48484773373386814,
+        "q_value": 0.5541116956958493
       },
       {
         "x": 2,
@@ -112,7 +120,10 @@
         "ci_95_lower": 0.0066625810526315795,
         "ci_95_upper": 1.4662219450000002,
         "observed": 0.9999999999999999,
-        "expected": 3.8
+        "expected": 3.8,
+        "n": 3.8,
+        "p_value": 0.21475940981918967,
+        "q_value": 0.2922268031788016
       },
       {
         "x": 3,
@@ -132,7 +143,10 @@
         "ci_95_lower": 1.2401150217999999,
         "ci_95_upper": 4.1923170096,
         "observed": 12.0,
-        "expected": 5.0
+        "expected": 5.0,
+        "n": 5.0,
+        "p_value": 0.010906183826018722,
+        "q_value": 0.02908315686938326
       },
       {
         "x": 4,
@@ -152,7 +166,10 @@
         "ci_95_lower": 0.2685236893902439,
         "ci_95_upper": 1.592618783292683,
         "observed": 6.0,
-        "expected": 8.2
+        "expected": 8.2,
+        "n": 8.2,
+        "p_value": 0.5791235813531356,
+        "q_value": 0.5791235813531356
       },
       {
         "x": 5,
@@ -172,7 +189,10 @@
         "ci_95_lower": 1.5504830546666666,
         "ci_95_upper": 3.372316328583333,
         "observed": 28.0,
-        "expected": 12.0
+        "expected": 12.0,
+        "n": 12.0,
+        "p_value": 0.0001116728332915904,
+        "q_value": 0.0008933826663327232
       },
       {
         "x": 6,
@@ -192,7 +212,10 @@
         "ci_95_lower": 0.16461492387999999,
         "ci_95_upper": 0.68339213804,
         "observed": 9.0,
-        "expected": 25.0
+        "expected": 25.0,
+        "n": 25.0,
+        "p_value": 0.0004429532764975669,
+        "q_value": 0.0017718131059902677
       },
       {
         "x": 7,
@@ -212,7 +235,10 @@
         "ci_95_lower": 0.9417356467916668,
         "ci_95_upper": 1.38103903153125,
         "observed": 110.0,
-        "expected": 96.0
+        "expected": 96.0,
+        "n": 96.0,
+        "p_value": 0.17258202064300512,
+        "q_value": 0.2922268031788016
       },
       {
         "x": 8,
@@ -232,7 +258,10 @@
         "ci_95_lower": 0.706333188247619,
         "ci_95_upper": 1.0745698381142856,
         "observed": 92.0,
-        "expected": 105.0
+        "expected": 105.0,
+        "n": 105.0,
+        "p_value": 0.2191701023841012,
+        "q_value": 0.2922268031788016
       }
     ]
   }

@@ -70,9 +70,14 @@
       "dispersion_phi": 1.1253661451449788,
       "dispersion_tau": 0.0011772807952878152,
       "overdispersed": true,
+      "count_model": "poisson",
+      "p_value_method": "exact",
       "runs_disabled": true,
       "note": "runs signals suppressed (funnel mode)",
       "n_warn": 0,
+      "signal_side": "both",
+      "signal_method": "limits",
+      "n_tested": 8,
       "dispersion_note": "Providers vary more than chance can explain: the estimated spread of true rates between them is \u03c4 = 0.0012. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='up' with funnel=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_ratio_median": 3.367677635662801,
       "n_underpowered": 8,
@@ -97,7 +102,9 @@
         "min_detectable": 0.022688463202500002,
         "ci_95_lower": 0.010288432742499999,
         "ci_95_upper": 0.0427120086275,
-        "n": 400.0
+        "n": 400.0,
+        "p_value": 0.00017862592027484558,
+        "q_value": 0.0014290073621987646
       },
       {
         "x": 7,
@@ -116,7 +123,9 @@
         "min_detectable": 0.01865536542786885,
         "ci_95_lower": 4.150460327868853e-05,
         "ci_95_upper": 0.009133841624590164,
-        "n": 610.0
+        "n": 610.0,
+        "p_value": 0.5083300495020142,
+        "q_value": 1.0
       },
       {
         "x": 1,
@@ -135,7 +144,9 @@
         "min_detectable": 0.015117084181616832,
         "ci_95_lower": 0.0006851297043189369,
         "ci_95_upper": 0.009709051018826135,
-        "n": 903.0
+        "n": 903.0,
+        "p_value": 0.8856487341070022,
+        "q_value": 1.0
       },
       {
         "x": 6,
@@ -154,7 +165,9 @@
         "min_detectable": 0.01507822206122449,
         "ci_95_lower": 0.0011121075244897958,
         "ci_95_upper": 0.01045060068877551,
-        "n": 980.0
+        "n": 980.0,
+        "p_value": 1.0,
+        "q_value": 1.0
       },
       {
         "x": 4,
@@ -173,7 +186,9 @@
         "min_detectable": 0.014402200409356724,
         "ci_95_lower": 0.00023607142202729044,
         "ci_95_upper": 0.007041605914230019,
-        "n": 1026.0
+        "n": 1026.0,
+        "p_value": 0.34923842848203807,
+        "q_value": 0.9313024759521015
       },
       {
         "x": 3,
@@ -192,7 +207,9 @@
         "min_detectable": 0.014032913219373219,
         "ci_95_lower": 0.0020910676666666666,
         "ci_95_upper": 0.0124021595660019,
-        "n": 1053.0
+        "n": 1053.0,
+        "p_value": 0.6315688165239375,
+        "q_value": 1.0
       },
       {
         "x": 2,
@@ -211,7 +228,9 @@
         "min_detectable": 0.013957247614574187,
         "ci_95_lower": 0.00021265081562774364,
         "ci_95_upper": 0.006343009366110623,
-        "n": 1139.0
+        "n": 1139.0,
+        "p_value": 0.2517802153427724,
+        "q_value": 0.9313024759521015
       },
       {
         "x": 8,
@@ -230,7 +249,9 @@
         "min_detectable": 0.0141777354675,
         "ci_95_lower": 0.001352905325,
         "ci_95_upper": 0.009723610065833334,
-        "n": 1200.0
+        "n": 1200.0,
+        "p_value": 1.0,
+        "q_value": 1.0
       }
     ]
   }
