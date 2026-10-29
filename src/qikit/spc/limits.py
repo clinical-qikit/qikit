@@ -49,6 +49,28 @@ from .dist import (
 _OUTER = (0.001, 0.999, Z_998)
 _INNER = (0.025, 0.975, Z_95)
 
+
+def _upper_boundary(q: float, exact: bool, n: float | None = None) -> float:
+    """
+    The upper contour on the count scale: the exact one-sided test's boundary.
+
+    q is the continuity-interpolated quantile r − δ of [1, A.1.1], and for an integer
+    count O > q holds exactly when P(X > O) < α. The exact test, and the p-value every
+    funnel reports, asks for P(X ≥ O) < α, which is one count further out. Drawing the
+    contour at q + 1 makes "beyond the line" and "p < α" the same statement on both
+    sides (the lower contour already is), and it makes the upper contour monotone in
+    volume on the ratio scale: its slope there is proportional to (1 − δ)(λ − r − 1),
+    never positive. docs/methods.md §4.1 records this as a departure from the drawn
+    contour of [1]; the model and levels are unchanged.
+
+    A normal fallback (exact False) has no discrete count to step past and is left as
+    it is, matching its normal p-value. n caps a binomial count at its denominator.
+    """
+    if not exact or math.isnan(q):
+        return q
+    q += 1.0
+    return q if n is None else min(q, float(n))
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -335,7 +357,7 @@ def _poisson_funnel_pair(
     exact = limit_method != "byar"
     for i, lam_i in enumerate(lam):
         if exact and lam_i <= _EXACT_MAX_LAMBDA:
-            ucl[i] = poisson_quantile_interp(p_upper, lam_i)
+            ucl[i] = poisson_quantile_interp(p_upper, lam_i) + 1.0
             lcl[i] = poisson_quantile_interp(p_lower, lam_i)
         else:
             ucl[i] = byar_quantile(lam_i, z, upper=True)
@@ -383,7 +405,7 @@ def _binomial_funnel_pair(
         (lo, hi), exact = binomial_quantiles((p_lower, p_upper), float(ni), cl, (-z, z))
         if not exact and diag is not None:
             diag["normal"] = True
-        ucl[i], lcl[i] = hi / ni, lo / ni
+        ucl[i], lcl[i] = _upper_boundary(hi, exact, ni) / ni, lo / ni
     return ucl, lcl
 
 
@@ -665,7 +687,7 @@ def _mixture_funnel_pair(
             (lo, hi), exact = poisson_gamma_quantiles((p_lower, p_upper), cl * ei, size, (-z, z))
             if not exact and diag is not None:
                 diag["normal"] = True
-            ucl[i], lcl[i] = hi / ei, lo / ei
+            ucl[i], lcl[i] = _upper_boundary(hi, exact) / ei, lo / ei
         return ucl, lcl
 
     params = beta_params(cl, tau2)
@@ -685,7 +707,7 @@ def _mixture_funnel_pair(
         (lo, hi), exact = beta_binomial_quantiles((p_lower, p_upper), float(ei), alpha, beta, (-z, z))
         if not exact and diag is not None:
             diag["normal"] = True
-        ucl[i], lcl[i] = hi / ei, lo / ei
+        ucl[i], lcl[i] = _upper_boundary(hi, exact, ei) / ei, lo / ei
     return ucl, lcl
 
 

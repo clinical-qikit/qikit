@@ -417,7 +417,7 @@ class TestOEHoverAndCaption:
         row = self._fig().data[0].customdata[0]
         assert row[1] == "8 / expected 3.2"
         assert row[2] == "1.08–4.93"
-        assert row[3] == "4.27"
+        assert row[3] == "4.62"
 
     def test_missing_expected_reads_as_na_not_nan(self):
         fig = qic(y=[0, 5, 8], n=[0.0, 4.0, 6.0], chart="oe").plot()

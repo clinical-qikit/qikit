@@ -2097,7 +2097,7 @@ class TestOEFunnel:
         r = self._funnel()
         row = r.data.iloc[0]
         shortcut = row["cl"] + (row["ucl"] - row["cl"]) * (2 / 3)
-        assert row["ucl_95"] == pytest.approx(2.270660, abs=1e-6)
+        assert row["ucl_95"] == pytest.approx(2.670660, abs=1e-6)
         assert abs(row["ucl_95"] - shortcut) > 0.1
 
     def test_95_band_sits_inside_the_998_band(self):
@@ -2232,10 +2232,10 @@ class TestOEOverdispersion:
         assert r.summary["dispersion_tau"] == pytest.approx(math.sqrt(tau2))
 
     def test_clears_points_the_unadjusted_chart_flags(self):
-        """The point of the adjustment: 3 of 12 flagged at 99.8% is not a credible
+        """The point of the adjustment: 2 of 12 flagged at 99.8% is not a credible
         rate of genuine outliers, it is unmodelled between-provider variation."""
         plain = qic(y=self.Y, n=self.N, chart="oe", funnel=True)
-        assert plain.data["sigma_signal"].sum() == 3
+        assert plain.data["sigma_signal"].sum() == 2
         assert self._oep().data["sigma_signal"].sum() == 0
 
     def test_equals_oe_exactly_when_tau_is_zero(self):
@@ -2444,7 +2444,8 @@ class TestExactFunnelLimits:
         cl = sum(self.Y) / sum(self.N)
         n0 = sorted(self.N)[0]
         (lo, hi), _ = _dist.binomial_quantiles((0.001, 0.999), n0, cl, (-_constants.Z_998, _constants.Z_998))
-        assert r.data["ucl"].iloc[0] == pytest.approx(hi / n0)
+        # The upper contour is the exact test's boundary, one count past the quantile.
+        assert r.data["ucl"].iloc[0] == pytest.approx((hi + 1) / n0)
         assert r.data["lcl"].iloc[0] == pytest.approx(lo / n0)
         assert r.summary["limit_method"] == "exact"
 
@@ -2697,7 +2698,7 @@ class TestOEPowerReporting:
         row = self._r().data.iloc[0]
         assert row["y"] == pytest.approx(2.5)
         assert not row["sigma_signal"]
-        assert row["min_detectable_oe"] == pytest.approx(4.2659, abs=1e-4)
+        assert row["min_detectable_oe"] == pytest.approx(4.6177, abs=1e-4)
         assert row["ci_95_lower"] == pytest.approx(1.0793, abs=1e-4)
         assert row["ci_95_upper"] == pytest.approx(4.9260, abs=1e-4)
 
@@ -2713,7 +2714,7 @@ class TestOEPowerReporting:
         s = self._r().summary
         assert s["underpowered"] is True
         assert s["n_underpowered"] == 8
-        assert s["min_detectable_oe_median"] == pytest.approx(2.2514, abs=1e-4)
+        assert s["min_detectable_oe_median"] == pytest.approx(2.3049, abs=1e-4)
 
     def test_power_note_is_quotable(self):
         note = self._r().summary["power_note"]
@@ -3082,16 +3083,19 @@ class TestPValues:
     N = [20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0]
 
     def test_worked_example(self):
-        """13 deaths against 5 expected: beyond the 99.8% line, yet P(X ≥ 13) = 0.20%."""
+        """13 deaths against 5 expected: P(X ≥ 13) = 0.20%, so it sits between the 95%
+        and 99.8% lines; 14 deaths, P(X ≥ 14) = 0.07%, is beyond the 99.8% line. Under
+        Spiegelhalter's drawn contour 13 was already beyond it."""
         r = qic(y=[13, 10, 20], n=[5.0, 10.0, 20.0], chart="oe", funnel=True, cl=1.0,
                 signal_side="above")
         row = r.data.iloc[0]
-        assert row["y"] > row["ucl"] and row["sigma_signal"]
         assert row["p_value"] == pytest.approx(0.0020188516274, rel=1e-9)
-        exact = qic(y=[13, 10, 20], n=[5.0, 10.0, 20.0], chart="oe", funnel=True,
-                    cl=1.0, signal_side="above", signal_method="exact")
-        assert not exact.data["sigma_signal"].iloc[0]
-        assert exact.data["warn_signal"].iloc[0]
+        assert row["ucl_95"] * 5 < 13 < row["ucl"] * 5
+        assert not row["sigma_signal"] and row["warn_signal"]
+        r14 = qic(y=[14, 10, 20], n=[5.0, 10.0, 20.0], chart="oe", funnel=True, cl=1.0,
+                  signal_side="above")
+        assert r14.data["sigma_signal"].iloc[0]
+        assert r14.data["p_value"].iloc[0] < 0.001
 
     @pytest.mark.parametrize("chart,model", [
         ("oe", "poisson"), ("oep", "poisson_gamma"), ("u", "poisson"),
@@ -3462,16 +3466,16 @@ class TestFunnelPowerReporting:
         row = self._r().data.iloc[0]
         assert row["y"] == pytest.approx(1 / 3)
         assert not row["sigma_signal"]
-        assert row["min_detectable"] == pytest.approx(0.5779, abs=1e-4)
+        assert row["min_detectable"] == pytest.approx(0.6559, abs=1e-4)
         assert row["ci_95_lower"] == pytest.approx(0.0992, abs=1e-4)
         assert row["ci_95_upper"] == pytest.approx(0.6511, abs=1e-4)
 
     def test_summary_and_note(self):
         s = self._r().summary
         assert s["underpowered"] is True
-        assert s["n_underpowered"] == 11
-        assert s["min_detectable_ratio_median"] == pytest.approx(2.7885, abs=1e-4)
-        assert "11 of 14" in s["power_note"]
+        assert s["n_underpowered"] == 12
+        assert s["min_detectable_ratio_median"] == pytest.approx(2.9631, abs=1e-4)
+        assert "12 of 14" in s["power_note"]
         assert "proportion" in s["power_note"]
         assert "not evidence of acceptable performance" in s["power_note"]
 
@@ -3496,7 +3500,7 @@ class TestFunnelPowerReporting:
         assert b.summary["min_detectable_ratio_median"] == a.summary["min_detectable_ratio_median"]
 
     def test_excluded_points_do_not_colour_the_verdict(self):
-        assert self._r(exclude=[1]).summary["n_underpowered"] == 10
+        assert self._r(exclude=[1]).summary["n_underpowered"] == 11
 
     def test_well_powered_funnel_stays_quiet(self):
         r = qic(y=[70] * 10, n=[1000] * 10, chart="p", funnel=True)
