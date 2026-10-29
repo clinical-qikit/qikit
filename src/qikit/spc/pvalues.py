@@ -27,21 +27,21 @@ import math
 import numpy as np
 
 from .dist import beta_binomial_tails, binomial_tails, poisson_gamma_tails, poisson_tails
-from .limits import _INNER, _OUTER, _integer_count, beta_params, gamma_size
+from .limits import DEFAULT_LEVELS, _integer_count, beta_params, contour, gamma_size
 
 
-def signal_thresholds(side: str) -> tuple[float, float]:
+def signal_thresholds(side: str, levels: tuple = DEFAULT_LEVELS) -> tuple[float, float]:
     """
     (outer, inner) significance levels matching the funnel's own contours.
 
-    A one-sided test takes each contour's tail probability as it is (0.001, 0.025);
-    a two-sided p-value is doubled, so it is held to twice that (0.002, 0.05). Either
-    way a point is significant at the outer level exactly when it is beyond the 99.8%
-    contour's exact boundary on its side. No separate FDR level: the contours already
-    fix the two levels a reader of the chart is using.
+    A one-sided test takes each contour's tail probability as it is (0.001, 0.025 at
+    the default 99.8% and 95%); a two-sided p-value is doubled, so it is held to twice
+    that (0.002, 0.05). Either way a point's p-value is below the outer level exactly
+    when it is beyond the outer contour on its side (limits._upper_boundary), so these
+    are also the levels behind expected_false_flags in "limits" mode.
     """
     mult = 2.0 if side == "both" else 1.0
-    return _OUTER[0] * mult, _INNER[0] * mult
+    return contour(levels[0])[0] * mult, contour(levels[1])[0] * mult
 
 
 def count_model(family: str, tau2: float) -> str:
@@ -64,15 +64,27 @@ def _normal_tails(o: float, mu: float, var: float) -> tuple[float, float]:
 
 def _point_tails(
     o: float, n: float, cl: float, tau2: float, family: str,
-) -> tuple[tuple[float, float], bool]:
+) -> tuple[tuple[float, float], str]:
     """
-    ((P(X ≤ O), P(X ≥ O)), exact) for one point's count O at denominator n.
+    ((P(X ≤ O), P(X ≥ O)), method) for one point's count O at denominator n.
 
-    exact is False where the normal model stood in: a count that is not a whole number
-    (an averaged aggregate, which no count distribution describes), a non-integer
-    binomial denominator, a pp spread no beta distribution can have, or a walk past
+    method is "exact" for a whole-number count. A count between whole numbers (an
+    averaged aggregate, or an effective count O/φ under within_dispersion) takes each
+    tail linearly interpolated between its two integer neighbours: "interpolated".
+    That is the inverse of Spiegelhalter's interpolated quantile, so the point is
+    beyond a contour exactly when this p-value is below its tail probability, as for
+    a whole count. "normal" where the normal model stood in: a non-integer binomial
+    denominator, a pp spread no beta distribution can have, or a walk past
     dist._MAX_TERMS. Its mean and variance are those of the exact model in each case.
     """
+    if _integer_count(o) is None and not math.isnan(o) and o >= 0:
+        k0 = math.floor(o)
+        w = o - k0
+        (lo0, up0), m0 = _point_tails(float(k0), n, cl, tau2, family)
+        (lo1, up1), m1 = _point_tails(float(k0 + 1), n, cl, tau2, family)
+        if m0 == "normal" or m1 == "normal":
+            return _point_tails_normal(o, n, cl, tau2, family), "normal"
+        return ((1.0 - w) * lo0 + w * lo1, (1.0 - w) * up0 + w * up1), "interpolated"
     k = _integer_count(o)
     if family == "poisson":
         lam = cl * n
@@ -84,8 +96,8 @@ def _point_tails(
             var = lam
             tails = poisson_tails(k, lam) if k is not None else None
         if tails is not None:
-            return tails, True
-        return _normal_tails(o, lam, var), False
+            return tails, "exact"
+        return _normal_tails(o, lam, var), "normal"
 
     m = _integer_count(n)
     mu = n * cl
@@ -104,8 +116,24 @@ def _point_tails(
         if k is not None and m is not None:
             tails = binomial_tails(k, m, cl)
     if tails is not None:
-        return tails, True
-    return _normal_tails(o, mu, var), False
+        return tails, "exact"
+    return _normal_tails(o, mu, var), "normal"
+
+
+def _point_tails_normal(o: float, n: float, cl: float, tau2: float, family: str):
+    """The normal-model tails at the exact model's mean and variance, for a fallback."""
+    if family == "poisson":
+        lam = cl * n
+        var = lam + (lam * lam / gamma_size(cl, tau2) if tau2 > 0 else 0.0)
+        return _normal_tails(o, lam, var)
+    var = n * cl * (1.0 - cl)
+    if tau2 > 0:
+        params = beta_params(cl, tau2)
+        if params is None:
+            var += n * n * tau2
+        else:
+            var *= (sum(params) + n) / (sum(params) + 1.0)
+    return _normal_tails(o, n * cl, var)
 
 
 def funnel_p_values(
@@ -120,27 +148,29 @@ def funnel_p_values(
     or min(1, 2·min of the two) ("both"). NaN where y is NaN or n is not positive.
 
     Returns (p_value, p_value_method, count_model): p_value_method is "normal" if any
-    point fell back to the normal model, else "exact".
+    point fell back to the normal model, else "interpolated" if any count was not a
+    whole number, else "exact".
     """
     y = np.asarray(y, dtype=float)
     n = np.asarray(n, dtype=float)
     p = np.full(len(y), np.nan)
-    any_normal = False
+    methods: set[str] = set()
     for i in range(len(y)):
         yi, ni = float(y[i]), float(n[i])
         if math.isnan(yi) or not (ni > 0):
             continue
-        (lower, upper), exact = _point_tails(yi * ni, ni, cl, tau2, family)
+        (lower, upper), method = _point_tails(yi * ni, ni, cl, tau2, family)
         if math.isnan(lower):
             continue
-        any_normal |= not exact
+        methods.add(method)
         if side == "above":
             p[i] = upper
         elif side == "below":
             p[i] = lower
         else:
             p[i] = min(1.0, 2.0 * min(lower, upper))
-    return p, ("normal" if any_normal else "exact"), count_model(family, tau2)
+    overall = next((m for m in ("normal", "interpolated") if m in methods), "exact")
+    return p, overall, count_model(family, tau2)
 
 
 def bh_q_values(p: np.ndarray) -> np.ndarray:

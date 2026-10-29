@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 # Above this mean the exact loop stops earning its cost: Byar agrees with the
 # exact quantile to better than 1e-4 relative by λ = 1e5, and the loop would be
 # running ~1e5 iterations per point to prove it.
@@ -75,50 +77,32 @@ def byar_quantile(lam: float, z: float, upper: bool) -> float:
     return lam * max(0.0, root - half) ** 3
 
 
-def poisson_cdf(k: int, lam: float) -> float:
-    """
-    Poisson CDF F(k; λ) = P(X ≤ k), summed ascending in k.
-
-    Same term expression as poisson_quantile_interp's loop — kept textually parallel
-    so the two stay in step across the Python/TypeScript port.
-    """
-    if math.isnan(lam) or lam < 0:
-        return math.nan
-    if k < 0:
-        return 0.0
-    if lam == 0:
-        return 1.0  # all mass at zero
-
-    log_lam = math.log(lam)
-    cdf = 0.0
-    for j in range(int(k) + 1):
-        cdf += math.exp(j * log_lam - lam - math.lgamma(j + 1.0))
-    return min(1.0, cdf)
-
-
 def poisson_mean_for_cdf(k: int, p: float) -> float:
     """
-    The Poisson mean μ satisfying F(k; μ) = p, found by bisection.
+    The Poisson mean μ satisfying F(k; μ) = p.
 
     F(k; μ) is strictly decreasing in μ for fixed k — more expected events means less
-    probability of landing at or below k — so the root is unique and bisection cannot
-    be fooled. Inverting in the *mean* rather than searching over ratios is what makes
-    both callers exact: the answer is the mean at which the stated probability holds,
-    not a value scanned until it looked close.
+    probability of landing at or below k — so the root is unique. Inverting in the
+    *mean* rather than searching over ratios is what makes both callers exact: the
+    answer is the mean at which the stated probability holds, not a value scanned
+    until it looked close.
 
-    The bracket [0, k + 10√(k+1) + 20] holds the root for every p this module uses:
-    F(k; hi) < 1e-10 at that upper end, well below the smallest p (0.025).
+    Solved by safeguarded Newton steps on log F, bisecting whenever a step would leave
+    the bracket [0, k + 10√(k+1) + 20] (F(k; hi) < 1e-10 there, below every p this
+    module uses). log F(k; μ) = log f(k; μ) + log S with S = F/f, a sum of running
+    products of j/μ that numpy evaluates in one pass, and d log F / dμ = −1/S. Six to
+    ten steps replace the fifty full CDF sweeps a plain bisection costs, which is what
+    keeps a thousand-provider funnel at hospital volumes (k in the thousands) fast.
+    The TypeScript twin (poissonMeanForCdf) bisects; the two agree far inside the
+    quantization below.
 
     The result is quantized to _QUANTIZE_DECIMALS. math.lgamma is a libm function whose
-    last ulp differs between platforms, and bisection amplifies that: a 1-ulp
-    difference in the CDF near a decision boundary flips a comparison, sends the
-    bracket down a different path, and lands ~1e-13 away. The committed fixture
-    snapshots require byte equality, so an unrounded result makes them reproduce only
-    on the machine that generated them. Rounding to 1e-9 is four orders of magnitude
-    tighter than the fixture check tolerance and seven beyond anything displayed,
-    while sitting far above the platform noise it erases. Callers divide this by a
-    bit-identical expected count, and IEEE division is exactly rounded, so quantizing
-    here makes every value derived from it portable too.
+    last ulp differs between platforms, so the unrounded root lands ~1e-13 apart on
+    different machines; rounding to 1e-9 erases that while staying four orders of
+    magnitude tighter than the fixture check tolerance and seven beyond anything
+    displayed. Callers divide this by a bit-identical expected count, and IEEE division
+    is exactly rounded, so quantizing here makes every value derived from it portable
+    too.
 
     Raises ValueError above _MEAN_SOLVE_MAX_K; callers pre-check and fall back to a
     closed form, mirroring how _EXACT_MAX_LAMBDA is handled.
@@ -132,16 +116,40 @@ def poisson_mean_for_cdf(k: int, p: float) -> float:
             f"poisson_mean_for_cdf: k={k} exceeds the solve ceiling "
             f"({_MEAN_SOLVE_MAX_K}); the caller should use a closed-form approximation."
         )
+    k = int(k)
+    if k == 0:
+        return round(-math.log(p), _QUANTIZE_DECIMALS)  # F(0; μ) = e^(−μ)
+
+    log_p = math.log(p)
+    log_k_fact = math.lgamma(k + 1.0)
+    steps = np.log(np.arange(k, 0, -1, dtype=float))  # log j for j = k, k−1, …, 1
+
+    def log_cdf(mu: float) -> tuple[float, float]:
+        # Running products (k/μ)(k−1)/μ… are f(k−i)/f(k); summed, S = F(k)/f(k).
+        logs = np.concatenate(([0.0], np.cumsum(steps - math.log(mu))))
+        top = float(logs.max())
+        log_s = top + math.log(float(np.sum(np.exp(logs - top))))
+        return k * math.log(mu) - mu - log_k_fact + log_s, math.exp(log_s)
 
     lo = 0.0
     hi = k + 10.0 * math.sqrt(k + 1.0) + 20.0
+    mu = k + 1.0  # F(k; k + 1) sits near one half: the middle of every bracket used
     for _ in range(_BISECT_ITERS):
-        mid = 0.5 * (lo + hi)
-        if poisson_cdf(k, mid) > p:
-            lo = mid  # still too much mass at or below k — the mean must rise
+        h, s = log_cdf(mu)
+        h -= log_p
+        if h > 0:
+            lo = mu  # still too much mass at or below k — the mean must rise
         else:
-            hi = mid
-    return round(0.5 * (lo + hi), _QUANTIZE_DECIMALS)
+            hi = mu
+        step = h * s
+        nxt = mu + step
+        if not (lo < nxt < hi):
+            nxt = 0.5 * (lo + hi)
+        if abs(nxt - mu) <= 1e-13 * max(1.0, mu):
+            mu = nxt
+            break
+        mu = nxt
+    return round(mu, _QUANTIZE_DECIMALS)
 
 
 def poisson_quantile_interp(p: float, lam: float) -> float:
@@ -156,46 +164,29 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
 
     so q lies in [r−1, r] and varies smoothly with λ. Note this is *not* what R's
     qpois returns (that is r, uninterpolated); an external cross-check should
-    bracket our value between r−1 and r.
+    bracket our value between r−1 and r. (limits._upper_boundary draws the upper
+    contour one count beyond this, at the exact test's boundary.)
 
-    The result is quantized to _QUANTIZE_DECIMALS, for the reason given there: the
-    accumulated lgamma terms differ in their last ulp between platforms, and the
-    fixture snapshots are compared byte for byte.
+    Built on the lgamma-free walk the other families use (below), so it costs
+    O(√λ) terms rather than O(λ) and is bit-identical across platforms. The result is
+    quantized to _QUANTIZE_DECIMALS like every quantile here.
 
     Returns NaN for a non-positive or non-finite λ.
     """
     if not (lam > 0) or math.isnan(lam):
         return math.nan
     if lam > _EXACT_MAX_LAMBDA:
-        # z is unused by the caller here, so recover it from p via the two levels
-        # we actually ship. Guarded by the callers in limits.py, which only ever
-        # pass the four tail probabilities below.
         raise ValueError(
             f"poisson_quantile_interp: lambda={lam} exceeds the exact-method ceiling "
             f"({_EXACT_MAX_LAMBDA}); the caller should fall back to byar_quantile."
         )
 
-    log_lam = math.log(lam)
-    # Far enough above the mode that the remaining mass is below double precision.
-    max_k = int(lam + 20.0 * math.sqrt(lam) + 100.0)
+    def ratio(k):
+        return lam / (k + 1)
 
-    cdf = 0.0
-    prev = 0.0
-    k = 0
-    while k <= max_k:
-        prev = cdf
-        cdf += math.exp(k * log_lam - lam - math.lgamma(k + 1.0))
-        if cdf >= p:
-            break
-        k += 1
-
-    if k > max_k:
-        # p sits in the float plateau at the top of the CDF; the cap is the answer.
-        return float(max_k)
-
-    jump = cdf - prev
-    delta = (cdf - p) / jump if jump > 0 else 0.0
-    return round(max(0.0, k - delta), _QUANTIZE_DECIMALS)
+    out = _walk_quantiles((p,), ratio, int(math.floor(lam)), None)
+    # The walk cannot run out: a Poisson's spread is √λ ≤ 317 terms at the ceiling.
+    return out[0]
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +207,7 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
 #     grows without bound and a difference of lgammas loses every digit;
 #   - cost proportional to the distribution's spread, not to its mean, so a hospital
 #     with 100,000 discharges costs a few thousand terms, not a hundred thousand.
-# Poisson keeps its original loop so every existing O/E fixture is untouched.
+# The Poisson quantile uses the same walk (poisson_quantile_interp, above).
 
 # Terms below this fraction of the largest are dropped. The neglected tail mass is
 # below 1e-16 of the total even for the slowest-decaying case reachable here.
@@ -504,8 +495,8 @@ def poisson_tails(k: int, lam: float):
     """
     (P(X ≤ k), P(X ≥ k)) for X ~ Poisson(λ), from the lgamma-free walk.
 
-    Unlike poisson_cdf this never calls lgamma, so it is bit-identical across
-    platforms. (NaN, NaN) for a NaN or non-positive λ, where the limits are NaN too.
+    It never calls lgamma, so it is bit-identical across platforms. (NaN, NaN) for a
+    NaN or non-positive λ, where the limits are NaN too.
     """
     if math.isnan(lam) or not (lam > 0):
         return math.nan, math.nan

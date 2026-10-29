@@ -16,6 +16,18 @@ import {
 /** The two contours every funnel draws [1, §2]: lower tail, upper tail, normal deviate. */
 const OUTER: [number, number, number] = [0.001, 0.999, Z_998];
 const INNER: [number, number, number] = [0.025, 0.975, Z_95];
+
+/**
+ * The upper contour on the count scale: the exact one-sided test's boundary, one count
+ * beyond the interpolated quantile q = r − δ, so "beyond the line" means P(X ≥ O) < α.
+ * A normal fallback is left as it is; n caps a binomial count. Twin of _upper_boundary
+ * in limits.py, whose docstring gives the reasoning.
+ */
+function upperBoundary(q: number, exact: boolean, n?: number): number {
+  if (!exact || Number.isNaN(q)) return q;
+  const shifted = q + 1.0;
+  return n === undefined ? shifted : Math.min(shifted, n);
+}
 import { detectSignals } from './signals';
 
 /**
@@ -44,7 +56,7 @@ function poissonFunnelPair(
   for (const ei of e) {
     const lam = cl * ei;
     if (exact && lam <= EXACT_MAX_LAMBDA) {
-      ucl.push(poissonQuantileInterp(pUpper, lam) / ei);
+      ucl.push((poissonQuantileInterp(pUpper, lam) + 1.0) / ei);
       lcl.push(poissonQuantileInterp(pLower, lam) / ei);
     } else {
       ucl.push(byarQuantile(lam, z, true) / ei);
@@ -272,7 +284,7 @@ function binomialFunnelPair(
     }
     const [[lo, hi], exact] = binomialQuantiles([pLower, pUpper], ni, cl, [-z, z]);
     if (!exact && diag) diag.normal = true;
-    ucl.push(hi / ni);
+    ucl.push(upperBoundary(hi, exact, ni) / ni);
     lcl.push(lo / ni);
   }
   return [ucl, lcl];
@@ -358,7 +370,7 @@ function mixtureFunnelPair(
       }
       const [[lo, hi], exact] = poissonGammaQuantiles([pLower, pUpper], cl * ei, size, [-z, z]);
       if (!exact && diag) diag.normal = true;
-      ucl.push(hi / ei);
+      ucl.push(upperBoundary(hi, exact) / ei);
       lcl.push(lo / ei);
     }
     return [ucl, lcl];
@@ -386,7 +398,7 @@ function mixtureFunnelPair(
     }
     const [[lo, hi], exact] = betaBinomialQuantiles([pLower, pUpper], ei, alpha, beta, [-z, z]);
     if (!exact && diag) diag.normal = true;
-    ucl.push(hi / ei);
+    ucl.push(upperBoundary(hi, exact, ei) / ei);
     lcl.push(lo / ei);
   }
   return [ucl, lcl];

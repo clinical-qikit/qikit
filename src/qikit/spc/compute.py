@@ -13,7 +13,9 @@ import numpy as np
 
 import math
 
-from .limits import CHARTS, FUNNEL_CHARTS, VALID_CHARTS, funnel_dispersion
+from .limits import (
+    CHARTS, DEFAULT_LEVELS, FUNNEL_CHARTS, VALID_CHARTS, dispersion_shape, funnel_dispersion,
+)
 from .pvalues import funnel_p_values
 from .signals import _runs_signals, _sigma_signals
 
@@ -32,6 +34,7 @@ def compute(
     limit_method: str = "exact",
     funnel: bool = False,
     signal_side: str = "both",
+    levels: tuple = DEFAULT_LEVELS,
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
@@ -130,6 +133,9 @@ def compute(
         if spec.adjusted:
             dispersion["dispersion_method"] = "additive"
             dispersion["dispersion_adjusted"] = tau2 > 0
+        if spec.limits_95 is not None:
+            # Within-unit clumping that τ² cannot absorb; api.py warns on it.
+            dispersion.update(dispersion_shape(cl_val, y, n, mask, spec.family))
     elif chart in ("pp", "up"):
         # The same chart code means a different method in time order; say which.
         dispersion = {"dispersion_method": "laney"}
@@ -142,7 +148,7 @@ def compute(
     diag: dict[str, Any] = {}
     limit_kw = dict(
         s_bar=s_bar, sigma_hat=sigma_hat, limit_method=limit_method,
-        tau2=tau2 if spec.adjusted else 0.0, diag=diag,
+        tau2=tau2 if spec.adjusted else 0.0, diag=diag, levels=levels,
     )
     ucl_arr, lcl_arr, *cl_var = spec.limits(cl_val, y, n, mask, subgroup_n, **limit_kw)
     if cl_override is None and cl_var and cl_var[0] is not None:
@@ -215,6 +221,8 @@ def funnel_limits(
     n: np.ndarray,
     tau2: float = 0.0,
     limit_method: str = "exact",
+    levels: tuple = DEFAULT_LEVELS,
+    within_dispersion: float = 1.0,
 ) -> dict[str, np.ndarray]:
     """
     A funnel's limits at arbitrary denominators, for drawing its contours.
@@ -223,8 +231,10 @@ def funnel_limits(
     drawn through a point's own n passes exactly through the limit that decided its
     signal. chart is one of p, pp, u, up (their funnel versions) or oe, oep; cl and
     tau2 are on the raw scale, as compute() drew them; limit_method is the oe
-    chart's input ("exact" | "byar"). The funnel limit functions read neither y nor
-    the baseline mask, so neither is needed.
+    chart's input ("exact" | "byar"); levels the (outer, inner) coverage. n is in the
+    caller's units: under within_dispersion=φ the model sees n/φ, as compute() did.
+    The funnel limit functions read neither y nor the baseline mask, so neither is
+    needed.
 
     Returns ucl, lcl, ucl_95, lcl_95 aligned with n.
     """
@@ -232,10 +242,13 @@ def funnel_limits(
     if spec.limits_95 is None:
         raise ValueError(f"chart={chart!r} has no funnel limits.")
     n = np.asarray(n, dtype=float)
+    if within_dispersion != 1.0:
+        n = n / float(within_dispersion)
     placeholder = np.full(len(n), np.nan)
     mask = np.ones(len(n), dtype=bool)
     limit_kw = dict(
         limit_method=limit_method, tau2=tau2 if spec.adjusted else 0.0, diag={},
+        levels=levels,
     )
     ucl, lcl = spec.limits(cl, placeholder, n, mask, None, **limit_kw)
     ucl_95, lcl_95 = spec.limits_95(cl, placeholder, n, mask, None, **limit_kw)

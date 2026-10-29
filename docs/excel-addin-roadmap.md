@@ -192,6 +192,12 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 - Analysis templates (pre-configured chart + method bundles)
 - PDF report export
 - Faceted (per-group subplot) charts in the task pane
+- **0.8 funnel engine changes, mirrored in TS:** the upper contour is drawn at the
+  exact test's boundary (`upperBoundary` in `spc-core.ts`), and `poissonQuantileInterp`
+  uses the lgamma-free walk. Python-only so far: `funnel()` itself, `levels`/`fdr_levels`,
+  `within_dispersion` with the dispersion-shape diagnostic, interpolated p-values for
+  non-integer counts, and the Newton Poisson inversion. Its values match TS bisection
+  inside the fixtures' 1e-9 tolerance.
 - **TS engine parity for the 0.7 funnel signalling** (Python-only for now; see
   `docs/methods.md` §4.10–4.11). Port to `packages/engine`:
   - the `n` row column on every chart with denominators;

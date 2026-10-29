@@ -99,7 +99,9 @@ export function byarQuantile(lam: number, z: number, upper: boolean): number {
  */
 /**
  * Poisson CDF F(k; λ) = P(X ≤ k), summed ascending in k.
- * Twin of poisson_cdf in dist.py — same term expression as the quantile loop below.
+ * The CDF poissonMeanForCdf bisects on. dist.py has no twin: its poisson_mean_for_cdf
+ * takes Newton steps on log F instead, and the two roots agree far inside the
+ * quantization.
  */
 export function poissonCdf(k: number, lam: number): number {
   if (Number.isNaN(lam) || lam < 0) return NaN;
@@ -116,8 +118,8 @@ export function poissonCdf(k: number, lam: number): number {
 }
 
 /**
- * The Poisson mean μ satisfying F(k; μ) = p, by bisection. Twin of
- * poisson_mean_for_cdf in dist.py.
+ * The Poisson mean μ satisfying F(k; μ) = p, by bisection. Computes what
+ * poisson_mean_for_cdf in dist.py does, which uses Newton steps for speed.
  *
  * F(k; μ) is strictly decreasing in μ, so the root is unique. The bracket
  * [0, k + 10√(k+1) + 20] holds it for every p used here (F(k; hi) < 1e-10).
@@ -158,27 +160,9 @@ export function poissonQuantileInterp(p: number, lam: number): number {
       `(${EXACT_MAX_LAMBDA}); the caller should fall back to byarQuantile.`
     );
   }
-
-  const logLam = Math.log(lam);
-  // Far enough above the mode that the remaining mass is below double precision.
-  const maxK = Math.floor(lam + 20 * Math.sqrt(lam) + 100);
-
-  let cdf = 0;
-  let prev = 0;
-  let k = 0;
-  while (k <= maxK) {
-    prev = cdf;
-    cdf += Math.exp(k * logLam - lam - lgamma(k + 1));
-    if (cdf >= p) break;
-    k++;
-  }
-
-  // p sits in the float plateau at the top of the CDF; the cap is the answer.
-  if (k > maxK) return maxK;
-
-  const jump = cdf - prev;
-  const delta = jump > 0 ? (cdf - p) / jump : 0;
-  return quantize(Math.max(0, k - delta));
+  // The lgamma-free walk the other families use (below): O(√λ) terms, platform-exact.
+  const out = walkQuantiles([p], k => lam / (k + 1), Math.floor(lam), null);
+  return out === null ? NaN : out[0];
 }
 
 // ---------------------------------------------------------------------------

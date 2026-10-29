@@ -81,7 +81,7 @@ describe('O/E power reporting', () => {
     const row: any = r.data[0];
     // Row 0 is the smallest-E physician: 2.5x expected mortality, yet no signal.
     expect(row.sigma_signal).toBe(false);
-    expect(row.min_detectable_oe).toBeCloseTo(4.265852, 5);
+    expect(row.min_detectable_oe).toBeCloseTo(4.617706, 5);
     expect(row.ci_95_lower).toBeCloseTo(1.079323, 5);
     expect(row.ci_95_upper).toBeCloseTo(4.925997, 5);
     expect(r.summary.underpowered).toBe(true);

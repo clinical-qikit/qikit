@@ -1,6 +1,6 @@
 {
   "id": "funnel_oe_byar",
-  "reference": "Byar's approximation to the Poisson funnel limits (Breslow & Day 1987, via the Wilson-Hilferty cube-root transform), same data as funnel_oe_exact. Closed form: limit = lambda*(1 - 1/(9*lambda) +/- z/(3*sqrt(lambda)))^3 / E, with lambda = cl*E and z = 3.090232306167813 at 99.8%. First point: E=2.5, lambda=2.543689, ucl=4.184624. Note this sits ~26% above the exact 3.317113 at this volume \u2014 the reason 'exact' is the default for per-physician comparisons, where expected counts are routinely under 20. The lcl is 0.030447 rather than exact's 0.0, so Byar also disagrees on whether the lower limit has left the floor.",
+  "reference": "Byar's approximation to the Poisson funnel limits (Breslow & Day 1987, via the Wilson-Hilferty cube-root transform), same data as funnel_oe_exact. Closed form: limit = lambda*(1 - 1/(9*lambda) +/- z/(3*sqrt(lambda)))^3 / E, with lambda = cl*E and z = 3.090232306167813 at 99.8%. First point: E=2.5, lambda=2.543689, ucl=4.184624. Note this sits ~13% above the exact 3.717113 at this volume, and Byar's upper limit is not shifted to the exact-test boundary the exact limits use \u2014 the reason 'exact' is the default for per-physician comparisons, where expected counts are routinely under 20. The lcl is 0.030447 rather than exact's 0.0, so Byar also disagrees on whether the lower limit has left the floor.",
   "function": "qic",
   "input": {
     "y": [
@@ -78,8 +78,17 @@
       "n_warn": 2,
       "signal_side": "both",
       "signal_method": "limits",
+      "levels": [
+        0.998,
+        0.95
+      ],
+      "fdr_levels": [
+        0.05,
+        0.1
+      ],
       "n_tested": 8,
-      "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is tau = 0.39. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='oep', which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
+      "within_dispersion": 1.0,
+      "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is tau = 0.39. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with overdispersion=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_oe_median": 2.764711902932927,
       "n_underpowered": 5,
       "underpowered": true,

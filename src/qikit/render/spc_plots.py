@@ -25,12 +25,13 @@ from qikit.spc.options import (
     DEFAULT_XLAB, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT,
     validate_range, validate_styles, validate_x_spacing,
 )
+from qikit.spc.limits import DEFAULT_LEVELS
 from qikit.spc.pvalues import signal_thresholds
 from qikit.spc.results import n_varies
 
 from .utils import (
     apply_tufte_theme,
-    NORMAL, CL, LIMIT, SIGMA, RUNS, TARGET, GRID, WARN, AXIS,
+    NORMAL, CL, LIMIT, SIGMA, RUNS, TARGET, GRID, WARN, AXIS, CONTOUR,
     TEXT, TEXT_MUTED, TEXT_FAINT,
 )
 
@@ -76,37 +77,60 @@ def _point_colors(
     ]
 
 
-def _limit_names(chart_type: str, funnel: bool) -> tuple[tuple[str, str], tuple[str, str]]:
+def _pct(coverage: float) -> str:
+    """0.998 → "99.8%", 0.95 → "95%"."""
+    return f"{coverage * 100:g}%"
+
+
+def _limit_names(
+    chart_type: str, funnel: bool, levels: tuple = DEFAULT_LEVELS,
+) -> tuple[tuple[str, str], tuple[str, str]]:
     """
     Default trace names for the outer and inner limit pairs. Funnel and O/E limits are
     probability contours, not sigma multiples, so naming them "UCL"/"2σ" would
     misreport what the reader is looking at.
     """
     if chart_type in ("oe", "oep") or funnel:
-        return ("99.8%+", "99.8%-"), ("95%+", "95%-")
+        o, i = _pct(levels[0]), _pct(levels[1])
+        return (f"{o}+", f"{o}-"), (f"{i}+", f"{i}-")
     return ("UCL", "LCL"), ("2σ+", "2σ-")
 
 
-def _resolve_styles(styles: Any, chart_type: str, funnel: bool) -> dict[str, dict]:
+def _resolve_styles(
+    styles: Any, chart_type: str, funnel: bool, levels: tuple = DEFAULT_LEVELS,
+) -> dict[str, dict]:
     """
-    Every styles= role with its defaults, overlaid with the caller's attributes. The
-    defaults are exactly the figure drawn before styles= existed; a dash of None means
-    the attribute is left unset, as it always was on the solid lines.
+    Every styles= role with its defaults, overlaid with the caller's attributes; a dash
+    of None leaves the attribute unset, as on the solid lines.
+
+    A time-ordered chart keeps its light reference ink, so the series reads first. A
+    funnel's contours are what a reader judges each provider against, often on a
+    projector, so they are drawn at 3.5:1 against the background (the non-text
+    contrast floor is 3:1), the inner one dashed, and its points at 0.85 opacity so
+    overlapping providers stay visible.
     """
-    outer, inner = _limit_names(chart_type, funnel)
+    outer, inner = _limit_names(chart_type, funnel, levels)
+    contour = chart_type in ("oe", "oep") or funnel
     line = {"width": 1, "dash": None, "visible": True}
+    limit = {**line, "color": CONTOUR, "width": 1.5} if contour else {**line, "color": LIMIT}
+    inner_line = (
+        {**line, "color": CONTOUR, "dash": "dash"} if contour
+        else {**line, "color": WARN, "dash": "dot"}
+    )
     base: dict[str, dict] = {
-        "data": {"color": NORMAL, "width": 1, "name": "data"},
+        "data": {"color": NORMAL, "width": 1, "name": "data",
+                 "opacity": 0.85 if contour else 1.0},
         "sigma": {"color": SIGMA, "name": None},
         "warn": {"color": RUNS, "name": None},
         "runs": {"color": RUNS, "name": None},
-        "cl": {**line, "color": CL, "name": "CL"},
-        "ucl": {**line, "color": LIMIT, "name": outer[0]},
-        "lcl": {**line, "color": LIMIT, "name": outer[1]},
-        "ucl_95": {**line, "color": WARN, "dash": "dot", "name": inner[0]},
-        "lcl_95": {**line, "color": WARN, "dash": "dot", "name": inner[1]},
+        "cl": {**line, "color": CONTOUR if contour else CL, "name": "CL"},
+        "ucl": {**limit, "name": outer[0]},
+        "lcl": {**limit, "name": outer[1]},
+        "ucl_95": {**inner_line, "name": inner[0]},
+        "lcl_95": {**inner_line, "name": inner[1]},
         "target": {**line, "color": TARGET, "dash": "dot", "name": "Target"},
         "end_labels": {"color": TEXT_MUTED, "size": 10},
+        "font": {"family": None, "size": None, "color": None},
     }
     for role, attrs in validate_styles(styles).items():
         base[role] = {**base[role], **attrs}
@@ -246,6 +270,7 @@ def _add_chart_traces(
     signal_side: str = "both",
     styles: Any = None,
     legend: bool | None = None,
+    levels: tuple = DEFAULT_LEVELS,
 ) -> dict[str, Any]:
     """
     Add data/CL/UCL/LCL traces, part boundaries, notes and signal labels to fig.
@@ -260,7 +285,9 @@ def _add_chart_traces(
     Returns what _fit_ranges needs to fit this panel's axes: the plotted points and
     the drawn reference lines.
     """
-    st = _resolve_styles(styles, chart_type, funnel)
+    st = _resolve_styles(styles, chart_type, funnel, levels)
+    # A funnel's line legend comes from _add_legend_entries: one entry per contour pair.
+    contour = chart_type in ("oe", "oep") or funnel
     x_raw = df["x"].tolist()
     labels = df["label"].tolist() if "label" in df.columns else None
     # What a reader should see for each point: its label when one was given, else x.
@@ -320,7 +347,7 @@ def _add_chart_traces(
     # Ghost points excluded via exclude=: faded and not counted toward
     # limits or signals (handled upstream in qikit.spc.compute/api).
     excluded = df["excluded"].to_numpy() if "excluded" in df.columns else np.zeros(len(x), dtype=bool)
-    opacities = [0.35 if ex else 1.0 for ex in excluded]
+    opacities = [0.35 if ex else st["data"]["opacity"] for ex in excluded]
 
     add_kwargs: dict[str, Any] = {}
     if row is not None and col is not None:
@@ -470,7 +497,7 @@ def _add_chart_traces(
             name=st["cl"]["name"],
             hoverinfo="skip",
             zorder=1,
-            **_legend(),
+            **(_legend("cl", entry=False) if contour else _legend()),
         ), **add_kwargs)
 
     # The limit lines actually drawn, (values, upper side?), for _fit_ranges.
@@ -488,7 +515,8 @@ def _add_chart_traces(
                 name=st[role]["name"],
                 hoverinfo="skip",
                 zorder=1,
-                **_legend("limits", entry=role == "ucl" or not st["ucl"]["visible"]),
+                **_legend("limits", entry=not contour and (
+                    role == "ucl" or not st["ucl"]["visible"])),
             ), **add_kwargs)
             drawn_limits.append((arr, role == "ucl"))
 
@@ -509,7 +537,8 @@ def _add_chart_traces(
                 name=st[role]["name"],
                 hoverinfo="skip",
                 zorder=1,
-                **_legend("limits_95", entry=role == "ucl_95" or not st["ucl_95"]["visible"]),
+                **_legend("limits_95", entry=not contour and (
+                    role == "ucl_95" or not st["ucl_95"]["visible"])),
             ), **add_kwargs)
             drawn_limits.append((np.asarray(warn_y, dtype=float), role == "ucl_95"))
 
@@ -675,7 +704,7 @@ def _within(coords: Any, lo: Any, hi: Any) -> np.ndarray:
 
 def _fit_ranges(
     panels: list[dict[str, Any]], x_range: Any, y_range: Any, x_log: bool,
-    y_neg: bool, y_expand: float | None, shared_y: bool,
+    y_neg: bool, y_expand: float | None, shared_y: bool, fit_y: bool = False,
 ) -> tuple[tuple | None, list[tuple] | None]:
     """
     Axis ranges for x_range= / y_range=: (x bounds or None, per-panel y bounds or None).
@@ -686,8 +715,10 @@ def _fit_ranges(
     high-volume end in view while its low-volume flare, like the trimmed points, no
     longer stretches the axis. y_neg=False floors the fit at 0 and y_expand widens it
     to include that value, as they do without a range; an end the caller gave wins.
+    fit_y fits y that way with no range at all: a funnel's volume axis, whose small-n
+    flare would otherwise set the scale.
     """
-    if x_range is None and y_range is None:
+    if x_range is None and y_range is None and not fit_y:
         return None, None
     x_bounds = None
     if x_range is not None:
@@ -788,31 +819,44 @@ def _add_legend_entries(
     the point colors live on the one data trace, so without these a legend could not
     say what red or amber means, and would draw the series in whatever color its first
     point happens to be. The series entry shares the data trace's legendgroup, so
-    clicking it still hides the points. Signal entries are named for what decided
-    them, unless styles= names them.
+    clicking it still hides the points. Signal entries are named for the tier and what
+    decided it, unless styles= names them. On a funnel each contour pair also gets one
+    line entry ("99.8% limits") in the pair's legendgroup, since its traces are named
+    by side ("99.8%+", "99.8%-") for restyling.
     """
     df = result.data
-    st = _resolve_styles(styles, result.chart_type, funnel)
+    levels = tuple(_signal_setting(result, "levels", DEFAULT_LEVELS))
+    st = _resolve_styles(styles, result.chart_type, funnel, levels)
     drawn = np.isfinite(df["y"].to_numpy(dtype=float))
     sigma = df["sigma_signal"].to_numpy().astype(bool) & drawn
     amber, amber_role = _amber_tier(df, funnel, show_95, runs_highlight)
     amber = np.asarray(amber, dtype=bool) & ~sigma & drawn
     contour = result.chart_type in ("oe", "oep") or funnel
     method = _signal_setting(result, "signal_method", "limits")
-    outer, inner = signal_thresholds(_signal_setting(result, "signal_side", "both"))
-    stat = {"exact": "p", "fdr": "q"}.get(method)
+    side = _signal_setting(result, "signal_side", "both")
+    worse = "Worse than expected: " if side != "both" else ""
+    if not contour:
+        sigma_name, warn_name = "Beyond UCL/LCL", "Beyond 95%"
+    elif method == "fdr":
+        q0, q1 = _signal_setting(result, "fdr_levels", (0.05, 0.10))
+        sigma_name, warn_name = f"{worse}outlier (q < {q0:g})", f"{worse}alert (q < {q1:g})"
+    else:
+        sigma_name = f"{worse}outlier (beyond {_pct(levels[0])})"
+        warn_name = f"{worse}alert (beyond {_pct(levels[1])})"
     defaults = {
-        "sigma": f"{stat} < {outer:g}" if stat else (
-            "Beyond 99.8%" if contour else "Beyond UCL/LCL"
-        ),
-        "warn": f"{stat} < {inner:g}" if stat else "Beyond 95%",
+        "sigma": sigma_name[0].upper() + sigma_name[1:],
+        "warn": warn_name[0].upper() + warn_name[1:],
         "runs": "Run signal",
     }
     size = point_size * 6
+    given = validate_styles(styles)
+    series_name = st["data"]["name"]
+    if contour and not (given.get("data") or {}).get("name"):
+        series_name = "Provider"
     fig.add_trace(go.Scatter(
         x=[None], y=[None], mode="markers",
         marker=dict(color=st["data"]["color"], symbol="circle", size=size),
-        name=st["data"]["name"], legendgroup="data",
+        name=series_name, legendgroup="data",
         showlegend=True, hoverinfo="skip", legendrank=1,  # first, before the lines
     ))
     for role, present, symbol in (
@@ -826,6 +870,33 @@ def _add_legend_entries(
             name=st[role]["name"] or defaults[role],
             showlegend=True, hoverinfo="skip",
         ))
+    if not contour:
+        return
+    if st["cl"]["visible"]:
+        name = (given.get("cl") or {}).get("name") or "Center line"
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode="lines", line=_line(st["cl"]), name=name,
+            legendgroup="cl", showlegend=True, hoverinfo="skip",
+        ))
+    pairs = [("limits", "ucl", "lcl", levels[0])]
+    if show_95:
+        pairs.append(("limits_95", "ucl_95", "lcl_95", levels[1]))
+    for group, upper, lower, coverage in pairs:
+        role = upper if st[upper]["visible"] else lower
+        if not st[role]["visible"]:
+            continue
+        name = (given.get(upper) or {}).get("name") or f"{_pct(coverage)} limits"
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode="lines", line=_line(st[role]), name=name,
+            legendgroup=group, showlegend=True, hoverinfo="skip",
+        ))
+
+
+def _apply_font(fig: go.Figure, styles: Any) -> None:
+    """styles={"font": {...}}: the base font, which every text element inherits."""
+    font = {k: v for k, v in (validate_styles(styles).get("font") or {}).items() if v is not None}
+    if font:
+        fig.update_layout(font=font)
 
 
 def _log_ticks(lo: float, hi: float) -> list[float]:
@@ -877,47 +948,84 @@ def _signal_setting(result: Any, key: str, default: Any = None) -> Any:
 
 def _signal_caption(result: Any, show_95: bool, funnel: bool) -> str | None:
     """
-    Say what flagged the points when the drawn contours did not. Under
-    signal_method="exact"/"fdr" a point beyond a line can be unflagged and the colours
-    answer a different question from the curves; a screenshot carries no summary keys,
-    so the figure has to say so itself.
+    The rule that colored the points, on every funnel. A screenshot carries no summary
+    keys, so the figure states the test and its levels itself; under
+    signal_method="fdr" it also says the curves no longer decide the colors.
     """
-    method = _signal_setting(result, "signal_method", "limits")
-    if method == "limits":
+    if not (funnel or result.chart_type in ("oe", "oep")):
         return None
+    method = _signal_setting(result, "signal_method", "limits")
     side = _signal_setting(result, "signal_side", "both")
-    outer, inner = signal_thresholds(side)
-    if method == "exact":
-        tail = "two-sided" if side == "both" else f"one-sided ({side} the center line)"
-        test, stat = f"exact {tail} test", "p"
-    else:
-        summary = getattr(result, "summary", None) or {}
-        if "by_facet" in summary:
-            scope = "within each panel"
-        else:
-            scope = f"across {summary.get('n_tested', 0)} points"
-        test, stat = f"Benjamini–Hochberg false discovery rate {scope}", "q"
-    # Amber marks the warn tier only on a funnel drawn with its 95% band.
-    amber = show_95 and funnel
-    levels = f"{stat} < {outer:g} (red)" + (f", {stat} < {inner:g} (amber)" if amber else "")
-    curves = "99.8% and 95% limits" if show_95 else "99.8% limits"
-    tail_note = (
-        "for reference" if method == "exact" else "not adjusted for multiple comparisons"
+    levels = tuple(_signal_setting(result, "levels", DEFAULT_LEVELS))
+    tail = "two-sided" if side == "both" else f"one-sided, {side} the center line"
+    # Amber marks the alert tier only on a funnel drawn with its inner band.
+    alert = show_95
+    if method == "limits":
+        outer, inner = signal_thresholds(side, levels)
+        text = f"Outlier: beyond the {_pct(levels[0])} limit (exact test, {tail}, p < {outer:g})"
+        if alert:
+            text += f"; alert: beyond the {_pct(levels[1])} limit (p < {inner:g})"
+        return text + "."
+    q0, q1 = _signal_setting(result, "fdr_levels", (0.05, 0.10))
+    summary = getattr(result, "summary", None) or {}
+    scope = (
+        "within each panel" if "by_facet" in summary
+        else f"across {summary.get('n_tested', 0)} providers"
     )
-    return f"Signals: {test}, {levels}. The curves show the {curves}, {tail_note}."
+    text = f"Outlier: q < {q0:g}" + (f"; alert: q < {q1:g}" if alert else "")
+    curves = f"{_pct(levels[0])} and {_pct(levels[1])} limits" if show_95 else f"{_pct(levels[0])} limits"
+    return (
+        f"{text} (Benjamini-Hochberg false discovery rate {scope}, {tail} p-values). "
+        f"The curves show the {curves}, not adjusted for multiple comparisons."
+    )
+
+
+_CLUSTERED_CAPTION = (
+    "Warning: counts look clustered within providers (e.g. patient-days), so these "
+    "limits are too narrow; set within_dispersion."
+)
+
+
+# Pixels from the bottom of the plot area to the caption's first line: below the tick
+# labels and the x-axis title.
+_CAPTION_TOP = 62
+
+
+def _wrap_caption(caption: str, width: int | None) -> str:
+    """
+    Break each caption note into lines that fit the figure: a Plotly annotation does
+    not wrap, so a long note runs off the right edge. About 5.5 px per character at
+    the caption's 10 px size; a responsive figure (width None) is taken as 700 px,
+    Plotly's static-export default.
+    """
+    limit = max(60, int((width or 700) / 5.5) - 12)
+    out = []
+    for note in caption.split("<br>"):
+        line = ""
+        for word in note.split(" "):
+            if line and len(line) + 1 + len(word) > limit:
+                out.append(line)
+                line = word
+            else:
+                line = f"{line} {word}" if line else word
+        out.append(line)
+    return "<br>".join(out)
 
 
 def _effective_caption(result: Any, show_95: bool = False, funnel: bool = False) -> str | None:
     """
     The caller's caption, or, when they gave none, every automatic note that applies:
-    what flagged the points (signal_method="exact"/"fdr") and the underpowered warning.
+    the rule that flagged the points, clustered counts left unmodelled, and the
+    underpowered warning.
     """
     caption = getattr(result, "caption", None)
     if caption:
         return caption
     summary = getattr(result, "summary", None) or {}
+    panels = [summary] + list((summary.get("by_facet") or {}).values())
     notes = [
         _signal_caption(result, show_95, funnel),
+        _CLUSTERED_CAPTION if any(p.get("dispersion_shape_note") for p in panels) else None,
         _UNDERPOWERED_CAPTION if summary.get("underpowered") else None,
     ]
     notes = [n for n in notes if n]
@@ -954,7 +1062,18 @@ def _configure_layout(
     them to it.
     """
     apply_tufte_theme(fig)
-    if show_legend:
+    if show_legend and (funnel or result.chart_type in ("oe", "oep")):
+        # A funnel's legend has a line per tier and contour, too many for one row
+        # above the plot, where it would run into the title and the panel titles. A
+        # column outside the right edge never does; Plotly widens the margin for it.
+        fig.update_layout(
+            showlegend=True,
+            legend=dict(
+                orientation="v", x=1.02, xanchor="left", y=1, yanchor="top",
+                font=dict(size=11, color=TEXT_MUTED), bgcolor="rgba(0,0,0,0)",
+            ),
+        )
+    elif show_legend:
         # Above the plot, right-aligned: clear of the left-aligned title and of the
         # end labels down the right edge.
         fig.update_layout(
@@ -1025,9 +1144,14 @@ def _configure_layout(
 
     caption = _effective_caption(result, show_95, funnel)
     if caption:
+        caption = _wrap_caption(caption, width)
+        lines = caption.count("<br>") + 1
+        # Pinned in pixels under the axis title, whatever the figure's height, with the
+        # bottom margin grown to hold every wrapped line.
+        fig.update_layout(margin=dict(b=_CAPTION_TOP + 14 * lines + 8))
         fig.add_annotation(
             text=caption, xref="paper", yref="paper",
-            x=0, y=-0.2, showarrow=False,
+            x=0, y=0, yshift=-_CAPTION_TOP, yanchor="top", showarrow=False,
             font=dict(size=10, color=TEXT_FAINT), xanchor="left",
             # Plotly centers each line of a multi-line annotation on the widest.
             **({"align": "left"} if "<br>" in caption else {}),
@@ -1152,12 +1276,14 @@ def _plot_faceted(
             styles=styles,
             # One set of legend entries for the figure, from the first panel.
             legend=(idx == 0) if show_legend else None,
+            levels=tuple(_signal_setting(result, "levels", DEFAULT_LEVELS)),
         ))
 
     if show_legend:
         _add_legend_entries(fig, result, styles, funnel, show_95, runs_highlight, point_size)
     x_bounds, y_bounds = _fit_ranges(
         panels, x_range, y_range, x_log, y_neg, y_expand, shared_y=scales == "fixed",
+        fit_y=x_spacing == "n",
     )
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
@@ -1169,6 +1295,7 @@ def _plot_faceted(
         fit_y=y_bounds is not None,
     )
     _apply_ranges(fig, panels, x_bounds, y_bounds, x_log, flip)
+    _apply_font(fig, styles)
 
     # Shared axes hide the tick labels on inner panels; the tick marks left
     # behind carry no information, so drop them. Runs after _configure_layout,
@@ -1455,12 +1582,14 @@ def plot_result(
         signal_side=_signal_setting(result, "signal_side", "both"),
         styles=styles,
         legend=True if show_legend else None,
+        levels=tuple(_signal_setting(result, "levels", DEFAULT_LEVELS)),
     )
 
     if show_legend:
         _add_legend_entries(fig, result, styles, funnel, show_95, runs_highlight, point_size)
     x_bounds, y_bounds = _fit_ranges(
         [panel], x_range, y_range, x_log, y_neg, y_expand, shared_y=True,
+        fit_y=x_spacing == "n",
     )
     _configure_layout(
         fig, result, show_grid, y_neg, y_expand,
@@ -1472,5 +1601,6 @@ def plot_result(
         fit_y=y_bounds is not None,
     )
     _apply_ranges(fig, [panel], x_bounds, y_bounds, x_log, flip)
+    _apply_font(fig, styles)
 
     return fig

@@ -19,6 +19,8 @@ NORMAL = "#3a3a3a"   # series line and routine points
 CL = "#9a9a9a"       # center line
 LIMIT = "#c4c4c4"    # control limits, part boundaries
 WARN = "#d6d6d6"     # 2-sigma lines
+CONTOUR = "#8a8a8a"  # funnel contours and center line: 3.45:1 on white, above the
+                     # 3:1 non-text floor, so they survive a projector
 AXIS = "#d9d9d9"     # axis lines, ticks, hover border, note arrows
 GRID = "#f2f2f2"     # optional grid
 

@@ -96,7 +96,7 @@ describe('funnel power reporting', () => {
   test('the trap point reports why it did not flag', () => {
     const row = run().data[0] as any;
     expect(row.sigma_signal).toBe(false);
-    expect(row.min_detectable).toBeCloseTo(0.5779, 4);
+    expect(row.min_detectable).toBeCloseTo(0.6559, 4);
     expect(row.ci_95_lower).toBeCloseTo(0.0992, 4);
     expect(row.ci_95_upper).toBeCloseTo(0.6511, 4);
   });
@@ -104,14 +104,14 @@ describe('funnel power reporting', () => {
   test('summary and note', () => {
     const s = run().summary as any;
     expect(s.underpowered).toBe(true);
-    expect(s.n_underpowered).toBe(11);
-    expect(s.min_detectable_ratio_median).toBeCloseTo(2.7885, 4);
-    expect(s.power_note).toContain('11 of 14');
+    expect(s.n_underpowered).toBe(12);
+    expect(s.min_detectable_ratio_median).toBeCloseTo(2.9631, 4);
+    expect(s.power_note).toContain('12 of 14');
     expect(s.power_note).toContain('proportion');
   });
 
   test('excluded points do not colour the verdict', () => {
-    expect((run({ exclude: [1] }).summary as any).n_underpowered).toBe(10);
+    expect((run({ exclude: [1] }).summary as any).n_underpowered).toBe(11);
   });
 
   test('columns scale with multiply but the verdict does not', () => {

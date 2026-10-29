@@ -22,6 +22,7 @@ from .constants import c4
 from .compute import compute
 from .limits import (
     CHARTS,
+    DEFAULT_LEVELS,
     VALID_CHARTS,
     binomial_detectable_rate,
     binomial_point_ci,
@@ -33,7 +34,7 @@ from .options import (
     validate_range, validate_styles, validate_x_spacing,
 )
 from .results import BChartResult, ParetoResult, SPCResult, n_varies
-from .pvalues import bh_q_values, signal_thresholds
+from .pvalues import bh_q_values
 from .signals import (
     VALID_SIGNAL_METHODS, VALID_SIGNAL_SIDES, _runs_signals, _sigma_signals, _warn_signals,
 )
@@ -71,9 +72,9 @@ _WARN_FUNNEL_CHARTS = ("p", "pp", "u", "up")
 # dispersion_note names what they compare: (counterpart call, what explains the spread,
 # what τ is a spread of).
 _DISPERSION_NOTE = {
-    "oe": ("chart='oep'", "the risk model and chance", "O/E"),
-    "p": ("chart='pp' with funnel=True", "chance", "proportions"),
-    "u": ("chart='up' with funnel=True", "chance", "rates"),
+    "oe": ("overdispersion=True", "the risk model and chance", "O/E"),
+    "p": ("overdispersion=True", "chance", "proportions"),
+    "u": ("overdispersion=True", "chance", "rates"),
 }
 
 # ---------------------------------------------------------------------------
@@ -98,10 +99,229 @@ def qic(
     exclude: list[int] | int | str | None = None,
     target: float | list[float] | str | None = None,
     cl: float | None = None,
+    # Layout
+    nrow: int | None = None,
+    ncol: int | None = None,
+    scales: str = "fixed",
+    # Labels
+    title: str = "",
+    ylab: str = "Value",
+    xlab: str | None = None,
+    subtitle: str | None = None,
+    caption: str | None = None,
+    part_labels: list[str] | None = None,
+    # Display toggles
+    show_labels: bool = True,
+    show_95: bool = False,
+    show_grid: bool = False,
+    show_x_labels: bool = True,
+    # Formatting
+    decimals: int | None = None,
+    point_size: float = 1.5,
+    x_period: str | None = None,
+    x_format: str | None = None,
+    x_angle: int | None = None,
+    x_pad: float = 1.0,
+    x_order: list | str | None = None,
+    y_expand: float | None = None,
+    height: int | None = None,
+    width: int | None = None,
+    y_neg: bool = True,
+    y_percent: bool | None = None,
+    y_percent_accuracy: int | None = None,
+    connect: bool | None = None,
+    runs_highlight: str = "localized",
+    label_signals: str | None = None,
+    x_range: tuple | None = None,
+    y_range: tuple | None = None,
+    styles: dict | None = None,
+    show_legend: bool = False,
+    flip: bool = False,
+    strip_horizontal: bool = False,
+    print_summary: bool = False,
+) -> SPCResult:
+    """
+    Compute an SPC chart and return an SPCResult.
+
+    Parameters
+    ----------
+    x      : x-axis values, or column name if data= supplied
+    y      : numeric values, or column name if data= supplied
+    n      : denominators for p/u/pp/up charts
+    data   : optional DataFrame
+    facets : column name to split into faceted subplots
+    notes  : list of annotations, or column name
+    point_labels : display text per point — a list, or a column name with data=.
+             x stays the grouping and sort key (so two providers may share a
+             name); the label is what the reader sees in the hover, on the tick
+             text of a categorical or rank-spaced axis, and on label_signals=
+             annotations. Grouped data takes the first value per group. Lands in
+             result.data["label"].
+    hover_extra : extra tooltip lines. With data=, a column name or list of
+             them (grouped data takes the first value per group, so aggregate
+             first anything that varies within a group); without data=, a dict
+             of per-point sequences keyed by the name to show. Values are copied
+             into result.data under those names, which must not collide with a
+             column qic() writes.
+    chart  : chart type — run|i|mr|s|t|xbar|p|pp|c|u|up|g (time-ordered).
+             Comparing providers rather than tracking one over time is a
+             funnel plot: use qikit.funnel(), which also covers risk-adjusted
+             observed/expected (O/E) measures.
+    method : run-signal detection — anhoej (default), ihi, weco, nelson
+    freeze : baseline ends at this index (1-based)
+    part   : index (or list) where new phases begin (1-based), or column name
+    exclude: index (or list) to ghost from baseline (1-based), or column name.
+             Ghosted points are dropped from the limits *and* hidden from signal
+             detection; freeze=/part= only narrow the baseline.
+    cl     : user-supplied fixed center line.
+    multiply : multiply y values by this factor; note that y_percent=True (default
+               for p/pp charts) already handles percent display — combining both
+               will produce unexpectedly large values and raises a UserWarning
+    xlab   : x-axis title. When None (default), "Subgroup".
+    show_x_labels : when False, hide the x-axis tick labels while keeping the
+               full label in the hover tooltip. Intended for funnel plots with
+               x_spacing="x" over hundreds of categorical units, where the axis
+               text is unreadable anyway. Overridable per-call via result.plot(show_x_labels=...).
+    decimals : decimal places for the CL/UCL/LCL labels. When None (default),
+               scaled to the spread the limits span, so a proportion keeps its
+               resolution and a large count is not padded with noise. On a
+               percent axis the labels are written as percentages.
+    connect : explicitly control point connectivity. True = lines+markers,
+               False = markers only. When None (default), connectivity is
+               inferred from the x-axis: categorical values that don't look
+               sequential default to markers only.
+    runs_highlight : which runs-signal points get colored amber on the chart.
+               "localized" (default) colors only the points forming an actual
+               run, suppressing the crossings blanket. "all" colors every point
+               the runs method flagged — for the Anhoej crossings test that is
+               the whole series, which marks the chart without localizing what
+               to look at. "none" turns off runs coloring entirely.
+               Sigma outliers stay red in all three modes, and the crossings
+               result is always reported in summary["crossings_signal"].
+               Overridable per-call via result.plot(runs_highlight=...).
+    label_signals : text labels on sigma-signal points: "outlier", or None
+               (default). Labels read point_labels= where given, else x; points
+               above the center line are labeled upward and those below
+               downward. Overridable per-call via result.plot(label_signals=...).
+    show_labels : the CL/limit labels at the right-hand end of each line
+               ("CL=…", "99.8%+=…"). False hides them. Restyle them with
+               styles={"end_labels": {...}}.
+    show_95 : draw the inner band: 2σ lines.
+    width, height : figure size in pixels. None (default) leaves the figure
+               responsive, which suits notebooks and Streamlit; Plotly's static
+               export then draws it at 700×500. Set both for slides.
+    x_range : (low, high) for the x axis, in the units drawn: numbers or dates.
+               Either end may be None, meaning "from the data". Rejected on a
+               categorical axis. The y axis then fits the points inside the range.
+    y_range : (low, high) for the y axis on the stored scale (as result.data["y"]:
+               after multiply=, proportions as 0–1 even with y_percent=True).
+               Either end may be None, meaning fitted as for x_range.
+    styles : restyle the figure by role — {role: {attribute: value}}. Roles:
+               data (color, width, name); sigma, warn, runs (marker color, and
+               the legend name); cl, ucl, lcl, ucl_95, lcl_95, target (color,
+               width, dash, visible, name); end_labels (color, size); and the
+               groups limits (ucl+lcl) and limits_95 (ucl_95+lcl_95), which a
+               specific role overrides. visible=False drops a line and its end
+               label. name renames the trace, its legend entry and its end label,
+               so the trace name contract becomes yours. E.g.
+               styles={"limits_95": {"color": "#777", "width": 1.5,
+               "dash": "solid"}, "lcl": {"visible": False}}.
+    show_legend : draw a legend (off by default, since the end labels name the
+               lines). Paired limits share one entry, and each signal color drawn
+               gets a legend-only entry.
+
+    Returns
+    -------
+    SPCResult (frozen dataclass)
+    """
+    if chart.lower().strip() in ("oe", "oep"):
+        raise ValueError(
+            f"chart={chart!r} compares providers, which is a funnel plot: use "
+            f"qikit.funnel(..., measure='oe'). A time-ordered O/E series is "
+            f"qic(chart='u', y=observed, n=expected)."
+        )
+    return _qic(
+        x=x,
+        y=y,
+        n=n,
+        data=data,
+        facets=facets,
+        notes=notes,
+        point_labels=point_labels,
+        hover_extra=hover_extra,
+        chart=chart,
+        agg_fun=agg_fun,
+        method=method,
+        multiply=multiply,
+        freeze=freeze,
+        part=part,
+        exclude=exclude,
+        target=target,
+        cl=cl,
+        nrow=nrow,
+        ncol=ncol,
+        scales=scales,
+        title=title,
+        ylab=ylab,
+        xlab=xlab,
+        subtitle=subtitle,
+        caption=caption,
+        part_labels=part_labels,
+        show_labels=show_labels,
+        show_95=show_95,
+        show_grid=show_grid,
+        show_x_labels=show_x_labels,
+        decimals=decimals,
+        point_size=point_size,
+        x_period=x_period,
+        x_format=x_format,
+        x_angle=x_angle,
+        x_pad=x_pad,
+        x_order=x_order,
+        y_expand=y_expand,
+        height=height,
+        width=width,
+        y_neg=y_neg,
+        y_percent=y_percent,
+        y_percent_accuracy=y_percent_accuracy,
+        connect=connect,
+        runs_highlight=runs_highlight,
+        label_signals=label_signals,
+        x_range=x_range,
+        y_range=y_range,
+        styles=styles,
+        show_legend=show_legend,
+        flip=flip,
+        strip_horizontal=strip_horizontal,
+        print_summary=print_summary,
+    )
+
+
+def _qic(
+    x: Any = None,
+    y: Any = None,
+    n: Any = None,
+    data: pd.DataFrame | None = None,
+    facets: str | None = None,
+    notes: Any = None,
+    point_labels: Any = None,
+    hover_extra: Any = None,
+    chart: str = "run",
+    agg_fun: str = "mean",
+    method: str = "anhoej",
+    multiply: float = 1.0,
+    freeze: int | None = None,
+    part: list[int] | int | str | None = None,
+    exclude: list[int] | int | str | None = None,
+    target: float | list[float] | str | None = None,
+    cl: float | None = None,
     funnel: bool = False,
     limit_method: str | None = None,
     signal_side: str = "both",
     signal_method: str = "limits",
+    levels: tuple = DEFAULT_LEVELS,
+    fdr_levels: tuple = (0.05, 0.10),
+    within_dispersion: float = 1.0,
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -147,210 +367,11 @@ def qic(
     _plot_options: PlotOptions | None = None,
 ) -> SPCResult:
     """
-    Compute an SPC chart and return an SPCResult.
-
-    Parameters
-    ----------
-    x      : x-axis values, or column name if data= supplied
-    y      : numeric values, or column name if data= supplied
-    n      : denominators for p/u/pp/up charts
-    data   : optional DataFrame
-    facets : column name to split into faceted subplots
-    notes  : list of annotations, or column name
-    point_labels : display text per point — a list, or a column name with data=.
-             x stays the grouping and sort key (so two providers may share a
-             name); the label is what the reader sees in the hover, on the tick
-             text of a categorical or rank-spaced axis, and on label_signals=
-             annotations. Grouped data takes the first value per group. Lands in
-             result.data["label"].
-    hover_extra : extra tooltip lines. With data=, a column name or list of
-             them (grouped data takes the first value per group, so aggregate
-             first anything that varies within a group); without data=, a dict
-             of per-point sequences keyed by the name to show. Values are copied
-             into result.data under those names, which must not collide with a
-             column qic() writes.
-    chart  : chart type — run|i|mr|s|t|xbar|p|pp|c|u|up|g|oe|oep
-             oe is the risk-adjusted O/E (SMR) chart: y= is observed events and
-             n= is the model-derived expected events, so each point is a ratio
-             and the center line is the pooled ΣO/ΣE. Limits are Poisson
-             probability contours rather than 3σ — see limit_method.
-             oep is the same chart with Spiegelhalter's additive over-dispersion
-             adjustment: each provider is judged against the estimated spread of
-             true O/E between providers (τ̂, summary["dispersion_tau"]) as well
-             as against chance, so the busiest providers' limits level off rather
-             than closing onto the center line. With τ̂ = 0 its limits are oe's
-             exactly. oe reports the same estimate without applying it, plus a
-             dispersion_note when it is non-zero. See docs/methods.md for the
-             method, and the SPCResult docstring for every O/E summary key.
-             Both report per-point min_detectable_oe and a 95% CI, plus
-             summary["underpowered"] — at physician volumes a funnel often
-             cannot detect even a doubling of risk, and a point inside the
-             limits there means "not enough evidence", not "acceptable".
-    method : run-signal detection — anhoej (default), ihi, weco, nelson
-    freeze : baseline ends at this index (1-based)
-    part   : index (or list) where new phases begin (1-based), or column name
-    exclude: index (or list) to ghost from baseline (1-based), or column name.
-             Ghosted points are dropped from the limits *and* hidden from signal
-             detection; freeze=/part= only narrow the baseline.
-    cl     : user-supplied fixed center line. On an oe chart this is how you
-             benchmark against the risk model itself rather than against the
-             cohort: cl=1.0 asks "who differs from their expected count?", while
-             the default pooled ΣO/ΣE asks "who differs from their peers?" and so
-             absorbs any overall miscalibration of the expected-events model. The
-             over-dispersion estimate is taken around this line, so on a small
-             cohort anchoring it also keeps one extreme provider from inflating τ̂.
-    multiply : multiply y values by this factor; note that y_percent=True (default
-               for p/pp charts) already handles percent display — combining both
-               will produce unexpectedly large values and raises a UserWarning
-    funnel : when True, produces a funnel plot from a p/pp/u/up chart:
-               sorts data by denominator (n) ascending, disables runs-signal
-               detection (only sigma signals are meaningful cross-sectionally),
-               and renders markers only. The x-axis is the denominator itself, with
-               the limits drawn as smooth contours, as Spiegelhalter draws them;
-               see x_spacing.
-               Valid only for charts with denominators (p, pp, u, up, oe, oep).
-               Limits become Spiegelhalter's exact 99.8% (ucl/lcl) and 95%
-               (ucl_95/lcl_95) probability contours — binomial for p, Poisson for
-               u — instead of 3σ. pp/up switch from Laney's σ_z, which assumes
-               time order, to the additive over-dispersion adjustment oep uses.
-               summary gains limit_method and the dispersion_* keys; see
-               docs/methods.md for every method and its reference.
-               Each point also reports min_detectable — the smallest true
-               proportion (p, pp) or rate (u, up) it would flag with 80% power —
-               and an exact 95% CI (Clopper–Pearson for p, Garwood for u), with
-               summary["underpowered"] when the typical point cannot detect a
-               doubling of the center line, exactly as oe/oep report it.
-               notes=, a list-valued target= and exclude= are given in *input*
-               order and are re-ordered along with the data; summary["excluded"]
-               reports positions in the sorted (plotted) order. freeze= and
-               part= are rejected — they assume the points are in time order.
-               result.data carries n, the denominator in plotted order (as every
-               chart with denominators does), and warn_signal: points past the 95% band that
-               are not already sigma signals (also always present on oe/oep).
-               With show_95=True those points are drawn amber, the color runs
-               signals use on a time-ordered chart.
-    limit_method : quantile method for the oe chart's funnel limits, and valid
-               only there. "exact" (default) inverts the Poisson CDF with
-               Spiegelhalter's continuity interpolation; "byar" uses the
-               closed-form Wilson-Hilferty approximation, which is a shade
-               faster and agrees closely once expected counts reach ~20 but
-               drifts below that — exactly where per-physician volumes live.
-               The two limit levels are fixed at 95% (ucl_95/lcl_95, drawn with
-               show_95=True) and 99.8% (ucl/lcl, which drive sigma_signal). Every
-               other funnel, and oep, always uses exact limits;
-               summary["limit_method"] records which method drew them.
-    signal_side : which side of the center line a funnel flags. "both"
-               (default) flags points beyond either limit; "above" only those
-               beyond the upper limits (worse when higher, e.g. mortality),
-               "below" only those beyond the lower ones. Applies to sigma_signal
-               and warn_signal, and through them to the point colors, `signals`,
-               n_warn and label_signals=; the limits on the other side are still
-               drawn. Valid only on charts with funnel contours (oe/oep, or
-               p/pp/u/up with funnel=True): elsewhere the runs rules would keep
-               firing on both sides. Runs rules are never side-filtered, and
-               min_detectable* still describe the upper limit.
-               summary["signal_side"] records it.
-    signal_method : what decides a funnel's sigma and warn tiers. Every chart
-               with funnel contours reports p_value — each point's exact p-value
-               against the null model its limits are drawn from (Poisson,
-               Poisson–gamma, binomial or beta-binomial at the center line, with
-               the limits' τ²): P(X ≥ O) for signal_side="above", P(X ≤ O) for
-               "below", and min(1, 2·min of the two) for "both" — and q_value, its
-               Benjamini–Hochberg adjustment across the chart's non-excluded
-               points (each facet separately). "limits" (default) flags points
-               beyond the drawn contours, as before. "exact" flags p_value below
-               the contours' own tail probability: 0.001 (sigma) and 0.025 (warn)
-               one-sided, doubled to 0.002 and 0.05 two-sided. "fdr" holds q_value
-               to the same levels. At small counts "exact" is stricter than
-               "limits" above the line (Spiegelhalter's interpolated limit is
-               not the exact test there; docs/methods.md §4.11) and identical
-               below it. Under "exact"/"fdr" the contours no longer decide the
-               colours, and an unset caption says so. summary records
-               signal_method, count_model, p_value_method ("normal" if any point
-               fell back to the normal model) and n_tested (the K of the BH step).
-    xlab   : x-axis title. When None (default) it follows the axis drawn: on a
-               funnel's volume axis, the n= column name (or "Expected events" on
-               oe/oep, "Sample size" on p/pp, "Exposure" on u/up); otherwise
-               "Subgroup".
-    show_x_labels : when False, hide the x-axis tick labels while keeping the
-               full label in the hover tooltip. Intended for funnel plots with
-               x_spacing="x" over hundreds of categorical units, where the axis
-               text is unreadable anyway. Overridable per-call via result.plot(show_x_labels=...).
-    decimals : decimal places for the CL/UCL/LCL labels. When None (default),
-               scaled to the spread the limits span, so a proportion keeps its
-               resolution and a large count is not padded with noise. On a
-               percent axis the labels are written as percentages.
-    connect : explicitly control point connectivity. True = lines+markers,
-               False = markers only. When None (default), connectivity is
-               inferred from the x-axis: categorical values that don't look
-               sequential default to markers only.
-    runs_highlight : which runs-signal points get colored amber on the chart.
-               "localized" (default) colors only the points forming an actual
-               run, suppressing the crossings blanket. "all" colors every point
-               the runs method flagged — for the Anhoej crossings test that is
-               the whole series, which marks the chart without localizing what
-               to look at. "none" turns off runs coloring entirely.
-               Sigma outliers stay red in all three modes, and the crossings
-               result is always reported in summary["crossings_signal"].
-               Overridable per-call via result.plot(runs_highlight=...).
-    label_signals : text labels on flagged points — "outlier" (sigma_signal),
-               "warn" (warn_signal), "both", or None (default). Labels read
-               point_labels= where given, else x; points above the center line
-               are labeled upward and those below downward, and neighbours are
-               staggered so their labels do not overlap. "warn" and "both" need
-               a chart with warn_signal (oe/oep, or a p/pp/u/up funnel).
-               Overridable per-call via result.plot(label_signals=...).
-    x_spacing : how points are spaced along x. None (default) is "n" on a
-               funnel (funnel=True) and "x" everywhere else.
-               "n" plots each point at its denominator (expected events on oe/oep)
-               and draws the limits as smooth contours across the volume range,
-               passing exactly through each point's own limit (see
-               SPCResult.funnel_limits). It needs funnel=True and denominators that
-               vary; a funnel whose denominators are all equal falls back to "x".
-               "x" spaces points by x value — the categorical funnel of earlier
-               releases, and the only spacing x_order= applies to.
-               "rank" spaces them evenly in row order — for a funnel, by increasing
-               denominator — with point_labels= (or x) as tick text.
-               x_order= is rejected under "n" and "rank", including a funnel's
-               default: pass x_spacing="x" with it. Overridable per-call via
-               result.plot(x_spacing=...).
-    x_log : log-scale the volume axis; valid only with x_spacing="n" (a funnel's
-               default). Overridable via result.plot(x_log=...).
-    show_labels : the CL/limit labels at the right-hand end of each line
-               ("CL=…", "99.8%+=…"). False hides them. Restyle them with
-               styles={"end_labels": {...}}.
-    show_95 : draw the inner band: the 95% contours on a funnel or O/E chart, 2σ
-               lines elsewhere. On a funnel it also colors the warn tier amber.
-    width, height : figure size in pixels. None (default) leaves the figure
-               responsive, which suits notebooks and Streamlit; Plotly's static
-               export then draws it at 700×500. Set both for slides.
-    x_range : (low, high) for the x axis, in the units drawn: the denominator on
-               a volume axis, 1-based positions under x_spacing="rank", numbers
-               or dates otherwise. Either end may be None, meaning "from the data".
-               Rejected on a categorical axis. The y axis then fits the points
-               inside the range, the center line, and each drawn limit's in-range
-               value nearest the center line, so trimmed low-volume points and
-               the funnel's flare no longer stretch it.
-    y_range : (low, high) for the y axis on the stored scale (as result.data["y"]:
-               after multiply=, proportions as 0–1 even with y_percent=True).
-               Either end may be None, meaning fitted as for x_range.
-    styles : restyle the figure by role — {role: {attribute: value}}. Roles:
-               data (color, width, name); sigma, warn, runs (marker color, and
-               the legend name); cl, ucl, lcl, ucl_95, lcl_95, target (color,
-               width, dash, visible, name); end_labels (color, size); and the
-               groups limits (ucl+lcl) and limits_95 (ucl_95+lcl_95), which a
-               specific role overrides. visible=False drops a line and its end
-               label. name renames the trace, its legend entry and its end label,
-               so the trace name contract becomes yours. E.g.
-               styles={"limits_95": {"color": "#777", "width": 1.5,
-               "dash": "solid"}, "lcl": {"visible": False}}.
-    show_legend : draw a legend (off by default, since the end labels name the
-               lines). Paired limits share one entry, and each signal color drawn
-               gets a legend-only entry.
-
-    Returns
-    -------
-    SPCResult (frozen dataclass)
+    The engine behind qic() and funnel(): every chart, funnels included. Public callers
+    use those two; the shared fixtures (fixtures/, run by both engines) call this
+    directly because the TypeScript engine keeps qic's funnel arguments. See qic() for
+    the time-ordered parameters and funnel() for what funnel=True, limit_method,
+    signal_side, signal_method, levels, fdr_levels and within_dispersion mean.
     """
     chart = chart.lower().strip()
 
@@ -441,6 +462,21 @@ def qic(
             f"or chart='p'/'pp'/'u'/'up' with funnel=True. Other charts have no count "
             f"model to compute an exact p-value from."
         )
+    _validate_levels("levels", levels, outer_wider=True)
+    _validate_levels("fdr_levels", fdr_levels, outer_wider=False)
+    if isinstance(within_dispersion, dict) and facets is None:
+        raise ValueError("within_dispersion= as a dict (one value per facet) needs facets=.")
+    if not isinstance(within_dispersion, dict) and within_dispersion != 1.0:
+        if chart not in ("oe", "oep", "u", "up") or not _has_warn_tier(chart, funnel):
+            raise ValueError(
+                "within_dispersion= applies to count funnels (O/E and rate measures), "
+                f"where one case can add many counted units. Got chart={chart!r}."
+            )
+        if not (isinstance(within_dispersion, (int, float)) and within_dispersion > 0
+                and math.isfinite(within_dispersion)):
+            raise ValueError(
+                f"within_dispersion must be a positive number, got {within_dispersion!r}."
+            )
     if signal_side != "both" and not _has_warn_tier(chart, funnel):
         raise ValueError(
             f"signal_side={signal_side!r} needs funnel contours: chart='oe'/'oep', or "
@@ -506,7 +542,7 @@ def qic(
         for fv in facet_vals:
             facet_rows = np.flatnonzero((data[facets] == fv).to_numpy())
             sub_df = data[data[facets] == fv].copy()
-            sub_result = qic(
+            sub_result = _qic(
                 data=sub_df,
                 x=x, y=y, n=n,
                 chart=chart, method=method,
@@ -517,6 +553,11 @@ def qic(
                 funnel=funnel,
                 limit_method=limit_method if chart == "oe" else None,
                 signal_side=signal_side, signal_method=signal_method,
+                levels=levels, fdr_levels=fdr_levels,
+                within_dispersion=(
+                    within_dispersion.get(fv, 1.0) if isinstance(within_dispersion, dict)
+                    else within_dispersion
+                ),
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
                 point_labels=_subset_per_facet(point_labels, facet_rows, n_rows),
                 hover_extra=hover_extra,
@@ -548,6 +589,8 @@ def qic(
             # Uniform across facets, so a reader of the whole figure need not dig.
             combined_summary["signal_side"] = signal_side
             combined_summary["signal_method"] = signal_method
+            combined_summary["levels"] = tuple(levels)
+            combined_summary["fdr_levels"] = tuple(fdr_levels)
 
         facet_opts = dataclasses.replace(opts, part_indices=[])
         if funnel:
@@ -703,16 +746,25 @@ def qic(
         y_calc = y_arr
 
     # ------------------------------------------------------------------
+    # 6b. Within-unit dispersion: effective counts
+    # ------------------------------------------------------------------
+    # A count whose variance is φ times its mean (patient-days, where one stay adds
+    # many days at once) behaves like a Poisson count of O/φ events against E/φ
+    # expected. The ratio is unchanged, so only the denominator the model sees moves;
+    # every limit, p-value, interval and the τ² estimate then follow from it.
+    n_model = n_vals if within_dispersion == 1.0 else n_vals / float(within_dispersion)
+
+    # ------------------------------------------------------------------
     # 7. Compute limits and signals
     # ------------------------------------------------------------------
     (
         cl_arr, ucl_arr, lcl_arr, ucl_95_arr, lcl_95_arr, sigma_sig, runs_sig, runs_loc,
         runs_summary, tau2, p_value,
     ) = _compute_spc_arrays(
-        chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
+        chart, chart_for_compute, y_calc, y_plot, n_model, mask, cl, method,
         s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
         funnel=funnel, exclude_mask=exclude_mask,
-        limit_method=limit_method or "exact", signal_side=signal_side,
+        limit_method=limit_method or "exact", signal_side=signal_side, levels=levels,
     )
 
     # ------------------------------------------------------------------
@@ -722,18 +774,19 @@ def qic(
     # this uses oep's own wider limits, which is the question a reader is asking:
     # would this point have flagged on *this* chart.
     oe_stats = (
-        _oe_point_stats(y_calc, n_vals, ucl_arr) if chart in ("oe", "oep") else None
+        _oe_point_stats(y_calc, n_vals, ucl_arr, within_dispersion)
+        if chart in ("oe", "oep") else None
     )
     # The same question for a p/u funnel: what true proportion or rate a point would
     # have needed before its silence meant anything.
     funnel_stats = (
-        _funnel_point_stats(chart, y_calc, n_vals, ucl_arr)
+        _funnel_point_stats(chart, y_calc, n_model, ucl_arr)
         if funnel and chart in _WARN_FUNNEL_CHARTS else None
     )
 
     # ------------------------------------------------------------------
-    # 7c. Signal tiers on a funnel: the warn tier, and under signal_method=
-    #     "exact"/"fdr" both tiers from the p- or q-values
+    # 7c. Signal tiers on a funnel: the warn tier, and under signal_method="fdr"
+    #     both tiers from the q-values
     # ------------------------------------------------------------------
     # Ghosted points are blanked exactly as compute() blanks them for sigma_signal
     # (their p_value is NaN, which never flags). On the raw scale, so multiply cannot
@@ -744,14 +797,13 @@ def qic(
     if _has_warn_tier(chart, funnel):
         q_value = bh_q_values(p_value)
         if signal_method == "limits":
+            # The contours are the exact test's boundaries, so this is p < α as well.
             y_warn = np.where(exclude_mask, np.nan, y_calc)
             warn_sig = _warn_signals(y_warn, ucl_95_arr, lcl_95_arr, sigma_sig, signal_side)
         else:
-            stat = p_value if signal_method == "exact" else q_value
-            alpha_outer, alpha_inner = signal_thresholds(signal_side)
             with np.errstate(invalid="ignore"):
-                sigma_sig = stat < alpha_outer
-                warn_sig = (stat < alpha_inner) & ~sigma_sig
+                sigma_sig = q_value < fdr_levels[0]
+                warn_sig = (q_value < fdr_levels[1]) & ~sigma_sig
 
     # ------------------------------------------------------------------
     # 8. Assemble DataFrame
@@ -790,7 +842,11 @@ def qic(
         summary["n_warn"] = int(np.sum(warn_sig))
         summary["signal_side"] = signal_side
         summary["signal_method"] = signal_method
+        summary["levels"] = tuple(levels)
+        summary["fdr_levels"] = tuple(fdr_levels)
         summary["n_tested"] = int(np.sum(np.isfinite(p_value)))
+        if chart in ("oe", "oep", "u", "up"):
+            summary["within_dispersion"] = float(within_dispersion)
 
     if summary.get("overdispersed") and "dispersion_adjusted" not in summary:
         # An unadjusted funnel whose providers spread wider than its null model allows.
@@ -807,6 +863,29 @@ def qic(
             f"that spread, and look for its cause: an adjustment is a temporary measure, "
             f"not a fix."
         )
+
+    if summary.get("dispersion_shape") in ("within", "both") and within_dispersion == 1.0:
+        # The one over-dispersion the additive τ² cannot absorb: counts that clump inside
+        # each unit. Left alone it over-flags small providers and makes every p- and
+        # q-value too small, so it is a warning, not just a summary key.
+        hint = summary["within_dispersion_hint"]
+        if chart in ("oe", "oep", "u", "up"):
+            fix = (
+                "Pass stay-level rows (one per case) with within_dispersion='estimate', "
+                f"or a known within_dispersion= (the spread here suggests about {hint:.1f})."
+            )
+        else:
+            fix = (
+                "Check whether one case can contribute more than one counted unit; a "
+                "proportion funnel assumes each case is one independent yes/no."
+            )
+        summary["dispersion_shape_note"] = (
+            f"Counts look clustered within providers (e.g. patient-days, where one stay "
+            f"adds many days): the spread is about {hint:.1f} times what the count model "
+            f"allows at every volume, so small providers are over-flagged and p- and "
+            f"q-values are too small. {fix}"
+        )
+        warnings.warn(summary["dispersion_shape_note"], UserWarning, stacklevel=3)
 
     if oe_stats is not None:
         # How much signal the chart could carry, reported alongside what it found. A
@@ -868,6 +947,7 @@ def qic(
         _funnel={None: {
             "chart": chart, "cl": float(cl_arr[0]), "tau2": tau2,
             "limit_method": limit_method or "exact", "multiply": float(multiply),
+            "levels": tuple(levels), "within_dispersion": float(within_dispersion),
         }} if has_contours else None,
     )
 
@@ -884,6 +964,27 @@ def _two_sig(x: float) -> str:
     if not (x > 0) or not math.isfinite(x):
         return f"{x:.2f}"
     return f"{x:.{max(0, 1 - math.floor(math.log10(x)))}f}"
+
+
+def _validate_levels(name: str, levels: Any, outer_wider: bool) -> None:
+    """
+    levels= is (outer, inner) coverage, outer the wider: (0.998, 0.95). fdr_levels= is
+    (outlier, alert) false discovery rate, outlier the stricter: (0.05, 0.10).
+    """
+    ok = (
+        isinstance(levels, (tuple, list)) and len(levels) == 2
+        and all(isinstance(v, (int, float)) and 0.0 < v < 1.0 for v in levels)
+        and (levels[0] > levels[1] if outer_wider else levels[0] < levels[1])
+    )
+    if not ok:
+        example = "(0.998, 0.95)" if outer_wider else "(0.05, 0.10)"
+        order = "outer wider than inner" if outer_wider else "outlier stricter than alert"
+        raise ValueError(
+            f"{name} must be two numbers between 0 and 1, {order}, e.g. {example}. "
+            f"Got {levels!r}."
+        )
+    if outer_wider and not all(v > 0.5 for v in levels):
+        raise ValueError(f"{name} are two-sided coverages above 0.5, got {levels!r}.")
 
 
 def _has_warn_tier(chart: str, funnel: bool) -> bool:
@@ -1168,7 +1269,7 @@ def _compute_spc_arrays(
     chart, chart_for_compute, y_calc, y_plot, n_vals, mask, cl, method,
     s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
     funnel: bool = False, exclude_mask=None, limit_method: str = "exact",
-    signal_side: str = "both",
+    signal_side: str = "both", levels: tuple = DEFAULT_LEVELS,
 ):
     n_pts = len(y_calc)
     if exclude_mask is None:
@@ -1193,6 +1294,7 @@ def _compute_spc_arrays(
                 sigma_hat=sigma_hat_val, subgroup_n=subgroup_n_val,
                 exclude_mask=exclude_mask[start:end],
                 limit_method=limit_method, funnel=funnel, signal_side=signal_side,
+                levels=levels,
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
             seg_u95, seg_l95 = _inner_band(seg_raw, spec)
@@ -1227,6 +1329,7 @@ def _compute_spc_arrays(
             chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
             sigma_hat=sigma_hat_val, exclude_mask=exclude_mask,
             limit_method=limit_method, funnel=funnel, signal_side=signal_side,
+            levels=levels,
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         ucl_95_arr, lcl_95_arr = _inner_band(res, spec)
@@ -1256,14 +1359,17 @@ def _compute_spc_arrays(
 
 
 def _oe_point_stats(
-    y_calc: np.ndarray, n_vals: np.ndarray, ucl_arr: np.ndarray,
+    y_calc: np.ndarray, n_vals: np.ndarray, ucl_arr: np.ndarray, phi: float = 1.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Per-point detectability and confidence interval for an O/E chart.
 
     Operates on the raw (pre-multiply) arrays: y_calc is the O/E ratio, n_vals the
     expected events, ucl_arr the drawn upper limit. Observed counts are recovered as
-    O = ratio · E, exactly, since the ratio was formed by that division.
+    O = ratio · E, exactly, since the ratio was formed by that division. Under
+    within_dispersion=φ detectability and the interval are taken on the effective
+    counts O/φ and E/φ the limits used; observed and expected stay in the caller's
+    units.
     """
     k = len(y_calc)
     detectable = np.full(k, np.nan)
@@ -1273,9 +1379,9 @@ def _oe_point_stats(
     expected = np.asarray(n_vals, dtype=float)
 
     for i in range(k):
-        e = float(expected[i])
+        e = float(expected[i]) / phi
         detectable[i] = oe_detectable_ratio(float(ucl_arr[i]) * e, e)
-        ci_lo[i], ci_hi[i] = oe_point_ci(float(observed[i]), e)
+        ci_lo[i], ci_hi[i] = oe_point_ci(float(observed[i]) / phi, e)
 
     return detectable, ci_lo, ci_hi, observed, expected
 

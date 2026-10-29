@@ -25,12 +25,12 @@ import numpy as np
 VALID_SIGNAL_SIDES = ("both", "above", "below")
 
 # What decides a funnel's sigma and warn tiers (signal_method=).
-#   limits — the point lies beyond the drawn 99.8% / 95% contour, the default
-#   exact  — its exact one-sided (or doubled, two-sided) p-value is below that
-#            contour's tail probability
-#   fdr    — its Benjamini–Hochberg q-value is below that tail probability
-# docs/methods.md §4.11 records why the first two differ at small counts.
-VALID_SIGNAL_METHODS = ("limits", "exact", "fdr")
+#   limits — the point lies beyond the drawn outer / inner contour, the default. The
+#            contours are the exact test's boundaries, so this is also "its exact
+#            p-value is below that contour's tail probability".
+#   fdr    — its Benjamini–Hochberg q-value is below fdr_levels (0.05 / 0.10).
+# One test decides both tiers; docs/methods.md §4.11 records why there is no union.
+VALID_SIGNAL_METHODS = ("limits", "fdr")
 
 
 def _sigma_signals(

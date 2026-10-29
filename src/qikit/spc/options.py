@@ -40,17 +40,21 @@ DEFAULT_XLAB = "Subgroup"
 #   runs       — runs-signal markers and labels (time-ordered charts)
 #   cl, ucl, lcl, ucl_95, lcl_95, target — the reference lines
 #   end_labels — the CL/limit labels at the right-hand end of each line
+#   font       — the figure's base font (family, size, color)
+# data also takes "opacity" for the points (a funnel defaults to 0.85, so overlapping
+# providers stay visible).
 # "name" renames a trace (its legend entry and end label too); on the signal roles it
 # names the legend-only entry show_legend adds. "visible": False drops a line and its
 # end label from the figure.
 _LINE_ATTRS = ("color", "width", "dash", "visible", "name")
 _POINT_ATTRS = ("color", "name")
 STYLE_ROLES: dict[str, tuple[str, ...]] = {
-    "data": ("color", "width", "name"),
+    "data": ("color", "width", "name", "opacity"),
     "sigma": _POINT_ATTRS, "warn": _POINT_ATTRS, "runs": _POINT_ATTRS,
     "cl": _LINE_ATTRS, "ucl": _LINE_ATTRS, "lcl": _LINE_ATTRS,
     "ucl_95": _LINE_ATTRS, "lcl_95": _LINE_ATTRS, "target": _LINE_ATTRS,
     "end_labels": ("color", "size"),
+    "font": ("family", "size", "color"),
 }
 # Group roles, applied before the specific ones so "ucl" can still override "limits".
 STYLE_ALIASES: dict[str, tuple[str, ...]] = {
@@ -112,6 +116,27 @@ def validate_x_spacing(
     return spacing
 
 
+def merge_styles(layers: list | tuple) -> dict[str, dict]:
+    """
+    Merge a list of styles= dicts in order, later attributes winning role by role, so
+    a house style and a per-chart tweak compose: styles=[HOUSE, {"ucl": {...}}].
+    """
+    merged: dict[str, dict] = {}
+    for layer in layers:
+        if layer is None:
+            continue
+        if not isinstance(layer, dict):
+            raise ValueError(
+                f"each styles= layer must be a dict of role -> attributes, got "
+                f"{type(layer).__name__}."
+            )
+        for role, attrs in layer.items():
+            if not isinstance(attrs, dict):
+                raise ValueError(f"styles[{role!r}] must be a dict of attributes.")
+            merged[role] = {**merged.get(role, {}), **attrs}
+    return merged
+
+
 def validate_styles(styles: dict | None) -> dict[str, dict]:
     """
     Check styles= and expand it to one attribute dict per concrete role.
@@ -122,9 +147,12 @@ def validate_styles(styles: dict | None) -> dict[str, dict]:
     """
     if styles is None:
         return {}
+    if isinstance(styles, (list, tuple)):
+        styles = merge_styles(styles)
     if not isinstance(styles, dict):
         raise ValueError(
-            f"styles must be a dict of role -> attributes, got {type(styles).__name__}."
+            f"styles must be a dict of role -> attributes (or a list of them, merged in "
+            f"order), got {type(styles).__name__}."
         )
     valid_roles = sorted(STYLE_ROLES) + sorted(STYLE_ALIASES)
     out: dict[str, dict] = {}
@@ -145,6 +173,10 @@ def validate_styles(styles: dict | None) -> dict[str, dict]:
                 f"Valid for this role: {list(allowed)}."
             )
         for key, val in attrs.items():
+            if key == "opacity" and not (
+                isinstance(val, (int, float)) and not isinstance(val, bool) and 0 < val <= 1
+            ):
+                raise ValueError(f"styles[{role!r}]['opacity'] must be in (0, 1].")
             if key in ("width", "size") and not (
                 isinstance(val, (int, float)) and not isinstance(val, bool) and val > 0
             ):

@@ -15,6 +15,8 @@ References
 
 from .spc import (
     qic, 
+    funnel,
+    FunnelResult,
     paretochart, 
     bchart, 
     SPCResult, 
@@ -30,7 +32,7 @@ from .doe import (
 
 __version__ = "0.7.1"
 __all__ = [
-    "qic", "paretochart", "bchart", "SPCResult", "ParetoResult", "BChartResult",
+    "qic", "funnel", "FunnelResult", "paretochart", "bchart", "SPCResult", "ParetoResult", "BChartResult",
     "design", "analyze", "ExperimentDesign", "ExperimentResult",
     "__version__"
 ]
