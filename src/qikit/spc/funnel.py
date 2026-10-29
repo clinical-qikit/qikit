@@ -93,6 +93,10 @@ def funnel(
     | events over exposure (infections per line-day)     | measure="rate", y=events, n=exposure   |
     | DAYS or anything where one case adds many units    | stay-level rows (one per case), and    |
     |   (length of stay as observed/expected days)       | within_dispersion="estimate"           |
+    | items of a multi-question survey or audit, scored  | one row per survey (y = items "Always",|
+    |   per item (HCAHPS composites, top-/bottom-box)    | n = items answered), measure=          |
+    |                                                    | "proportion", within_dispersion=       |
+    |                                                    | "estimate"                             |
     | a measure where only one direction is bad          | worse="higher" (or "lower")            |
     | hundreds of providers, and want few false alarms   | signal="fdr"                           |
 
@@ -127,7 +131,8 @@ def funnel(
     result.summary holds the model and how to read the counts:
     n_outlier, n_alert, expected_false_flags (per tier; see signal=), tau (the spread
     of true values between providers), count_model, within_dispersion and its source,
-    dispersion_shape, underpowered, and notes (a list of sentences to show readers:
+    dispersion_shape with within_dispersion_hint (and its source: the case "rows" or the
+    provider "totals"), underpowered, and notes (a list of sentences to show readers:
     power, over-dispersion, clustered counts). print(result) summarizes it in words.
 
     Parameters
@@ -150,14 +155,20 @@ def funnel(
         "who differs from their peers?".
     overdispersion : judge each provider against the estimated spread between
         providers (Spiegelhalter's additive τ²), as well as chance. Default True.
-    within_dispersion : how much more variable each count is than Poisson because
-        units clump inside cases (patient-days: one stay adds many days). 1.0 (default)
-        means plain counts. "estimate" computes it from stay-level rows (several rows
-        per unit), from each row's residual around its own provider's rate. A number
-        supplies it, e.g. from SQL over stay-level data:
+    within_dispersion : how much more variable each count is than its model because
+        units clump inside cases: patient-days (one stay adds many days), or the items
+        of one survey (one patient answers the doctor questions alike, so 12 items
+        from 4 surveys carry about 5 items' worth of information). 1.0 (default)
+        means independent units. "estimate" computes it from case-level rows (several
+        rows per unit: one per stay, or one per survey), from each row's residual
+        around its own provider's rate. A number supplies it, e.g. from SQL over
+        stay-level data:
             SUM(POWER(los - exp_los, 2) / exp_los) / (COUNT(*) - COUNT(DISTINCT provider))
-        Only for measure="oe" and "rate". Leave it at 1 for event counts (deaths,
-        readmissions). When the spread looks clustered and this is left at 1, a
+        The model then sees y/φ out of n/φ (Rao–Scott effective counts); the plotted
+        values and the numerator/denominator columns stay in the caller's units. Leave
+        it at 1 for event counts (deaths, readmissions) and for one yes/no per case.
+        Never pass one row per item: a single yes/no cannot show clustering. When the
+        spread (or the case-level rows) looks clustered and this is left at 1, a
         UserWarning says so and summary["dispersion_shape"] is "within" or "both".
     worse : "higher" or "lower" when only one direction is bad (mortality: "higher";
         top-box satisfaction: "lower"). Flags only that side, makes p-values
@@ -200,6 +211,18 @@ def funnel(
                    within_dispersion="estimate", worse="higher")
         r.summary["within_dispersion"]       # φ̂, e.g. 6.8
         flagged = r.data[r.data.signal != "none"]
+
+    Example: an HCAHPS composite from survey-level rows
+    ---------------------------------------------------
+        surveys = session.sql(
+            "SELECT survey_id, physician_id, "
+            "SUM(IFF(answer = 'Always', 1, 0)) AS always, COUNT(answer) AS answered "
+            "FROM hcahps_doctor_items GROUP BY survey_id, physician_id"
+        ).to_pandas()
+        r = funnel(surveys, y="ALWAYS", n="ANSWERED", measure="proportion",
+                   unit="PHYSICIAN_ID", within_dispersion="estimate",
+                   worse="lower", signal="fdr")
+        r.summary["within_dispersion"]       # design effect, e.g. 2.4
     """
     _check_choice("measure", measure, VALID_MEASURES)
     _check_choice("worse", worse, VALID_WORSE)
@@ -208,12 +231,6 @@ def funnel(
         raise ValueError(
             f"label_signals must be None, 'outlier', 'alert' or 'both', got {label_signals!r}."
         )
-    if within_dispersion != 1.0 and measure == "proportion":
-        raise ValueError(
-            "within_dispersion= applies to measure='oe' and 'rate', where one case can "
-            "add many counted units (days, say). A proportion counts each case once."
-        )
-
     frame, hover_names = _normalize(data, y, n, unit, label, hover, facets, exclude)
 
     source = "default"
@@ -223,10 +240,11 @@ def funnel(
             raise ValueError(
                 f"within_dispersion must be a number or 'estimate', got {within_dispersion!r}."
             )
-        phi = _estimate_within(frame, facets)
+        phi = _estimate_within(frame, facets, measure)
         source = "estimated"
     elif within_dispersion != 1.0:
         source = "supplied"
+    check = _within_check(frame, facets, measure) if source == "default" else None
 
     from .api import _qic
 
@@ -239,6 +257,7 @@ def funnel(
         cl=center, multiply=multiply,
         signal_side=_SIDES[worse], signal_method=signal,
         levels=tuple(limits), fdr_levels=tuple(fdr_levels), within_dispersion=phi,
+        within_check=check,
         title=title, subtitle=subtitle, caption=caption,
         ylab=ylab if ylab is not None else _default_ylab(measure, y, n, multiply),
         xlab=xlab if xlab is not None else _default_xlab(measure, n),
@@ -380,33 +399,96 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude):
     return frame, hover_names
 
 
-def _estimate_within(frame: pd.DataFrame, facets: str | None) -> float | dict:
+def _row_phi(rows: pd.DataFrame, binomial: bool) -> tuple[float, int] | None:
     """
-    φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / (θ̂ⱼnᵢⱼ) / (N − K) from stay-level rows, θ̂ⱼ = Σy/Σn per
-    provider j. Residuals around each provider's own rate keep real differences
-    between providers out of φ̂; those are τ²'s job. One value per facet on a
-    faceted call.
+    (φ̂, N − K) from case-level rows, around each provider's own rate θ̂ⱼ = Σy/Σn, so
+    real differences between providers stay out of φ̂; those are τ²'s job.
+
+    Counts (oe, rate): φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / (θ̂ⱼnᵢⱼ) / (N − K).
+
+    Proportions: φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / nᵢⱼ / [θ̄(1 − θ̄)(N − K)], the design
+    effect of items clustered in cases, with the pooled θ̄ in the variance. Each
+    provider's own θ̂ⱼ(1 − θ̂ⱼ) there would drop every provider at 0% or 100%, common
+    at a few surveys each, and would read N/(N − K) rather than 1 on yes/no rows.
+
+    None when no unit has a second row.
     """
-    def one(rows: pd.DataFrame) -> float:
-        rows = rows[(rows[_N] > 0) & np.isfinite(rows[_Y]) & np.isfinite(rows[_N])]
-        theta = rows.groupby(_UNIT)[_Y].transform("sum") / rows.groupby(_UNIT)[_N].transform("sum")
+    rows = rows[(rows[_N] > 0) & np.isfinite(rows[_Y]) & np.isfinite(rows[_N])]
+    theta = rows.groupby(_UNIT)[_Y].transform("sum") / rows.groupby(_UNIT)[_N].transform("sum")
+    if not binomial:
         usable = theta > 0
         rows, theta = rows[usable], theta[usable]
-        k = rows[_UNIT].nunique()
-        df = len(rows) - k
-        if df < 1:
+    df = len(rows) - rows[_UNIT].nunique()
+    if df < 1:
+        return None
+    if not binomial:
+        mu = theta * rows[_N]
+        return float(np.sum((rows[_Y] - mu) ** 2 / mu) / df), df
+    pooled = float(rows[_Y].sum() / rows[_N].sum())
+    if not (0.0 < pooled < 1.0):
+        return 1.0, df
+    resid = (rows[_Y] - theta * rows[_N]) ** 2 / rows[_N]
+    return float(np.sum(resid) / (pooled * (1.0 - pooled) * df)), df
+
+
+def _by_facet(frame: pd.DataFrame, facets: str | None, fn):
+    if facets is None:
+        return fn(frame)
+    return {fv: fn(rows) for fv, rows in frame.groupby(facets, sort=False)}
+
+
+def _estimate_within(frame: pd.DataFrame, facets: str | None, measure: str) -> float | dict:
+    """within_dispersion="estimate": φ̂ of _row_phi, one value per facet on a faceted call."""
+    binomial = measure == "proportion"
+
+    def one(rows: pd.DataFrame) -> float:
+        if binomial and len(rows) and bool(np.all(rows[_N] == 1)):
+            raise ValueError(
+                "within_dispersion='estimate' found one item per row (every n is 1). A "
+                "row that is a single yes/no cannot show clustering, so there is nothing "
+                "to estimate. If several rows belong to one case (the questions of one "
+                "survey), sum them to one row per case: y = items meeting the measure, "
+                "n = items answered. If each row really is one independent case, leave "
+                "within_dispersion at 1."
+            )
+        found = _row_phi(rows, binomial)
+        if found is None:
             raise ValueError(
                 "within_dispersion='estimate' needs several rows per unit: one per case "
-                "(stay-level data), so it can measure how much single cases vary. Every "
-                "unit here has one row. Pass stay-level rows, or a known "
-                "within_dispersion= number instead."
+                "(stay-level data, or one row per survey), so it can measure how much "
+                "single cases vary. Every unit here has one row. Pass case-level rows, "
+                "or a known within_dispersion= number instead."
             )
-        mu = theta * rows[_N]
-        return float(np.sum((rows[_Y] - mu) ** 2 / mu) / df)
+        return found[0]
 
-    if facets is None:
-        return one(frame)
-    return {fv: one(rows) for fv, rows in frame.groupby(facets, sort=False)}
+    return _by_facet(frame, facets, one)
+
+
+# Fewer residual degrees of freedom than this and the rows say little about clumping.
+_ROWS_MIN_DF = 30
+
+
+def _within_check(frame: pd.DataFrame, facets: str | None, measure: str):
+    """
+    (φ̂, p) from case-level rows for the clustering warning, with p the Pearson χ² test
+    of φ = 1 on N − K degrees of freedom (Wilson–Hilferty); None where the rows are
+    providers, carry fewer than _ROWS_MIN_DF residual degrees of freedom, or are single
+    yes/no items, which cannot show clustering. A dict per facet on a faceted call.
+    """
+    binomial = measure == "proportion"
+
+    def one(rows: pd.DataFrame):
+        if binomial and bool(np.all(rows[_N] == 1)):
+            return None
+        found = _row_phi(rows, binomial)
+        if found is None or found[1] < _ROWS_MIN_DF:
+            return None
+        phi, df = found
+        h = 2.0 / (9.0 * df)
+        z = ((max(phi, 0.0)) ** (1.0 / 3.0) - (1.0 - h)) / math.sqrt(h)
+        return phi, 0.5 * math.erfc(z / math.sqrt(2.0))
+
+    return _by_facet(frame, facets, one)
 
 
 def _default_ylab(measure: str, y: Any, n: Any, multiply: float) -> str:
@@ -495,11 +577,11 @@ def _tier_summary(spc_summary: dict, settings: dict, data: pd.DataFrame) -> dict
         "p_value_method": spc_summary.get("p_value_method"),
         "dispersion_shape": spc_summary.get("dispersion_shape"),
         "within_dispersion_hint": spc_summary.get("within_dispersion_hint"),
+        "within_dispersion_hint_source": spc_summary.get("within_dispersion_hint_source"),
         "underpowered": spc_summary.get("underpowered"),
         "n_underpowered": spc_summary.get("n_underpowered"),
     }
-    if "within_dispersion" in spc_summary:
-        out["within_dispersion"] = spc_summary["within_dispersion"]
+    out["within_dispersion"] = spc_summary.get("within_dispersion", 1.0)
     out["notes"] = [
         spc_summary[key] for key in ("dispersion_shape_note", "power_note", "dispersion_note")
         if spc_summary.get(key)

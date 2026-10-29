@@ -195,8 +195,11 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 - **0.8 funnel engine changes, mirrored in TS:** the upper contour is drawn at the
   exact test's boundary (`upperBoundary` in `spc-core.ts`), and `poissonQuantileInterp`
   uses the lgamma-free walk. Python-only so far: `funnel()` itself, `levels`/`fdr_levels`,
-  `within_dispersion` with the dispersion-shape diagnostic, interpolated p-values for
-  non-integer counts, and the Newton Poisson inversion. Its values match TS bisection
+  `within_dispersion` with the dispersion-shape diagnostic and the case-level row check,
+  interpolated p-values for non-integer counts, binomial and beta-binomial tails,
+  contours, intervals and detectability at a non-integer denominator
+  (`fractional_binomial_*` in `limits.py`, methods §4.13), and the Newton Poisson
+  inversion. Its values match TS bisection
   inside the fixtures' 1e-9 tolerance.
 - **TS engine parity for the 0.7 funnel signalling** (Python-only for now; see
   `docs/methods.md` §4.10–4.11). Port to `packages/engine`:
