@@ -71,8 +71,17 @@
       "n_warn": 1,
       "signal_side": "both",
       "signal_method": "limits",
+      "levels": [
+        0.998,
+        0.95
+      ],
+      "fdr_levels": [
+        0.05,
+        0.1
+      ],
       "n_tested": 8,
-      "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is tau = 0.39. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='oep', which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
+      "within_dispersion": 1.0,
+      "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is tau = 0.39. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with overdispersion=True, which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_oe_median": 2.5860225354369923,
       "n_underpowered": 5,
       "underpowered": true,
@@ -221,7 +230,7 @@
         "x": 7,
         "y": 1.1458333333333333,
         "cl": 1.0,
-        "ucl": 1.33516500240625,
+        "ucl": 1.3351650023958335,
         "lcl": 0.6944238932916668,
         "ucl_95": 1.21015631196875,
         "lcl_95": 0.799673876375,
@@ -244,7 +253,7 @@
         "x": 8,
         "y": 0.8761904761904762,
         "cl": 1.0,
-        "ucl": 1.3198059433333333,
+        "ucl": 1.3198059433238094,
         "lcl": 0.7074036581047619,
         "ucl_95": 1.2004399219238095,
         "lcl_95": 0.8085448078476191,

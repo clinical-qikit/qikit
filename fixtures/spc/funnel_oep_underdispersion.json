@@ -92,7 +92,16 @@
       "n_warn": 0,
       "signal_side": "both",
       "signal_method": "limits",
+      "levels": [
+        0.998,
+        0.95
+      ],
+      "fdr_levels": [
+        0.05,
+        0.1
+      ],
       "n_tested": 12,
+      "within_dispersion": 1.0,
       "min_detectable_oe_median": 1.6260662819222222,
       "n_underpowered": 2,
       "underpowered": false
@@ -297,7 +306,7 @@
         "baseline": true,
         "excluded": false,
         "min_detectable_oe": 1.518700554222222,
-        "ci_95_lower": 0.7701609590833334,
+        "ci_95_lower": 0.7701609590972223,
         "ci_95_upper": 1.2438449875972222,
         "observed": 71.0,
         "expected": 72.0,

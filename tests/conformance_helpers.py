@@ -1,6 +1,9 @@
 """Shared helpers for the fixture-conformance test and scripts/update_snapshots.py."""
 import numpy as np
-from qikit import qic, paretochart, bchart, design
+from qikit import paretochart, bchart, design
+# The fixtures are the engine contract shared with the TypeScript engine, which keeps
+# qic's funnel arguments; the Python side of that contract is the engine core.
+from qikit.spc.api import _qic as qic
 
 
 def experiment_analyze(factors, response, **kwargs):

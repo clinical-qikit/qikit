@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import plotly.graph_objects as go
-from qikit import qic
+from qikit.spc.api import _qic as qic  # engine core: qic() plus funnel arguments
 from qikit.render.spc_plots import _signal_label_offsets
 from qikit.render.utils import NORMAL, RUNS, SIGMA
 
@@ -425,7 +425,7 @@ class TestOEHoverAndCaption:
 
     def test_underpowered_chart_captions_itself(self):
         """summary["underpowered"] does not travel with a screenshot."""
-        texts = [a.text for a in self._fig().layout.annotations]
+        texts = [a.text.replace("<br>", " ") for a in self._fig().layout.annotations]
         assert any("not evidence of acceptable performance" in t for t in texts)
 
     def test_user_caption_wins(self):
@@ -452,32 +452,34 @@ class TestOEHoverAndCaption:
 
 
 class TestSignalMethodRendering:
-    """Under signal_method="exact"/"fdr" the curves no longer decide the colours, and a
-    screenshot has to say so."""
+    """A screenshot carries no summary keys, so every funnel states the rule that
+    coloured its points; under signal_method="fdr" the curves no longer decide them."""
 
     Y = [2, 30, 5, 40, 3, 50, 8, 60, 1, 70]
     N = [20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0]
 
     def _captions(self, fig):
-        return [a.text for a in fig.layout.annotations if a.yref == "paper"]
+        # Captions wrap to the figure width; the tests read the notes as written.
+        return [a.text.replace("<br>", " ") for a in fig.layout.annotations if a.yref == "paper"]
 
     def _r(self, **kw):
         return qic(y=self.Y, n=self.N, chart="up", funnel=True, **kw)
 
-    def test_limits_adds_no_signal_caption(self):
-        # This chart is underpowered, so the power caveat stays; nothing else joins it.
-        (cap,) = self._captions(self._r().plot())
-        assert "Signals:" not in cap
+    def test_limits_states_the_exact_test(self):
+        (cap,) = self._captions(self._r(signal_side="above", show_95=True).plot())
+        assert cap.startswith(
+            "Outlier: beyond the 99.8% limit (exact test, one-sided, above the center "
+            "line, p < 0.001); alert: beyond the 95% limit (p < 0.025)."
+        )
 
-    def test_exact_says_which_test(self):
-        (cap,) = self._captions(self._r(signal_method="exact", signal_side="above").plot())
-        assert cap.startswith("Signals: exact one-sided (above the center line) test, p < 0.001 (red).")
-        assert "99.8% limits, for reference" in cap
+    def test_levels_follow_the_parameter(self):
+        (cap,) = self._captions(self._r(levels=(0.997, 0.95)).plot())
+        assert cap.startswith("Outlier: beyond the 99.7% limit (exact test, two-sided, p < 0.003)")
 
-    def test_fdr_names_its_scope_and_amber_tier(self):
+    def test_fdr_names_its_scope_and_alert_tier(self):
         (cap,) = self._captions(self._r(signal_method="fdr", show_95=True).plot())
-        assert "Benjamini–Hochberg false discovery rate across 10 points" in cap
-        assert "q < 0.002 (red), q < 0.05 (amber)" in cap
+        assert cap.startswith("Outlier: q < 0.05; alert: q < 0.1 (Benjamini-Hochberg false "
+                              "discovery rate across 10 providers, two-sided p-values).")
         assert "not adjusted for multiple comparisons" in cap
 
     def test_faceted_fdr_is_per_panel(self):
@@ -488,10 +490,15 @@ class TestSignalMethodRendering:
 
     def test_joins_the_underpowered_caption(self):
         fig = qic(y=TestOEHoverAndCaption.Y, n=TestOEHoverAndCaption.N, chart="oe",
-                  funnel=True, signal_method="exact").plot()
+                  funnel=True).plot()
         (cap,) = self._captions(fig)
-        assert cap.startswith("Signals: exact two-sided test")
-        assert "<br>" in cap and cap.endswith("not evidence of acceptable performance.")
+        assert cap.startswith("Outlier: beyond the 99.8% limit (exact test, two-sided")
+        assert cap.endswith("not evidence of acceptable performance.")
+
+    def test_long_captions_wrap_to_the_figure(self):
+        fig = self._r(signal_method="fdr", show_95=True).plot(width=500)
+        (ann,) = [a for a in fig.layout.annotations if a.yref == "paper"]
+        assert all(len(line) <= 80 for line in ann.text.split("<br>"))
 
     def test_user_caption_wins(self):
         fig = self._r(signal_method="fdr", caption="Source: registry").plot()
@@ -1021,31 +1028,39 @@ class TestLegend:
         assert fig.layout.showlegend is True
         upper, lower = _trace(fig, "99.8%+"), _trace(fig, "99.8%-")
         assert upper.legendgroup == lower.legendgroup == "limits"
-        assert upper.showlegend is True and lower.showlegend is False
-        assert _trace(fig, "95%-").showlegend is False
-        assert _trace(fig, "Beyond 99.8%").x == (None,)
-        assert _trace(fig, "Beyond 95%") is not None
+        assert upper.showlegend is False and lower.showlegend is False
+        # One entry per contour pair, in the pair's group, named for its coverage.
+        entry = _trace(fig, "99.8% limits")
+        assert entry.x == (None,) and entry.legendgroup == "limits" and entry.showlegend
+        assert _trace(fig, "95% limits").line.dash == "dash"
+        assert _trace(fig, "Outlier (beyond 99.8%)").x == (None,)
+        assert _trace(fig, "Alert (beyond 95%)") is not None
         # The series gets its own entry in its routine color, grouped with the points.
-        series = [t for t in fig.data if t.name == "data"]
-        assert [t.showlegend for t in series] == [False, True]
-        assert all(t.legendgroup == "data" for t in series)
-        assert series[1].marker.color == NORMAL
+        (points,) = [t for t in fig.data if t.name == "data"]
+        assert points.showlegend is False and points.legendgroup == "data"
+        entry = _trace(fig, "Provider")
+        assert entry.legendgroup == "data" and entry.marker.color == NORMAL
+        assert _trace(fig, "Center line").legendgroup == "cl"
+        # A funnel's legend is a column outside the right edge, clear of the title.
+        assert fig.layout.legend.orientation == "v" and fig.layout.legend.x > 1
 
     def test_entries_follow_signal_method_and_styles(self):
-        fig = _oe_funnel(show_legend=True, signal_method="exact",
+        fig = _oe_funnel(show_legend=True, signal_method="fdr", fdr_levels=(0.2, 0.3),
                          signal_side="above").plot()
-        assert _trace(fig, "p < 0.001") is not None
+        assert _trace(fig, "Worse than expected: outlier (q < 0.2)") is not None
+        worse = _oe_funnel(show_legend=True, signal_side="above").plot()
+        assert _trace(worse, "Worse than expected: outlier (beyond 99.8%)") is not None
         named = _oe_funnel(show_legend=True, styles={"sigma": {"name": "Outlier"}}).plot()
         assert _trace(named, "Outlier") is not None
 
     def test_no_signal_entry_without_signals(self):
         fig = qic(y=[400] * 6, n=[400.0] * 6, chart="oe", funnel=True,
                   show_legend=True).plot()
-        assert _trace(fig, "Beyond 99.8%") is None
+        assert _trace(fig, "Outlier (beyond 99.8%)") is None
 
     def test_faceted_entries_come_from_one_panel(self):
         df = pd.DataFrame({"o": _Y * 2, "e": _N * 2, "site": ["A"] * 10 + ["B"] * 10})
         fig = qic(y="o", n="e", data=df, chart="oe", funnel=True, facets="site",
                   show_legend=True).plot()
-        assert sum(1 for t in fig.data if t.name == "CL" and t.showlegend) == 1
-        assert sum(1 for t in fig.data if t.name == "data" and t.showlegend) == 1
+        assert sum(1 for t in fig.data if t.name == "Center line" and t.showlegend) == 1
+        assert sum(1 for t in fig.data if t.name == "Provider" and t.showlegend) == 1

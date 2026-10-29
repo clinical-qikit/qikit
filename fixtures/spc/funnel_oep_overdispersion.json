@@ -101,7 +101,16 @@
       "n_warn": 0,
       "signal_side": "both",
       "signal_method": "limits",
+      "levels": [
+        0.998,
+        0.95
+      ],
+      "fdr_levels": [
+        0.05,
+        0.1
+      ],
       "n_tested": 12,
+      "within_dispersion": 1.0,
       "min_detectable_oe_median": 2.699290541659596,
       "n_underpowered": 12,
       "underpowered": true,

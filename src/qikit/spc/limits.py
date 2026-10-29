@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from statistics import NormalDist
 from typing import Callable
 
 import numpy as np
@@ -45,9 +46,27 @@ from .dist import (
 )
 
 # The two contours every funnel draws [1, §2]: (lower tail, upper tail, normal deviate).
-# The outer pair drives sigma_signal; the inner one is the 95% warn band.
+# The outer pair drives sigma_signal; the inner one is the 95% warn band. Both are
+# the defaults of funnel(limits=), which can move them (e.g. to 99.7%).
 _OUTER = (0.001, 0.999, Z_998)
 _INNER = (0.025, 0.975, Z_95)
+DEFAULT_LEVELS = (0.998, 0.95)
+
+
+def contour(coverage: float) -> tuple[float, float, float]:
+    """
+    (lower tail, upper tail, normal deviate) of a two-sided contour with this coverage:
+    0.998 is the 99.8% contour, 0.1% in each tail. The two defaults return the exact
+    constants above, so the shared fixtures see the same bits whatever the call path.
+    """
+    if coverage == 0.998:
+        return _OUTER
+    if coverage == 0.95:
+        return _INNER
+    if not (0.5 < coverage < 1.0):
+        raise ValueError(f"A funnel contour's coverage must lie in (0.5, 1), got {coverage!r}.")
+    tail = (1.0 - coverage) / 2.0
+    return tail, 1.0 - tail, NormalDist().inv_cdf(1.0 - tail)
 
 
 def _upper_boundary(q: float, exact: bool, n: float | None = None) -> float:
@@ -369,19 +388,19 @@ def _poisson_funnel_pair(
 def _poisson_funnel_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None,
-    limit_method: str = "exact", **_,
+    limit_method: str = "exact", levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """O/E chart and u funnel: 99.8% exact Poisson limits [1, A.2.1]."""
-    return _poisson_funnel_pair(cl, n, *_OUTER, limit_method)
+    """O/E chart and u funnel: outer (99.8%) exact Poisson limits [1, A.2.1]."""
+    return _poisson_funnel_pair(cl, n, *contour(levels[0]), limit_method)
 
 
 def _poisson_funnel_limits_95(
     cl: float, y: np.ndarray, n: np.ndarray | None,
     mask: np.ndarray, subgroup_n: int | None = None,
-    limit_method: str = "exact", **_,
+    limit_method: str = "exact", levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """O/E chart and u funnel: 95% exact Poisson limits [1, A.2.1]."""
-    return _poisson_funnel_pair(cl, n, *_INNER, limit_method)
+    """O/E chart and u funnel: inner (95%) exact Poisson limits [1, A.2.1]."""
+    return _poisson_funnel_pair(cl, n, *contour(levels[1]), limit_method)
 
 
 def _binomial_funnel_pair(
@@ -411,18 +430,20 @@ def _binomial_funnel_pair(
 
 def _p_funnel_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None,
-    mask: np.ndarray, subgroup_n: int | None = None, diag: dict | None = None, **_,
+    mask: np.ndarray, subgroup_n: int | None = None, diag: dict | None = None,
+    levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """p funnel: 99.8% exact binomial limits [1, A.1.1]."""
-    return _binomial_funnel_pair(cl, n, *_OUTER, diag)
+    """p funnel: outer (99.8%) exact binomial limits [1, A.1.1]."""
+    return _binomial_funnel_pair(cl, n, *contour(levels[0]), diag)
 
 
 def _p_funnel_limits_95(
     cl: float, y: np.ndarray, n: np.ndarray | None,
-    mask: np.ndarray, subgroup_n: int | None = None, diag: dict | None = None, **_,
+    mask: np.ndarray, subgroup_n: int | None = None, diag: dict | None = None,
+    levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """p funnel: 95% exact binomial limits [1, A.1.1]."""
-    return _binomial_funnel_pair(cl, n, *_INNER, diag)
+    """p funnel: inner (95%) exact binomial limits [1, A.1.1]."""
+    return _binomial_funnel_pair(cl, n, *contour(levels[1]), diag)
 
 
 def funnel_dispersion(
@@ -483,6 +504,94 @@ def funnel_dispersion(
     sw = float(np.sum(wv))
     tau2 = (k * phi - (k - 1)) / (sw - float(np.sum(wv * wv)) / sw)
     return phi, max(0.0, tau2)
+
+
+# The dispersion-shape test (dispersion_shape below) calls clumping "within" when the
+# likelihood ratio for an intercept above 1 clears the 0.1% χ²₁ point and the
+# intercept itself, an estimate of φ, is at least 2. Set by simulation (methods §5):
+# no false calls in 1,000+ runs of Poisson, binary-outcome and between-provider-only
+# data (including heavy-tailed, lognormal provider effects) at K = 40, 200 and 1000,
+# and every call on aggregated length-of-stay data with φ = 3 at K = 1000 (90% at 200).
+_SHAPE_LR = 10.827566170662733  # χ²₁ 0.999 quantile
+_SHAPE_MIN_PHI = 2.0
+_SHAPE_MIN_K = 30
+_SHAPE_CAP = 9.0               # a residual is capped at 3 of its own SDs
+
+
+def _variance_line(z2: np.ndarray, e: np.ndarray, a_fixed: float | None,
+                   b_free: bool = True) -> tuple[float, float, float]:
+    """
+    Fit Var(z) = a + b·e by iteratively reweighted least squares on z², the normal
+    likelihood's own scoring step, with each z² capped at _SHAPE_CAP of its fitted
+    variance so a genuine outlier cannot pose as spread. Returns (a, b, −2 log L up to
+    a constant). a_fixed pins the intercept; b_free=False pins the slope at 0.
+    """
+    a = 1.0 if a_fixed is None else a_fixed
+    b = 0.0
+    for _ in range(60):
+        v = a + b * e
+        w = 1.0 / (v * v)
+        zc = np.minimum(z2, _SHAPE_CAP * v)
+        if a_fixed is None and b_free:
+            x = np.column_stack([np.ones_like(e), e])
+            xw = x * w[:, None]
+            a, b = np.linalg.lstsq(x.T @ xw, xw.T @ zc, rcond=None)[0]
+            a, b = max(float(a), 1e-3), max(float(b), 0.0)
+        elif a_fixed is None:
+            a = max(float(np.sum(w * zc) / np.sum(w)), 1e-3)
+        else:
+            b = max(0.0, float(np.sum(w * e * (zc - a)) / np.sum(w * e * e)))
+    v = a + b * e
+    zc = np.minimum(z2, _SHAPE_CAP * v)
+    return a, b, float(np.sum(np.log(v) + zc / v))
+
+
+def dispersion_shape(
+    cl: float, y: np.ndarray, n: np.ndarray, mask: np.ndarray, family: str,
+) -> dict:
+    """
+    Where a funnel's extra spread comes from, read off how it grows with volume.
+
+    The Pearson residual zᵢ (as funnel_dispersion forms it) has variance
+    a + b·nᵢ/… in two separable parts:
+
+    - **within** — counts that clump inside each unit (patient-days: one stay adds
+      many days at once) inflate every provider's variance by the same factor φ,
+      whatever its volume: a = φ.
+    - **between** — real differences between providers add τ² on the rate scale,
+      which is nᵢτ²/V₀ on the z scale: it grows with volume, b > 0.
+
+    The additive τ² of funnel_dispersion only models the second, so the first passes
+    straight through to over-flag small providers. Fitting both by maximum likelihood
+    (each residual capped at 3 of its own SDs) separates them: "within" when an
+    intercept above 1 is significant (likelihood ratio > χ²₁ 0.999) and estimates
+    φ ≥ 2, "between" when a slope above 0 is significant at the same level. Returns
+    {"dispersion_shape": "none" | "between" | "within" | "both" | "unknown",
+     "within_dispersion_hint": â}: "unknown" when the largest volume is under 1.5 times
+    the smallest, too narrow a range to separate the two; {} with fewer than 30
+    usable points, below the K the thresholds were calibrated at.
+    """
+    e = np.asarray(n, dtype=float)
+    v0 = cl / e if family == "poisson" else cl * (1.0 - cl) / e
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z2 = (np.asarray(y, dtype=float) - cl) ** 2 / v0
+        scale = e / np.nanmedian(np.where(mask & (e > 0), e, np.nan))
+    ok = mask & np.isfinite(z2) & np.isfinite(scale) & (scale > 0)
+    if int(np.sum(ok)) < _SHAPE_MIN_K:
+        return {}
+    z2, scale = z2[ok], scale[ok]
+    if float(scale.max()) < 1.5 * float(scale.min()):
+        # Too little spread in volume to tell a constant factor from a slope.
+        a_flat, _, _ = _variance_line(z2, scale, None, b_free=False)
+        return {"dispersion_shape": "unknown", "within_dispersion_hint": round(a_flat, 2)}
+    a1, b1, full = _variance_line(z2, scale, None)
+    _, _, unit_a = _variance_line(z2, scale, 1.0)
+    _, _, flat = _variance_line(z2, scale, None, b_free=False)
+    within = (unit_a - full) > _SHAPE_LR and a1 >= _SHAPE_MIN_PHI
+    between = (flat - full) > _SHAPE_LR
+    shape = {(False, False): "none", (False, True): "between",
+             (True, False): "within", (True, True): "both"}[(within, between)]
+    return {"dispersion_shape": shape, "within_dispersion_hint": round(a1, 2)}
 
 
 def oe_detectable_ratio(t_count: float, e: float) -> float:
@@ -713,34 +822,38 @@ def _mixture_funnel_pair(
 
 def _counts_adjusted_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
-    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None,
+    levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
     """oep, and up with funnel=True: 99.8% Poisson–gamma limits [1, eq. 11; 7]."""
-    return _mixture_funnel_pair(cl, n, tau2, "poisson", *_OUTER, diag)
+    return _mixture_funnel_pair(cl, n, tau2, "poisson", *contour(levels[0]), diag)
 
 
 def _counts_adjusted_limits_95(
     cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
-    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None,
+    levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
     """oep, and up with funnel=True: 95% Poisson–gamma limits [1, eq. 11; 7]."""
-    return _mixture_funnel_pair(cl, n, tau2, "poisson", *_INNER, diag)
+    return _mixture_funnel_pair(cl, n, tau2, "poisson", *contour(levels[1]), diag)
 
 
 def _proportions_adjusted_limits(
     cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
-    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None,
+    levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
     """pp with funnel=True: 99.8% beta-binomial limits [1, eq. 11]."""
-    return _mixture_funnel_pair(cl, n, tau2, "binomial", *_OUTER, diag)
+    return _mixture_funnel_pair(cl, n, tau2, "binomial", *contour(levels[0]), diag)
 
 
 def _proportions_adjusted_limits_95(
     cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray,
-    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None, **_,
+    subgroup_n: int | None = None, tau2: float = 0.0, diag: dict | None = None,
+    levels: tuple = DEFAULT_LEVELS, **_,
 ) -> tuple[np.ndarray, np.ndarray]:
     """pp with funnel=True: 95% beta-binomial limits [1, eq. 11]."""
-    return _mixture_funnel_pair(cl, n, tau2, "binomial", *_INNER, diag)
+    return _mixture_funnel_pair(cl, n, tau2, "binomial", *contour(levels[1]), diag)
 
 
 def _xbar_limits(

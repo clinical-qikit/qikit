@@ -125,10 +125,11 @@ class SPCResult:
                                          "laney" on time-ordered pp/up
                    dispersion_adjusted — adjusted charts only: τ̂ > 0, i.e. the
                                          limits actually moved
-                   signal_side         — "both", "above" or "below" (qic's
-                                         signal_side=)
-                   signal_method       — "limits", "exact" or "fdr": what decided
-                                         sigma_signal and warn_signal
+                   signal_side         — "both", "above" or "below" (funnel's
+                                         worse=)
+                   signal_method       — "limits" or "fdr": what decided
+                                         sigma_signal and warn_signal; levels and
+                                         fdr_levels hold their thresholds
                    count_model         — the null model behind the limits and
                                          p_value: "poisson", "poisson_gamma",
                                          "binomial" or "beta_binomial" (an adjusted
@@ -198,9 +199,11 @@ class SPCResult:
 
         styles={role: {"name": ...}} renames a trace, and from then on the name is
         yours to rely on. With show_legend=True each signal color drawn also gets a
-        legend-only trace: "Beyond 99.8%" (sigma; "Beyond UCL/LCL" off a funnel),
-        "Beyond 95%" (warn) or "Run signal" (runs), or "p < …"/"q < …" under
-        signal_method="exact"/"fdr".
+        legend-only trace: "Beyond UCL/LCL" (sigma) or "Run signal" (runs) on a
+        time-ordered chart; on a funnel "Outlier (beyond 99.8%)" and "Alert (beyond
+        95%)", or "Outlier (q < 0.05)"/"Alert (q < 0.1)" under signal_method="fdr",
+        prefixed "Worse than expected: " on a one-sided chart, plus one line entry per
+        contour pair ("99.8% limits").
         """
         from qikit.render.spc_plots import plot_result
 
@@ -247,6 +250,8 @@ class SPCResult:
             lim = funnel_limits(
                 params["chart"], params["cl"], grid,
                 tau2=params["tau2"], limit_method=params["limit_method"],
+                levels=params.get("levels", (0.998, 0.95)),
+                within_dispersion=params.get("within_dispersion", 1.0),
             )
             scale = params["multiply"]
             frame = pd.DataFrame({

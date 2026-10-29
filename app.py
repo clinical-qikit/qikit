@@ -1,8 +1,14 @@
 import streamlit as st
 import pandas as pd
 from qikit.spc import qic
+from qikit.spc import funnel as qikit_funnel
 from qikit.doe import design, analyze, ExperimentDesign
 from typing import List, Optional
+
+# The chart codes a funnel can be drawn from, and the funnel() measure each one means.
+_FUNNEL_MEASURES = {
+    "p": "proportion", "pp": "proportion", "u": "rate", "up": "rate", "oe": "oe", "oep": "oe",
+}
 
 st.set_page_config(
     page_title="QIKit Data Analysis",
@@ -85,23 +91,17 @@ with tab_spc:
 
             funnel = st.checkbox(
                 "Funnel plot (cross-sectional)",
-                help="Sort by denominator and compare units against each other rather than over time. Disables runs rules, freeze, and part.",
+                help="Compare units against each other rather than over time, with qikit.funnel(). Available for p, pp, u, up, oe and oep; O/E is always a funnel.",
                 key="spc_funnel",
-            )
+                disabled=chart_type not in _FUNNEL_MEASURES or is_oe,
+            ) or is_oe
             show_95 = st.checkbox(
                 "Show inner band",
                 help="95% contour on O/E charts, 2σ elsewhere.", key="spc_show95",
             )
 
-            limit_method = None
             cl_override = None
             if is_oe:
-                if chart_type == "oe":
-                    limit_method = st.selectbox(
-                        "Limit method", ["exact", "byar"],
-                        help="Exact Poisson contours, or Byar's closed-form approximation (faster, drifts below ~20 expected events).",
-                        key="spc_limit_method",
-                    )
                 center = st.radio(
                     "Center line", ["Pooled ΣO/ΣE", "Fixed at 1.0"],
                     help="Pooled judges providers against their peers and absorbs miscalibration of the risk model; 1.0 judges them against the model itself.",
@@ -141,25 +141,30 @@ with tab_spc:
                         if col_notes: kwargs["notes"] = col_notes
                         if exclude_val: kwargs["exclude"] = exclude_val
                         if show_95: kwargs["show_95"] = True
-                        if limit_method: kwargs["limit_method"] = limit_method
                         if cl_override is not None: kwargs["cl"] = cl_override
-                        # A funnel is a cross-sectional comparison; freeze and part
-                        # assume the points are in time order, so qic rejects them.
-                        if funnel:
-                            kwargs["funnel"] = True
-                        else:
-                            if col_part: kwargs["part"] = col_part
-                            if freeze_val is not None: kwargs["freeze"] = freeze_val
+                        if col_part: kwargs["part"] = col_part
+                        if freeze_val is not None: kwargs["freeze"] = freeze_val
 
                         with st.spinner("Computing..."):
-                            result = qic(**kwargs)
+                            if funnel or is_oe:
+                                # Providers compared with each other: qikit.funnel().
+                                result = qikit_funnel(
+                                    df_spc, y=col_y, n=col_n or None, unit=col_x,
+                                    measure=_FUNNEL_MEASURES[chart_type],
+                                    overdispersion=chart_type in ("pp", "up", "oep"),
+                                    facets=col_facets or None, center=cl_override,
+                                    title=title, ylab=ylab, xlab=xlab,
+                                )
+                            else:
+                                result = qic(**kwargs)
 
                         st.plotly_chart(result.plot(), use_container_width=True)
 
                         # The single most misread thing about a provider funnel: an
                         # empty chart at low volume is missing evidence, not a pass.
-                        if result.summary.get("power_note"):
-                            st.warning(result.summary["power_note"], icon="⚠️")
+                        if funnel or is_oe:
+                            for note in result.summary["notes"]:
+                                st.warning(note, icon="⚠️")
 
                         col_stat, col_data = st.columns(2)
                         with col_stat:

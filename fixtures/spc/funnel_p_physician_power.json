@@ -107,6 +107,14 @@
       "n_warn": 0,
       "signal_side": "both",
       "signal_method": "limits",
+      "levels": [
+        0.998,
+        0.95
+      ],
+      "fdr_levels": [
+        0.05,
+        0.1
+      ],
       "n_tested": 14,
       "min_detectable_ratio_median": 2.96314663508115,
       "n_underpowered": 12,

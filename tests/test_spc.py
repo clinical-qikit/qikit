@@ -12,7 +12,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import plotly.graph_objects as go
-from qikit import SPCResult, qic, paretochart, bchart
+from qikit import SPCResult, paretochart, bchart
+# The engine core: qic() plus the funnel arguments funnel() maps onto. These tests pin
+# the engine; tests/test_funnel.py pins the public funnel() API on top of it.
+from qikit.spc.api import _qic as qic
 import qikit.spc as _core
 import qikit.spc.constants as _constants
 import qikit.spc.dist as _dist
@@ -2477,7 +2480,7 @@ class TestExactFunnelLimits:
         y = [1, 19, 2, 40, 5, 70, 10, 120]
         loud = qic(y=y, n=self.N, chart="p", funnel=True)
         assert loud.summary["overdispersed"] is True
-        assert "chart='pp' with funnel=True" in loud.summary["dispersion_note"]
+        assert "overdispersion=True" in loud.summary["dispersion_note"]
 
     def test_non_integer_denominator_is_reported(self):
         r = qic(y=self.Y, n=[v + 0.5 for v in self.N], chart="p", funnel=True)
@@ -2804,8 +2807,8 @@ class TestOEPowerReporting:
 
 
 class TestPhysicianExampleWorkflow:
-    """The README's physician workflow, pinned against the bundled dataset. If this
-    breaks, the documentation is wrong."""
+    """The physician workflow on the engine, pinned against the bundled dataset.
+    tests/test_funnel.py::TestReadmeExample pins the README's funnel() version."""
 
     @staticmethod
     def _df():
@@ -3212,35 +3215,51 @@ class TestSignalMethod:
         return qic(y=self.Y, n=self.N, chart="oe", funnel=True, cl=1.0, **kw)
 
     @pytest.mark.parametrize("side", ["both", "above", "below"])
-    @pytest.mark.parametrize("method,col", [("exact", "p_value"), ("fdr", "q_value")])
-    def test_tiers_follow_the_statistic(self, side, method, col):
+    def test_limits_tiers_are_the_p_value_test(self, side):
+        """The contours are the exact test's boundaries, so "limits" is p < α."""
         from qikit.spc.pvalues import signal_thresholds
-        d = self._oe(signal_side=side, signal_method=method).data
+        d = self._oe(signal_side=side).data
         outer, inner = signal_thresholds(side)
-        stat = d[col].to_numpy()
-        assert (d["sigma_signal"].to_numpy() == (stat < outer)).all()
-        assert (d["warn_signal"].to_numpy() == ((stat < inner) & ~(stat < outer))).all()
+        p = d["p_value"].to_numpy()
+        assert (d["sigma_signal"].to_numpy() == (p < outer)).all()
+        assert (d["warn_signal"].to_numpy() == ((p < inner) & ~(p < outer))).all()
+
+    @pytest.mark.parametrize("side", ["both", "above", "below"])
+    def test_fdr_tiers_follow_the_q_values(self, side):
+        d = self._oe(signal_side=side, signal_method="fdr", fdr_levels=(0.05, 0.10)).data
+        q = d["q_value"].to_numpy()
+        assert (d["sigma_signal"].to_numpy() == (q < 0.05)).all()
+        assert (d["warn_signal"].to_numpy() == ((q < 0.10) & ~(q < 0.05))).all()
+
+    def test_fdr_levels_are_a_parameter(self):
+        loose = self._oe(signal_method="fdr", fdr_levels=(0.2, 0.4)).data
+        strict = self._oe(signal_method="fdr", fdr_levels=(0.001, 0.025)).data
+        assert loose["sigma_signal"].sum() >= strict["sigma_signal"].sum()
+        with pytest.raises(ValueError, match="fdr_levels"):
+            self._oe(signal_method="fdr", fdr_levels=(0.10, 0.05))
 
     def test_summary_and_signals(self):
         r = self._oe(signal_method="fdr")
         assert r.summary["signal_method"] == "fdr"
+        assert r.summary["fdr_levels"] == (0.05, 0.10)
         assert r.signals == bool(r.data["sigma_signal"].any())
         assert r.summary["n_warn"] == int(r.data["warn_signal"].sum())
         assert self._oe().summary["signal_method"] == "limits"
 
     def test_excluded_point_never_flags(self):
-        d = self._oe(signal_method="exact", exclude=[10]).data
+        d = self._oe(signal_method="fdr", exclude=[10]).data
         assert not d.loc[d["excluded"], ["sigma_signal", "warn_signal"]].any().any()
 
     @pytest.mark.parametrize("chart", ["p", "i"])
     def test_rejected_without_contours(self, chart):
         n = self.N if chart == "p" else None
         with pytest.raises(ValueError, match="needs funnel contours"):
-            qic(y=self.Y, n=n, chart=chart, signal_method="exact")
+            qic(y=self.Y, n=n, chart=chart, signal_method="fdr")
 
-    def test_invalid_value(self):
+    @pytest.mark.parametrize("method", ["bonferroni", "exact"])
+    def test_invalid_value(self, method):
         with pytest.raises(ValueError, match="signal_method must be one of"):
-            self._oe(signal_method="bonferroni")
+            self._oe(signal_method=method)
 
     def test_facets_adjust_separately(self):
         df = pd.DataFrame({
@@ -3254,7 +3273,7 @@ class TestSignalMethod:
         assert r.summary["signal_method"] == "fdr"
 
     @staticmethod
-    def _random_funnel(rng, chart):
+    def _random_funnel(rng, chart, whole=True):
         k = 40
         if chart in ("p", "pp"):
             n = rng.integers(5, 300, size=k).astype(float)
@@ -3263,27 +3282,63 @@ class TestSignalMethod:
         else:
             n = np.round(rng.uniform(0.5, 80, size=k), 2)
             y = rng.poisson(n * rng.lognormal(0, 0.45, size=k)).astype(float)
+        if not whole:
+            y = y + rng.uniform(0, 1, size=k) * (y < n)  # averaged aggregates
         return y, n
 
+    @pytest.mark.parametrize("whole", [True, False])
     @pytest.mark.parametrize("chart", ["oe", "oep", "u", "up", "p", "pp"])
-    def test_exact_against_limits(self, chart):
-        """For integer counts on exact limits, the exact test agrees below the line and
-        is stricter above it: Spiegelhalter's interpolation tests P(X > O), not P(X ≥ O).
-        Holds for sigma and for "beyond 95%", not for the warn tier alone."""
+    def test_lines_and_p_values_agree(self, chart, whole):
+        """Beyond a contour exactly when p < its tail probability, on both sides and at
+        both levels, for whole counts (the exact test) and for counts between whole
+        numbers (each tail interpolated, the inverse of the interpolated quantile)."""
+        from qikit.spc.pvalues import signal_thresholds
         rng = np.random.default_rng(11)
         for _ in range(15):
-            y, n = self._random_funnel(rng, chart)
+            y, n = self._random_funnel(rng, chart, whole)
             for side in ("above", "below"):
-                args = dict(y=y, n=n, chart=chart, funnel=True, signal_side=side)
-                lim, ex = qic(**args), qic(signal_method="exact", **args)
-                if "normal" in (lim.summary["limit_method"], ex.summary["p_value_method"]):
+                r = qic(y=y, n=n, chart=chart, funnel=True, signal_side=side)
+                if "normal" in (r.summary["limit_method"], r.summary["p_value_method"]):
                     continue
-                ls, es = lim.data["sigma_signal"], ex.data["sigma_signal"]
-                lb, eb = ls | lim.data["warn_signal"], es | ex.data["warn_signal"]
-                if side == "below":
-                    assert (ls == es).all() and (lb == eb).all()
-                else:
-                    assert not (es & ~ls).any() and not (eb & ~lb).any()
+                d = r.data
+                outer, inner = signal_thresholds(side)
+                p = d["p_value"].to_numpy()
+                beyond_outer = d["sigma_signal"].to_numpy()
+                beyond_inner = beyond_outer | d["warn_signal"].to_numpy()
+                assert (beyond_outer == (p < outer)).all()
+                assert (beyond_inner == (p < inner)).all()
+
+    @pytest.mark.parametrize("chart", ["oe", "oep", "p", "pp"])
+    def test_upper_contours_are_monotone(self, chart):
+        """The exact-test boundary never climbs on the ratio scale, where
+        Spiegelhalter's drawn contour reversed thousands of times on a dense grid."""
+        from qikit.spc.compute import funnel_limits
+        grid = np.arange(3, 400).astype(float) if chart in ("p", "pp") else np.geomspace(0.3, 200, 20_000)
+        cl = 0.1 if chart in ("p", "pp") else 1.0
+        tau2 = (0.001 if chart == "pp" else 0.05) if chart in ("oep", "pp") else 0.0
+        lim = funnel_limits(chart, cl, grid, tau2=tau2)
+        for col in ("ucl", "ucl_95"):
+            assert not (np.diff(lim[col]) > 1e-12).any()
+
+    def test_95_flag_is_the_garwood_interval_excluding_the_center(self):
+        """On an unadjusted O/E funnel, beyond the 95% line on either side is exactly
+        "the provider's own 95% Garwood interval excludes the center line"."""
+        rng = np.random.default_rng(3)
+        e = np.round(rng.uniform(0.5, 60, 300), 2)
+        o = rng.poisson(e * rng.lognormal(0, 0.4, 300)).astype(float)
+        d = qic(y=o, n=e, chart="oe", funnel=True, cl=1.0).data
+        flagged = d["sigma_signal"] | d["warn_signal"]
+        excludes = (d["ci_95_lower"] > 1.0) | (d["ci_95_upper"] < 1.0)
+        assert (flagged == excludes).all()
+
+    def test_levels_move_the_contours(self):
+        wide = self._oe(levels=(0.999, 0.95)).data
+        base = self._oe().data
+        assert (wide["ucl"] >= base["ucl"]).all() and (wide["ucl"] > base["ucl"]).any()
+        assert wide["ucl_95"].tolist() == base["ucl_95"].tolist()
+        assert self._oe(levels=(0.998, 0.95)).data["ucl"].tolist() == base["ucl"].tolist()
+        with pytest.raises(ValueError, match="levels"):
+            self._oe(levels=(0.95, 0.998))
 
 
 # ---------------------------------------------------------------------------

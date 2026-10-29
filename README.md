@@ -1,8 +1,9 @@
 # qikit
 
-**SPC charts and quality improvement tools for healthcare, in Python.**
+**SPC charts, funnel plots and quality improvement tools for healthcare, in Python.**
 
-One function. One result object. One `.plot()` call.
+Two functions: `qic()` for a process over time, `funnel()` for providers compared
+with each other. One result object each, and one `.plot()` call.
 
 ## Install
 
@@ -13,10 +14,13 @@ pip install clinical-qikit
 ## Quickstart
 
 ```python
-from qikit import qic
+from qikit import qic, funnel
 
-result = qic(y=values, chart="i")
-result.plot()   # returns a Plotly figure
+result = qic(y=values, chart="i")           # a process over time
+result.plot()                               # returns a Plotly figure
+
+r = funnel(df, y="deaths", n="expected", measure="oe", unit="hospital")
+print(r)                                    # providers compared with each other
 ```
 
 `qic()` mirrors R's [qicharts2](https://github.com/anhoej/qicharts2), the package most
@@ -25,7 +29,7 @@ detection, same mental model, now in Python.
 
 ## Chart types
 
-All chart types are computed by the same `qic()` entry point via the `chart=` argument:
+`qic()` draws time-ordered SPC charts, chosen with `chart=`:
 
 | `chart=` | Chart | Use for |
 |---|---|---|
@@ -36,349 +40,251 @@ All chart types are computed by the same `qic()` entry point via the `chart=` ar
 | `s` | S chart | Subgroup standard deviation |
 | `t` | Time-between-events chart | Time or count between rare events |
 | `p` | P chart | Proportion (percent) defective, unequal subgroup sizes |
-| `pp` | P′ chart | Proportions with overdispersion: Laney in time order, additive random effects in a funnel |
+| `pp` | P′ chart | Proportions with overdispersion (Laney) |
 | `c` | C chart | Count of defects, constant opportunity |
-| `u` | U chart | Rate of defects, unequal opportunity |
-| `up` | U′ chart | Rates with overdispersion: Laney in time order, additive random effects in a funnel |
+| `u` | U chart | Rate of defects, unequal opportunity; also a monthly O/E series, with `y=observed, n=expected` |
+| `up` | U′ chart | Rates with overdispersion (Laney) |
 | `g` | G chart | Number of opportunities between rare events |
-| `oe` | O/E (SMR) chart | Observed vs risk-model expected events, e.g. mortality O/E |
-| `oep` | O/E with over-dispersion | O/E across providers, judged against the spread between them |
 
-`qic(..., funnel=True)` renders a funnel plot instead, for cross-sectional comparison
-across p/pp/u/up/oe/oep charts sorted by denominator, with Spiegelhalter's exact 95% and
-99.8% probability contours in place of 3σ. Each provider is plotted at its own volume
-(sample size, exposure or expected events), with the contours drawn as smooth curves
-across that range. Every method, reference and design choice
-behind the funnels is recorded in [docs/methods.md](docs/methods.md), including where
-qikit follows Spiegelhalter (2005) and where it departs from him.
+Comparing providers with each other, rather than tracking one over time, is a funnel
+plot: use `funnel()`, below.
 
-### Risk-adjusted O/E funnel plots
-
-**Which chart for a cross-sectional comparison:**
-
-| What you are comparing | Use |
-| --- | --- |
-| Units on a proportion (readmissions per discharge) | `p` with `funnel=True` |
-| Units on a rate against exposure (infections per device-day) | `u` with `funnel=True` |
-| Providers on outcomes against model-expected events (Vizient O/E) | `oe` with `funnel=True` |
-| Any of those whose summary reports `overdispersed` | Also run `pp` / `up` with `funnel=True`, or `oep`; signals on both charts are the robust ones |
-| Anything whose summary reports `underpowered` | Aggregate more time, or compare at a higher level, before concluding |
-
-`chart="oe"` compares observed events against model-derived expected events — the form
-used for provider-level benchmarking of mortality, readmissions, and complications.
-Pass observed counts as `y=` and expected events as `n=`:
+## Comparing providers: `funnel()`
 
 ```python
-qic(x=physicians, y=observed_deaths, n=expected_deaths,
-    chart="oe", funnel=True, show_95=True)
+from qikit import funnel
+
+r = funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon",
+           label="surgeon_name", worse="higher")
+print(r)                                  # what was compared, what flagged, what to know
+r.data[r.data.signal != "none"]           # one row per provider, with signal and p/q values
+r.plot()
 ```
 
-Limits are exact Poisson probability contours at 95% and 99.8% rather than 3σ
-(Spiegelhalter, *Statistics in Medicine* 2005;24:1185-1202), which matters at the
-volumes individual physicians actually have: the limits are asymmetric about the center
-line, and the lower limit stays above zero where a normal approximation would clip it
-and lose better-than-expected outliers. `limit_method="byar"` selects the closed-form
-Wilson-Hilferty approximation instead; it drifts from exact below ~20 expected events.
+Each provider is plotted at its own volume, against Spiegelhalter's exact 99.8% and 95%
+probability contours (*Statistics in Medicine* 2005;24:1185-1202). Every method,
+reference and design choice is recorded in [docs/methods.md](docs/methods.md),
+including where qikit departs from the paper.
 
-The center line defaults to the pooled ΣO/ΣE, so points are judged against their peers
-and any overall miscalibration of the risk model is absorbed. Pass `cl=1.0` to judge
-them against the risk model itself.
+### Choosing the settings
 
-#### Over-dispersion
+| You have | Pass |
+|---|---|
+| Observed events and risk-model expected events (mortality or readmission O/E) | `measure="oe"`, `y=observed`, `n=expected` |
+| Events out of cases (complication %, top-box %) | `measure="proportion"`, `y=events`, `n=cases` |
+| Events over exposure (infections per line-day) | `measure="rate"`, `y=events`, `n=exposure` |
+| **Days**, or anything where one case adds many units (length of stay as O/E days) | stay-level rows, one per case, and `within_dispersion="estimate"` |
+| A measure where only one direction is bad | `worse="higher"` (mortality) or `worse="lower"` (top-box) |
+| Hundreds of providers, and few false alarms matter more than the drawn lines | `signal="fdr"` |
+| A benchmark against the risk model itself, not the peer average | `center=1.0` |
 
-Providers often differ from one another by more than chance allows, because no risk model
-captures everything. Across a few hundred hospitals, exact limits can flag far more than
-the nominal 0.2%. Every funnel, and every `oe` chart, estimates that excess spread the
-way Spiegelhalter published it (*Stat Med* 2005, §5). It uses Pearson residuals,
-winsorized at the 10th/90th percentiles so the outliers being screened for cannot
-inflate it, and a method-of-moments between-provider variance τ²:
+Rows that share a `unit` are summed, so stay-level or year-level data aggregates itself.
+
+### Reading the result
+
+`r.data` has one row per provider:
+
+| Column | Meaning |
+|---|---|
+| `unit`, `label` | The provider and its display name |
+| `y` | The plotted value: O/E, proportion or rate |
+| `numerator`, `denominator` | The summed `y=` and `n=` (observed and expected, events and cases) |
+| `cl` | The center line: pooled ΣO/ΣE (or Σevents/Σn) unless `center=` is given |
+| `lower_outlier`, `upper_outlier` | The 99.8% contour at this provider's volume |
+| `lower_alert`, `upper_alert` | The 95% contour |
+| `p_value` | Exact p-value against the model the contours are drawn from; one-sided toward `worse=`, doubled when two-sided |
+| `q_value` | Its Benjamini–Hochberg adjustment across the chart's providers |
+| `signal` | `"outlier"`, `"alert"` or `"none"`. The tiers never overlap |
+| `direction` | `"higher"` or `"lower"` than the center line |
+| `min_detectable` | The smallest true value this provider could have flagged with 80% power |
+| `ci_lower`, `ci_upper` | Exact 95% interval for the provider's own value |
+| `excluded` | Left out with `exclude=` (drawn faded, not tested) |
+
+`r.summary` holds the model and how to read the counts:
+
+- `n_outlier`, `n_alert`, and `expected_false_flags`.
+- `tau`: the estimated spread of true values between providers.
+- `count_model`, `within_dispersion`, `dispersion_shape` and `underpowered`.
+- `notes`: sentences ready to show a reader.
+
+On a faceted funnel the same keys are under `by_facet`.
+
+### What decides a flag
+
+Each contour is the boundary of an **exact test**. A provider is beyond the 99.8% line
+exactly when its one-sided p-value is below 0.001, and beyond the 95% line exactly when
+it is below 0.025. For the unadjusted O/E chart that is the same as "the provider's own
+exact 95% interval excludes the center line". The line, the p-value, the colour and the
+interval always agree.
+
+`signal=` picks one test for both tiers:
+
+- **`"limits"`** (default): outlier beyond the outer contour, alert beyond the inner one.
+  About 0.1% of average providers land beyond each 99.8% line by chance, and 2.5% beyond
+  each 95% line. `summary["expected_false_flags"]` counts that for your chart. With 1,000
+  providers on a one-sided chart it is about 1 outlier and 24 alerts, so "35 alerts" is
+  read against that.
+- **`"fdr"`**: outlier when `q_value < 0.05`, alert when `q_value < 0.10`
+  (`fdr_levels=`). At most that share of each tier is expected to be false, however many
+  providers there are. The flags then no longer match the drawn lines, and the caption
+  says so.
+
+There is deliberately no "limit OR q" mode. That union only ever adds flags, so it never
+removes the chance alerts that make FDR worth using, and neither guarantee holds for
+the combined tier ([methods §4.11](docs/methods.md)).
+
+`limits=(0.998, 0.95)` moves the contours, for example to `(0.997, 0.95)`.
+
+### Over-dispersion: real differences between providers
+
+No risk model captures everything, so providers differ by more than chance allows. With
+`overdispersion=True` (the default) each provider is judged against that spread as
+well as chance. qikit uses Spiegelhalter's additive random-effects model, with τ
+estimated as published. The smallest providers' limits barely move. The busiest level
+off at about the center ± z·τ instead of closing onto the line. When τ̂ is 0, which is
+common at physician scale, the chart is identical to `overdispersion=False`.
+
+Treat a non-zero τ̂ as a finding about the system: unmeasured case mix, data
+differences, or real variation in practice.
+
+### Length of stay and other clustered counts
+
+A funnel of observed/expected **patient-days** treats every day as an independent
+event. Days come in stays, so a provider's day total varies 5–10 times more than that
+assumption allows. Every small provider's limits come out far too narrow, and every
+p-value and q-value too small. τ cannot absorb this, because the missing variance
+shrinks with volume while τ does not.
+
+Pass stay-level rows and let qikit measure it:
 
 ```python
-r = qic(y=observed, n=expected, chart="oe", funnel=True)
-r.summary["dispersion_tau"]    # spread of true O/E between providers; 0.0 when none is detected
-r.summary["overdispersed"]     # True when τ̂ > 0
-r.summary["dispersion_note"]   # one quotable sentence, present only when overdispersed
+stays = session.sql("""
+    SELECT provider_id, provider_name, los_days, expected_los_days
+    FROM inpatient_stays WHERE discharge_date >= '2026-01-01'
+""").to_pandas()
+
+r = funnel(stays, y="LOS_DAYS", n="EXPECTED_LOS_DAYS", measure="oe",
+           unit="PROVIDER_ID", label="PROVIDER_NAME",
+           within_dispersion="estimate", worse="higher")
+r.summary["within_dispersion"]     # φ̂: how much more variable each count is than Poisson
 ```
 
-An unadjusted funnel (`p`, `u`, `oe`) reports the estimate but does not use it. It
-answers *is this provider consistent with the target, given chance?* The adjusted funnels
-(`pp` and `up` with `funnel=True`, and `oep`) answer *is this provider unusual, given the
-spread between providers?* They draw the additive random-effects model of his eq. 11:
-each provider's true rate varies around the target with SD τ̂. The limits are the exact
-Poisson–gamma or beta-binomial quantiles of that model rather than its normal
-approximation:
+- **The estimate:** φ̂ comes from each stay's residual around its own provider's rate, so
+  real differences between providers stay with τ.
+- **Already-aggregated data:** pass a number, computed once in SQL:
+  `SUM(POWER(los - exp_los, 2) / exp_los) / (COUNT(*) - COUNT(DISTINCT provider))`.
+- **Event counts** (deaths, readmissions) need nothing; leave the default of 1.
+- **The guard:** if the spread looks clustered and `within_dispersion` was left at 1,
+  qikit raises a `UserWarning` and says so in `summary["notes"]` and on the figure.
+- **Upstream choices:** cap extreme stays at a stated percentile before aggregating. If
+  φ̂ differs a lot between service lines, facet by service line; `"estimate"` is then
+  taken per facet.
 
-```python
-r = qic(y=observed, n=expected, chart="oep", funnel=True)
-r.summary["dispersion_adjusted"]  # False when τ̂ = 0, and then the limits are oe's exactly
-r.summary["dispersion_method"]    # "additive"
-```
+In one simulated length-of-stay cohort of 1,000 providers with no real differences
+between them, the chart flags 24 outliers and 65 alerts without the fix. With
+`within_dispersion="estimate"` it flags 3 and 20, against 1 and 24 expected by chance
+([methods §5](docs/methods.md) has the full simulation).
 
-Under the additive model the smallest providers' limits barely move, because their own
-noise dominates. The busiest providers' limits level off at roughly θ₀ ± z·τ instead of
-closing onto the center line. At physician volumes τ̂ is usually 0, and the two charts
-are then identical. On the bundled 24-surgeon data it is 0.
-
-Choose which question you are asking before looking at the results. Treat a non-zero τ̂
-as a finding about the system: unmeasured case mix, data differences or real variation
-in practice. Spiegelhalter calls the adjustment a temporary measure, not a fix. Outside a
-funnel, `pp`/`up` remain Laney's p′/u′ charts, whose moving-range σ_z is designed for
-time order.
-
-On a small cohort, one extreme provider drags the pooled center line toward itself and
-inflates τ̂ even after its own residual is clipped. Pass `cl=1.0` to anchor the O/E
-center line if that matters. [docs/methods.md](docs/methods.md) covers this and the
-estimator's known downward bias.
-
-#### Physician-level comparison
+### Physician-level comparison: what the chart could not find
 
 At individual-physician volumes a funnel is mostly a test with no power. The chance of
-flagging a physician whose **true** O/E is 2.0, at the 99.8% limit:
+flagging a physician whose **true** O/E is 2.0 at the 99.8% limit:
 
 | Expected deaths | 2 | 5 | 10 | 20 | 50 |
 | --- | --- | --- | --- | --- | --- |
 | Chance of flagging a true O/E of 2.0 | 5% | 21% | 44% | 81% | 99.8% |
 
-Most physicians sit at 5–20 expected events, so a genuinely poor performer is more
-likely to be missed than caught. That is a property of the sample size, not of the
-method — but it means **absence of a signal is not evidence of acceptable
-performance**, and that is exactly how a blank funnel tends to get read.
+Most physicians sit at 5–20 expected events, so **absence of a signal is not evidence
+of acceptable performance**. That is exactly how a blank funnel tends to get read. So
+every provider carries `min_detectable` and an exact interval. `summary["underpowered"]`
+says whether the typical provider could detect even a doubling, and an underpowered
+figure captions itself so the caveat survives a slide deck. A physician at O/E 2.5
+whose `min_detectable` is 4.6 has not been cleared; the chart cannot see that far at
+their volume.
 
-O/E charts therefore report what they could not have found. Every point carries its own
-detectability and interval, and the summary says whether the chart had any reach:
-
-```python
-r = qic(x=physicians, y=observed_deaths, n=expected_deaths, chart="oe", funnel=True)
-
-r.data[["observed", "expected", "y", "min_detectable_oe",
-        "ci_95_lower", "ci_95_upper", "sigma_signal"]]
-
-r.summary["underpowered"]               # True when the median point can't detect a doubling
-r.summary["min_detectable_oe_median"]
-r.summary["n_underpowered"]
-r.summary["power_note"]                 # one quotable sentence, present only when underpowered
-```
-
-- **`min_detectable_oe`** — the smallest true O/E this point would flag 80% of the time.
-  A physician at O/E 2.5 who does not signal, but whose `min_detectable_oe` is 4.3, has
-  not been cleared; the chart simply cannot see that far at their volume.
-- **`ci_95_lower` / `ci_95_upper`** — an exact (Garwood) interval on *this point's own*
-  O/E. This is a different object from the funnel band: the band asks where the point
-  would fall if the risk model were right and the provider average, while the interval
-  asks what range of true performance is consistent with what the provider actually did.
-  The band moves with the center line; the interval does not.
-- An underpowered chart also captions itself, so the caveat survives being pasted into
-  a slide deck. Supplying your own `caption=` replaces it.
-
-Note too that at 99.8% about 0.2% of points flag by chance alone, so in a 500-physician
-funnel roughly one signal is expected even when every physician is average.
-
-**p and u funnels report the same way.** A complication rate over a surgeon's 30 cases
-is no better powered than an O/E over their 5 expected deaths, so `funnel=True` on
-`p`/`pp`/`u`/`up` adds the same columns and summary keys:
-
-```python
-r = qic(x=surgeons, y=complications, n=cases, chart="p", funnel=True)
-
-r.data[["y", "ucl", "min_detectable", "ci_95_lower", "ci_95_upper", "sigma_signal"]]
-r.summary["underpowered"]                # True when the median point can't detect a doubling
-r.summary["min_detectable_ratio_median"] # median of min_detectable / cl
-r.summary["n_underpowered"], r.summary["power_note"]
-```
-
-- **`min_detectable`** is a proportion (p, pp) or rate (u, up) on the chart's own y
-  scale, so it scales with `multiply=` like `ucl`. A surgeon at 4 of 12 (33%) against an
-  11.6% center line does not signal, and their `min_detectable` of 0.58 says why.
-- **The interval is exact**: Clopper–Pearson for proportions, Garwood for rates.
-- **"Underpowered" is relative to the center line**, because a proportion has no natural
-  unit the way O/E does: a point is underpowered when `min_detectable / cl > 2`. On a p
-  funnel whose center line is 50% or more, a doubling is not a proportion at all, so only
-  points that cannot flag at any rate count there.
-
-**The workflow that actually works** is to aggregate until the chart has power. Using
-the bundled example (24 surgeons, 3 years):
+The workflow that works is to aggregate until the chart has power. With the bundled
+example (24 surgeons, 3 years):
 
 ```python
 import pandas as pd
-from qikit import qic
+from qikit import funnel
 
 df = pd.read_csv("data/examples/physician_mortality_oe.csv")
 
-# Any single year: not one surgeon flags, and underpowered is True.
-y2025 = df[df.year == 2025]
-qic(x="physician", y="observed_deaths", n="expected_deaths", data=y2025,
-    chart="oe", funnel=True).summary["underpowered"]        # True
+# Any single year: no outlier, and underpowered is True.
+funnel(df[df.year == 2025], y="observed_deaths", n="expected_deaths",
+       measure="oe", unit="physician").summary["underpowered"]       # True
 
-# Three years pooled: the chart gains resolution and finds three real signals,
-# including a high performer below the lower limit.
-agg = df.groupby("physician", as_index=False)[["observed_deaths", "expected_deaths"]].sum()
-qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
-    chart="oe", funnel=True).plot()
+# All three years (rows per physician are summed): three real signals, SURG-07 and
+# SURG-15 above, and a high performer, SURG-21, below the lower limit.
+r = funnel(df, y="observed_deaths", n="expected_deaths", measure="oe", unit="physician")
+r.data[r.data.signal != "none"]
 ```
 
-#### The volume axis
-
-A funnel plots each point against its denominator, as Spiegelhalter draws them: sample
-size on p/pp, exposure on u/up, expected events on oe/oep. The limits are drawn as
-smooth curves on a grid across the volume range, and each curve passes exactly through
-every point's own limit, so a flagged point never appears inside the funnel.
+### Figures
 
 ```python
-r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
-        chart="oe", funnel=True, show_95=True,
-        x_log=True)                  # log-scale the volume axis
-r.plot()                             # x-axis titled "expected_deaths"; xlab= to rename
-r.funnel_limits()                    # the drawn contours: n, cl, ucl, lcl, ucl_95, lcl_95
-r.data[["x", "n", "y", "ucl"]]       # "n" is the denominator on every chart
-```
+HOUSE = {"font": {"family": "Segoe UI", "size": 13}, "limits": {"color": "#555"}}
 
-- **`xlab`** titles whatever x-axis is drawn. Left unset, a volume axis takes the
-  `n=` column name, or "Expected events", "Sample size" or "Exposure".
-- **`x_spacing="x"`** plots by x value instead: the categorical funnel of releases
-  before 0.6.0. `x_order=` orders categories, so on a funnel it needs `x_spacing="x"`.
-  A funnel whose denominators are all equal has no volume to spread, and falls back to
-  `"x"` on its own.
-- **`funnel_limits(n=...)`** evaluates the contours at any denominators, for a figure
-  of your own. Use it rather than reading x and y off the traces: the trace names are
-  stable, but not how many points each trace has.
-
-#### Labeling flagged providers
-
-When x is an ID (an NPI, say) and the reader needs names, keep the ID as the key and
-pass the display text separately:
-
-```python
-r = qic(x="npi", y="observed_deaths", n="expected_deaths", data=agg,
-        chart="oep", funnel=True, show_95=True,
-        point_labels="physician_name",          # hover, tick text, signal labels
-        hover_extra=["encounters", "practice"], # extra tooltip lines
-        label_signals="both",                   # label 99.8% and 95% points
-        x_spacing="rank")                       # even spacing in funnel order
-r.data[["x", "label", "sigma_signal", "warn_signal"]]
-```
-
-- **`warn_signal`** marks points past the 95% contour that are not already
-  `sigma_signal`, so the two tiers never overlap. It is present on every `oe`/`oep`
-  chart and on `p`/`pp`/`u`/`up` funnels, counted in `summary["n_warn"]`, and kept out
-  of `signals`: at one chance alarm in twenty, a large funnel would always report one.
-  With `show_95=True` these points are drawn amber.
-- **`label_signals=`** takes `"outlier"`, `"warn"`, `"both"` or `None`. Labels above the
-  center line point up and those below point down, and neighbours are staggered.
-- **`x_spacing="rank"`** plots positions 1…k in funnel order with the labels as tick
-  text, for when the names matter more than the volumes. Every trace and annotation
-  uses the same positions, so numeric-looking IDs are never coerced into a stretched
-  axis (the volume axis avoids that too, since IDs never reach it).
-- Trace names (`"data"`, `"CL"`, `"99.8%+"`, `"95%-"`, …) are a stable contract for
-  restyling, unless you rename a trace with `styles={role: {"name": ...}}` (below).
-  The tooltip's `customdata` layout is not, so use the parameters above rather than
-  editing it.
-
-A last caution for anyone reading these in a credentialing context: at 5 expected
-deaths, a confidence interval that contains 1.0 means *insufficient information*, not
-exoneration. The honest report of a low-volume physician is the interval, not a verdict.
-
-#### Flagging one direction, or by p-value and FDR
-
-```python
-r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
-        chart="oe", funnel=True, cl=1.0,
-        signal_side="above",     # only excess deaths flag
-        signal_method="fdr")     # flag by Benjamini–Hochberg q-value
-r.data[["x", "y", "p_value", "q_value", "sigma_signal"]]
-r.summary["count_model"]         # "poisson": the model behind the limits and p-values
-```
-
-- **`signal_side=`** is `"both"` (default), `"above"` or `"below"`. It filters
-  `sigma_signal` and `warn_signal`, and with them the colors, `signals` and labels.
-  The other side's limits are still drawn; hide them with `styles` (below). Pooled over
-  2023–2025, the bundled surgeons flag SURG-07 and SURG-15 above, and SURG-21 below.
-  It is valid only on charts with funnel contours.
-- **`p_value` and `q_value`** are on every funnel and O/E chart:
-  - `p_value` is the exact p-value against the same Poisson, Poisson–gamma, binomial or
-    beta-binomial model, and the same τ, that the limits use: P(X ≥ O) above, P(X ≤ O)
-    below, doubled for two-sided.
-  - `q_value` is its Benjamini–Hochberg adjustment within the chart (each facet
-    separately).
-- **`signal_method=`** chooses what decides the flags:
-  - `"limits"` (default): the drawn contours.
-  - `"exact"`: p < 0.001 for red and p < 0.025 for amber, doubled for two-sided.
-  - `"fdr"`: the same levels, applied to q.
-
-  At small counts `"exact"` is stricter than the line above the center: 13 deaths
-  against 5 expected sits above the 99.8% line, but P(X ≥ 13) = 0.2%.
-  [docs/methods.md §4.11](docs/methods.md) explains why. When the curves do not decide
-  the colors, an uncaptioned figure says what did.
-
-#### Slide-quality figures
-
-```python
 r.plot(
-    show_95=True,
+    styles=[HOUSE, {"lcl": {"visible": False}, "lcl_95": {"visible": False}}],
     x_range=(2, None),          # start at 2 expected deaths; the y axis refits
-    styles={
-        "limits_95": {"color": "#777", "width": 1.5, "dash": "solid"},
-        "lcl": {"visible": False}, "lcl_95": {"visible": False},
-        "ucl": {"name": "99.8% limit"}, "ucl_95": {"name": "95% limit"},
-    },
-    show_legend=True,
+    label_signals="outlier",
     width=1000, height=560,
 )
 ```
 
-- **`styles=`** restyles by role.
-  - Roles: `data`, `sigma`, `warn`, `runs`, `cl`, `ucl`, `lcl`, `ucl_95`, `lcl_95`,
-    `target` and `end_labels`, plus the groups `limits` and `limits_95`.
-  - Attributes: `color`, `width`, `dash`, `visible`, `name`, and `size` on
-    `end_labels`.
-  - A specific role overrides its group.
-  - `name` renames the trace, its legend entry and its end label.
-  - The defaults draw exactly the figure you get without `styles=`.
-- **`x_range=` / `y_range=`** take `(low, high)`, and either end may be `None`.
-  - `x_range` is in the units drawn: the denominator on a volume axis, positions under
-    `"rank"`, numbers or dates otherwise. It is rejected on a categorical axis.
-  - With `x_range` set, the y axis fits only the points inside it, the center line,
-    and each limit's narrowest in-range value. Trimmed points and the funnel's
-    low-volume flare then stop stretching it.
-- **`show_legend=True`** groups each limit pair into one entry and adds an entry per
-  signal color: "Beyond 99.8%" and "Beyond 95%", or "p < …"/"q < …" under
-  `signal_method`.
-- **`show_labels=False`** hides the end-of-line labels ("CL=…", "99.8%+=…").
-- **`width`/`height`** default to `None`, which keeps the figure responsive in notebooks
-  and Streamlit. Plotly's static export then draws it at 700×500, so set both for
-  slides.
-- **Unknown names raise.** Every option here can be passed to `qic()` or overridden
-  per call with `r.plot(...)`. An unknown name raises `TypeError` rather than being
-  ignored.
+- **Defaults for a projector:** contours at 3.5:1 contrast, the 95% line dashed, points
+  at 0.85 opacity, and the legend on. Outliers are red circles and alerts amber
+  diamonds, so the tier never depends on colour alone. The colour pair passes a
+  colour-vision-deficiency check.
+- **Axes and caption:** the y axis is fitted to the providers and the narrow end of the
+  funnel, not its low-volume flare. Axis titles come from your column names. An unset
+  caption states the flag rule.
+- **`styles=`** restyles by role. The roles are `data` (color, opacity, name), `sigma`,
+  `warn`, `cl`, `ucl`, `lcl`, `ucl_95` and `lcl_95`, the groups `limits` and
+  `limits_95`, `end_labels`, and `font`. A list of dicts is merged in order, so a house
+  style is one constant, with no global state to reset between Streamlit reruns.
+- **`r.limits(n=None)`** returns the contours at any denominators, for drawing
+  elsewhere.
+- **Unknown names raise.** `r.plot(...)` overrides any display argument of `funnel()`,
+  and an unknown name raises `TypeError`.
 
-#### Funnel options at a glance
+### Options at a glance
 
-| Parameter | Values | What it does |
+| Parameter | Default | What it does |
 |---|---|---|
-| `funnel` | `False` (default), `True` | Makes p/pp/u/up a funnel: sorted by denominator, exact 95%/99.8% contours, no runs rules. `oe`/`oep` have contours either way. |
-| `limit_method` | `"exact"` (default), `"byar"` | `oe` only: exact interpolated Poisson limits, or Byar's approximation. |
-| `signal_side` | `"both"` (default), `"above"`, `"below"` | Which side of the center line flags. |
-| `signal_method` | `"limits"` (default), `"exact"`, `"fdr"` | What decides the flags: the contours, `p_value`, or `q_value`. |
-| `label_signals` | `None` (default), `"outlier"`, `"warn"`, `"both"` | Text labels on flagged points. |
-| `show_95` | `False` (default), `True` | Draws the 95% contours and colors the warn tier amber. |
-| `show_labels` | `True` (default), `False` | The CL/limit labels at the end of each line. |
-| `x_spacing` | `None` (default), `"n"`, `"x"`, `"rank"` | See the four rows below. |
-| ↳ `None` | | Resolves to `"n"` on a funnel whose denominators vary, and to `"x"` otherwise. |
-| ↳ `"n"` | | The volume axis, with smooth contours. Needs `funnel=True` and denominators that vary. |
-| ↳ `"x"` | | Places points by x value, as categories or as numbers/dates. It is the only spacing `x_order=` applies to. |
-| ↳ `"rank"` | | Places points at 1…k in funnel order, with labels as tick text. |
-| `x_log` | `False` (default), `True` | Log-scales the volume axis; needs `x_spacing="n"`. |
-| `x_range`, `y_range` | `(low, high)`, either end `None` | Axis ranges; `x_range` also refits the y axis to what is in range. |
-| `styles` | `{role: {attribute: value}}` | Colors, widths, dashes, visibility and names by role. |
-| `show_legend` | `False` (default), `True` | Legend with one entry per limit pair and per signal color. |
-| `width`, `height` | pixels, default `None` | Figure size; `None` is responsive. |
+| `measure` | required | `"oe"`, `"proportion"` or `"rate"` |
+| `unit`, `label`, `hover` | `None` | Provider id, display name, extra tooltip columns |
+| `facets` | `None` | One funnel per value: own center line, τ, FDR step |
+| `exclude` | `None` | A boolean column, or a list of unit ids, left out of the model |
+| `center` | pooled | A fixed center line, e.g. `1.0` on O/E |
+| `overdispersion` | `True` | Judge against the spread between providers (τ) |
+| `within_dispersion` | `1.0` | Clustered counts: a number, or `"estimate"` from stay-level rows |
+| `worse` | `None` | `"higher"` or `"lower"`: flag one side, one-sided p-values |
+| `signal` | `"limits"` | `"limits"` (exact test, drawn) or `"fdr"` (q-values) |
+| `limits` | `(0.998, 0.95)` | Outer and inner contour coverage |
+| `fdr_levels` | `(0.05, 0.10)` | Outlier and alert false discovery rates under `signal="fdr"` |
+| `multiply` | `1` | Scale y, e.g. `1000` for a rate per 1,000 |
+| `label_signals` | `None` | `"outlier"`, `"alert"` or `"both"` |
+| `styles`, `x_log`, `x_range`, `y_range`, `show_legend`, `width`, `height`, `title`, `xlab`, `ylab`, `caption` | | Display |
 
-Beyond `qic()`, the package also provides:
+Beyond `qic()` and `funnel()`, the package also provides:
 
 - **`paretochart(x, data=...)`** — Pareto chart of categorical frequencies.
 - **`bchart(...)`** — Bernoulli CUSUM chart for early detection of shifts in binary
   (pass/fail) data.
 - **`design(factors, ...)`** / **`analyze(design_obj, response, ...)`** — full-factorial
   design of experiments (DOE) and effect analysis.
+
+## For AI agents
+
+`funnel()`'s docstring is written as the agent-facing reference: it starts with a
+decision table and documents every column of the result. Run `help(qikit.funnel)`. For
+Snowflake Cortex Code, or any agent that loads skills,
+[`skills/provider-funnels/SKILL.md`](skills/provider-funnels/SKILL.md) gives the
+provider-comparison workflow, including the length-of-stay case. Copy it into your
+agent's skills folder.
 
 ## Excel add-in
 
