@@ -3622,3 +3622,34 @@ class TestFunnelLimits:
         df = pd.DataFrame({"x": list("abc"), "y": [3, 4, 5], "n": [10, 20, 30]})
         with pytest.raises(ValueError, match="collide"):
             qic(x="x", y="y", n="n", data=df, chart="p", funnel=True, hover_extra="n")
+
+
+def test_runtime_messages_print_on_a_windows_code_page():
+    """
+    Errors, warnings and summary notes must encode as cp1252.
+
+    Python writes to a piped stdout on Windows in the ANSI code page, which has no Greek
+    letters, so a σ in a message a caller prints raises UnicodeEncodeError. Docstrings
+    keep their math notation (help() on a pipe needs PYTHONUTF8=1 either way), and the
+    render package is exempt: its labels go into Plotly figures, never a console.
+    """
+    import ast
+
+    offenders = []
+    for path in sorted(pathlib.Path(_core.__file__).parent.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docstrings = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.body and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+        }
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and id(node) not in docstrings):
+                try:
+                    node.value.encode("cp1252")
+                except UnicodeEncodeError:
+                    offenders.append(f"{path.name}:{node.lineno}: {node.value[:60]!r}")
+    assert not offenders, "\n".join(offenders)

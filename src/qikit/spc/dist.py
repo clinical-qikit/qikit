@@ -171,7 +171,7 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
         # we actually ship. Guarded by the callers in limits.py, which only ever
         # pass the four tail probabilities below.
         raise ValueError(
-            f"poisson_quantile_interp: λ={lam} exceeds the exact-method ceiling "
+            f"poisson_quantile_interp: lambda={lam} exceeds the exact-method ceiling "
             f"({_EXACT_MAX_LAMBDA}); the caller should fall back to byar_quantile."
         )
 
