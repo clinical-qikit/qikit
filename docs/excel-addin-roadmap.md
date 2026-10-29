@@ -192,6 +192,22 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 - Analysis templates (pre-configured chart + method bundles)
 - PDF report export
 - Faceted (per-group subplot) charts in the task pane
+- **TS engine parity for the 0.7 funnel signalling** (Python-only for now; see
+  `docs/methods.md` §4.10–4.11). Port to `packages/engine`:
+  - the `n` row column on every chart with denominators;
+  - the `signal_side` filter on `sigma_signal`/`warn_signal`;
+  - the tail functions (`poisson_tails`, `binomial_tails`, `poisson_gamma_tails`,
+    `beta_binomial_tails` in `dist.py`) on `walkTerms`, keeping the documented
+    summation order: lower tail ascending, upper tail descending from the last kept
+    term;
+  - an `erfc` for the normal fallback;
+  - Benjamini–Hochberg;
+  - `signal_method`;
+  - the `signal_side`, `signal_method`, `count_model`, `p_value_method` and `n_tested`
+    summary keys.
+
+  Then add shared fixtures with non-default `signal_side`/`signal_method`. Until then
+  none may exist, because vitest compares `sigma_signal` per row.
 
 ---
 
