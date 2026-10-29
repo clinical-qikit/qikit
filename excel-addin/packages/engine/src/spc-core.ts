@@ -1061,7 +1061,7 @@ export function compute(input: SPCInput): SPCResult {
       return {
         dispersion_note:
           `Providers vary more than ${basis} can explain: the estimated spread of ` +
-          `true ${quantity} between them is τ = ${twoSig(last.dispersion_tau)}. ` +
+          `true ${quantity} between them is tau = ${twoSig(last.dispersion_tau)}. ` +
           `Some signals here may reflect that spread (unmeasured case mix, data ` +
           `differences, or real variation in practice) rather than an individually ` +
           `unusual provider. Compare with ${call}, which judges each provider against ` +

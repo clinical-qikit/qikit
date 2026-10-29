@@ -77,7 +77,7 @@
       "signal_side": "both",
       "signal_method": "limits",
       "n_tested": 9,
-      "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is \u03c4 = 0.22. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='oep', which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
+      "dispersion_note": "Providers vary more than the risk model and chance can explain: the estimated spread of true O/E between them is tau = 0.22. Some signals here may reflect that spread (unmeasured case mix, data differences, or real variation in practice) rather than an individually unusual provider. Compare with chart='oep', which judges each provider against that spread, and look for its cause: an adjustment is a temporary measure, not a fix.",
       "min_detectable_oe_median": 2.232004549285714,
       "n_underpowered": 6,
       "underpowered": true,

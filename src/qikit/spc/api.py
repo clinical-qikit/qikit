@@ -361,7 +361,7 @@ def qic(
     if y_percent and multiply != 1.0:
         warnings.warn(
             "y_percent=True already scales the axis to percent display. "
-            "Setting multiply != 1 will produce unexpected results (e.g., 10% → 1000%). "
+            "Setting multiply != 1 will produce unexpected results (e.g., 10% -> 1000%). "
             "For p-charts, omit multiply= unless you intend to scale the raw proportion.",
             UserWarning,
             stacklevel=2,
@@ -383,7 +383,7 @@ def qic(
         raise ValueError(
             f"limit_method= is only valid for chart='oe'. Got chart={chart!r}. "
             f"Funnel plots of the other charts always use exact limits, and "
-            f"time-ordered charts use 3σ limits, which have no quantile method to choose."
+            f"time-ordered charts use 3-sigma limits, which have no quantile method to choose."
         )
     if chart == "oe":
         limit_method = "exact" if limit_method is None else limit_method.lower().strip()
@@ -800,7 +800,7 @@ def qic(
         call, basis, quantity = _DISPERSION_NOTE[chart]
         summary["dispersion_note"] = (
             f"Providers vary more than {basis} can explain: the estimated spread of "
-            f"true {quantity} between them is τ = {_two_sig(summary['dispersion_tau'])}. "
+            f"true {quantity} between them is tau = {_two_sig(summary['dispersion_tau'])}. "
             f"Some signals here may reflect that spread (unmeasured case mix, data "
             f"differences, or real variation in practice) rather than an individually "
             f"unusual provider. Compare with {call}, which judges each provider against "
