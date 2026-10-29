@@ -47,7 +47,9 @@ detection, same mental model, now in Python.
 | `g` | G chart | Number of opportunities between rare events |
 
 Comparing providers with each other, rather than tracking one over time, is a funnel
-plot: use `funnel()`, below.
+plot: use `funnel()`, below. `qic()` no longer takes the 0.7 funnel arguments (`funnel=`,
+`signal_side=`, `signal_method=` and the rest). Passing one raises a `TypeError` that
+names its replacement.
 
 ## Comparing providers: `funnel()`
 

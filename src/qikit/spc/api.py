@@ -139,6 +139,7 @@ def qic(
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
+    **removed: Any,
 ) -> SPCResult:
     """
     Compute an SPC chart and return an SPCResult.
@@ -234,6 +235,8 @@ def qic(
     -------
     SPCResult (frozen dataclass)
     """
+    if removed:
+        _reject_removed_arguments(removed)
     if chart.lower().strip() in ("oe", "oep"):
         raise ValueError(
             f"chart={chart!r} compares providers, which is a funnel plot: use "
@@ -294,6 +297,38 @@ def qic(
         flip=flip,
         strip_horizontal=strip_horizontal,
         print_summary=print_summary,
+    )
+
+
+# Funnel arguments qic() took up to 0.7, and where each one went. An agent or script
+# written against 0.7 gets told the replacement rather than Python's bare "unexpected
+# keyword argument". Other unknown names still raise exactly that.
+_REMOVED_QIC_ARGUMENTS = {
+    "funnel": "funnel plots moved to qikit.funnel(data, y=..., n=..., measure=...)",
+    "signal_side": "it is funnel(worse=...): 'higher' for 'above', 'lower' for 'below', "
+                   "None for 'both'",
+    "signal_method": "it is funnel(signal=...): 'limits' or 'fdr' ('exact' is gone; the "
+                     "limits are the exact test)",
+    "limit_method": "funnel() always draws exact limits",
+    "x_spacing": "funnel() plots each provider at its volume; qic() spaces points by x",
+    "x_log": "it is funnel(x_log=True)",
+    "levels": "it is funnel(limits=...)",
+    "fdr_levels": "it is funnel(fdr_levels=...)",
+    "within_dispersion": "it is funnel(within_dispersion=...)",
+}
+
+
+def _reject_removed_arguments(removed: dict[str, Any]) -> None:
+    """Raise TypeError for keywords qic() does not take, naming any replacement."""
+    known = [name for name in removed if name in _REMOVED_QIC_ARGUMENTS]
+    if not known:
+        name = next(iter(removed))
+        raise TypeError(f"qic() got an unexpected keyword argument {name!r}")
+    reasons = "; ".join(f"{name}=: {_REMOVED_QIC_ARGUMENTS[name]}" for name in known)
+    raise TypeError(
+        f"qic() no longer takes {', '.join(repr(n) for n in known)}: it draws "
+        f"time-ordered charts only, and comparing providers is qikit.funnel(). "
+        f"{reasons}."
     )
 
 
