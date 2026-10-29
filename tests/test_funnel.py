@@ -220,11 +220,30 @@ class TestQicIsTimeOrdered:
         with pytest.raises(ValueError, match="qikit.funnel"):
             qic(y=OBS, n=EXP, chart="oe")
 
-    @pytest.mark.parametrize("kw", [{"funnel": True}, {"signal_side": "above"},
-                                    {"signal_method": "fdr"}, {"limit_method": "exact"}])
-    def test_has_no_funnel_arguments(self, kw):
-        with pytest.raises(TypeError):
+    @pytest.mark.parametrize("kw,replacement", [
+        ({"funnel": True}, "qikit.funnel(data, y=..., n=..., measure=...)"),
+        ({"signal_side": "above"}, "funnel(worse=...)"),
+        ({"signal_method": "fdr"}, "funnel(signal=...)"),
+        ({"limit_method": "exact"}, "always draws exact limits"),
+        ({"x_spacing": "n"}, "plots each provider at its volume"),
+        ({"x_log": True}, "funnel(x_log=True)"),
+        ({"levels": (0.998, 0.95)}, "funnel(limits=...)"),
+        ({"fdr_levels": (0.05, 0.1)}, "funnel(fdr_levels=...)"),
+        ({"within_dispersion": 2.0}, "funnel(within_dispersion=...)"),
+    ])
+    def test_removed_arguments_name_their_replacement(self, kw, replacement):
+        """A 0.7 call is told where each funnel argument went, not just that it is gone."""
+        with pytest.raises(TypeError, match="qic\\(\\) no longer takes") as err:
             qic(y=OBS, n=EXP, chart="u", **kw)
+        assert "qikit.funnel()" in str(err.value) and replacement in str(err.value)
+
+    def test_every_removed_argument_is_named_together(self):
+        with pytest.raises(TypeError, match="'funnel', 'signal_side'"):
+            qic(y=OBS, n=EXP, chart="u", funnel=True, signal_side="above")
+
+    def test_other_unknown_arguments_keep_pythons_error(self):
+        with pytest.raises(TypeError, match="^qic\\(\\) got an unexpected keyword argument 'bogus'$"):
+            qic(y=OBS, n=EXP, chart="u", bogus=1)
 
     def test_time_ordered_charts_unchanged(self):
         a = qic(y=OBS, n=EXP, chart="u")
