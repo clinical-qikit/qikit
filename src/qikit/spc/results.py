@@ -32,8 +32,9 @@ def _funnel_grid(n_obs: np.ndarray, integer: bool) -> np.ndarray:
     """
     Denominators to draw a funnel's contours at: geometric steps across the observed
     range, merged with every observed n so each curve passes through the limit that
-    decided that point's signal. A binomial chart steps in whole numbers, since a
-    non-integer n would fall back to the normal approximation.
+    decided that point's signal. A binomial chart steps in whole numbers, where its
+    limits are the exact ones; between them (and under within_dispersion) they are
+    interpolated in n (docs/methods.md §4.13).
     """
     n_obs = np.asarray(n_obs, dtype=float)
     n_obs = n_obs[np.isfinite(n_obs) & (n_obs > 0)]

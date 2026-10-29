@@ -76,6 +76,7 @@ including where qikit departs from the paper.
 | Events out of cases (complication %, top-box %) | `measure="proportion"`, `y=events`, `n=cases` |
 | Events over exposure (infections per line-day) | `measure="rate"`, `y=events`, `n=exposure` |
 | **Days**, or anything where one case adds many units (length of stay as O/E days) | stay-level rows, one per case, and `within_dispersion="estimate"` |
+| **Survey items**, scored per item (HCAHPS composites such as Communication with Doctors) | one row per survey (`y` = items "Always", `n` = items answered), `measure="proportion"`, `within_dispersion="estimate"` |
 | A measure where only one direction is bad | `worse="higher"` (mortality) or `worse="lower"` (top-box) |
 | Hundreds of providers, and few false alarms matter more than the drawn lines | `signal="fdr"` |
 | A benchmark against the risk model itself, not the peer average | `center=1.0` |
@@ -181,6 +182,11 @@ r.summary["within_dispersion"]     # φ̂: how much more variable each count is 
 - **Upstream choices:** cap extreme stays at a stated percentile before aggregating. If
   φ̂ differs a lot between service lines, facet by service line; `"estimate"` is then
   taken per facet.
+- **Multi-item surveys** are the same problem on a proportion: one patient answers the
+  three doctor questions alike, so item counts look like more data than they are. Pass
+  one row per survey with `within_dispersion="estimate"`; the model then sees y/φ̂ out
+  of n/φ̂ (Rao–Scott effective counts), interpolated rather than rounded
+  ([methods §4.13](docs/methods.md)).
 
 In one simulated length-of-stay cohort of 1,000 providers with no real differences
 between them, the chart flags 24 outliers and 65 alerts without the fix. With
@@ -262,7 +268,7 @@ r.plot(
 | `exclude` | `None` | A boolean column, or a list of unit ids, left out of the model |
 | `center` | pooled | A fixed center line, e.g. `1.0` on O/E |
 | `overdispersion` | `True` | Judge against the spread between providers (τ) |
-| `within_dispersion` | `1.0` | Clustered counts: a number, or `"estimate"` from stay-level rows |
+| `within_dispersion` | `1.0` | Clustered counts or survey items: a number, or `"estimate"` from case-level rows (stays, surveys) |
 | `worse` | `None` | `"higher"` or `"lower"`: flag one side, one-sided p-values |
 | `signal` | `"limits"` | `"limits"` (exact test, drawn) or `"fdr"` (q-values) |
 | `limits` | `(0.998, 0.95)` | Outer and inner contour coverage |

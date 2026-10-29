@@ -16,7 +16,7 @@ limits, p-values, FDR or tier logic; read them from the result.
 | events out of cases | `measure="proportion", y=<events>, n=<cases>` |
 | events over exposure (line-days, patient-days at risk) | `measure="rate", y=<events>, n=<exposure>` |
 
-## 2. Days, minutes, or anything where one case adds many units: use case-level rows
+## 2. Days, survey items, or anything where one case adds many units: use case-level rows
 
 Length of stay as observed/expected **days** is not a count of independent events. Query
 one row per stay, not per provider, and let qikit measure how clumped the days are:
@@ -40,8 +40,38 @@ stay-level data and pass the number:
 Event counts (deaths, readmissions, infections) need none of this; leave
 `within_dispersion` at its default.
 
+### Multi-question surveys and audits: one row per survey, not per item
+
+HCAHPS composites ("Communication with Doctors": explains, listens, respects) are scored
+per item, but one patient answers all three alike, so the items are not independent.
+Passing item counts per physician treats 12 items from 4 surveys as 12 independent
+answers when they carry about 5, which over-flags small panels and inflates `tau`.
+Query one row per survey and let qikit measure the clustering:
+
+```python
+surveys = session.sql("""
+    SELECT survey_id, physician_id,
+           SUM(IFF(answer = 'Always', 1, 0)) AS always,     -- top-box items
+           COUNT(answer)                     AS answered    -- items answered
+    FROM hcahps_doctor_items
+    WHERE discharge_date BETWEEN :start AND :end
+    GROUP BY survey_id, physician_id
+""").to_pandas()
+
+r = funnel(surveys, y="ALWAYS", n="ANSWERED", measure="proportion",
+           unit="PHYSICIAN_ID", within_dispersion="estimate",
+           worse="lower", signal="fdr")
+```
+
+- Do **not** pass one row per item: a single yes/no cannot show clustering, and
+  `"estimate"` refuses it.
+- Bottom-box is a separate call (or facet) with its own `worse="higher"`.
+- At a few surveys per physician most providers cannot flag anything: read
+  `min_detectable` and `summary["underpowered"]` before calling a quiet physician "fine".
+
 **If qikit warns "Counts look clustered within providers"**, the chart is wrong as drawn.
-Re-run with stay-level rows and `within_dispersion="estimate"` before reporting anything.
+Re-run with case-level rows (stays, or surveys) and `within_dispersion="estimate"`
+before reporting anything.
 
 ## 3. Set direction and the flag rule
 

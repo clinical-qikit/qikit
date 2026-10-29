@@ -27,7 +27,14 @@ import math
 import numpy as np
 
 from .dist import beta_binomial_tails, binomial_tails, poisson_gamma_tails, poisson_tails
-from .limits import DEFAULT_LEVELS, _integer_count, beta_params, contour, gamma_size
+from .limits import (
+    DEFAULT_LEVELS,
+    _integer_count,
+    beta_params,
+    contour,
+    fractional_binomial_tails,
+    gamma_size,
+)
 
 
 def signal_thresholds(side: str, levels: tuple = DEFAULT_LEVELS) -> tuple[float, float]:
@@ -73,10 +80,17 @@ def _point_tails(
     tail linearly interpolated between its two integer neighbours: "interpolated".
     That is the inverse of Spiegelhalter's interpolated quantile, so the point is
     beyond a contour exactly when this p-value is below its tail probability, as for
-    a whole count. "normal" where the normal model stood in: a non-integer binomial
-    denominator, a pp spread no beta distribution can have, or a walk past
+    a whole count. A non-integer binomial denominator (ν = n/φ under within_dispersion)
+    interpolates in ν too (limits.fractional_binomial_tails, the same function its
+    contours are solved from): also "interpolated". "normal" where the normal model
+    stood in: a pp spread no beta distribution can have, or a walk past
     dist._MAX_TERMS. Its mean and variance are those of the exact model in each case.
     """
+    if family == "binomial" and n > 0 and _integer_count(n) is None and not math.isnan(o):
+        tails = fractional_binomial_tails(o, n, cl, tau2)
+        if tails is not None:
+            return tails, "interpolated"
+        return _point_tails_normal(o, n, cl, tau2, family), "normal"
     if _integer_count(o) is None and not math.isnan(o) and o >= 0:
         k0 = math.floor(o)
         w = o - k0

@@ -2483,8 +2483,10 @@ class TestExactFunnelLimits:
         assert "overdispersion=True" in loud.summary["dispersion_note"]
 
     def test_non_integer_denominator_is_reported(self):
+        """A fractional denominator (n/φ under within_dispersion) is interpolated
+        between its whole neighbours, not handed to the normal approximation."""
         r = qic(y=self.Y, n=[v + 0.5 for v in self.N], chart="p", funnel=True)
-        assert r.summary["limit_method"] == "normal"
+        assert r.summary["limit_method"] == "interpolated"
 
 
 class TestAdjustedFunnels:
@@ -3154,9 +3156,9 @@ class TestPValues:
         assert math.isnan(row["p_value"]) and math.isnan(row["q_value"])
         assert r.summary["n_tested"] == 9
 
-    def test_non_integer_denominator_falls_back_to_normal(self):
+    def test_non_integer_denominator_is_interpolated(self):
         r = qic(y=[3, 4, 9, 2], n=[30.5, 40.0, 50.0, 60.0], chart="p", funnel=True)
-        assert r.summary["p_value_method"] == "normal"
+        assert r.summary["p_value_method"] == "interpolated"
         assert r.data["p_value"].notna().all()
 
     def test_multiply_leaves_them_alone(self):
@@ -3282,11 +3284,13 @@ class TestSignalMethod:
         else:
             n = np.round(rng.uniform(0.5, 80, size=k), 2)
             y = rng.poisson(n * rng.lognormal(0, 0.45, size=k)).astype(float)
+        if whole == "phi":
+            return y / 2.37, n / 2.37  # effective counts under within_dispersion
         if not whole:
             y = y + rng.uniform(0, 1, size=k) * (y < n)  # averaged aggregates
         return y, n
 
-    @pytest.mark.parametrize("whole", [True, False])
+    @pytest.mark.parametrize("whole", [True, False, "phi"])
     @pytest.mark.parametrize("chart", ["oe", "oep", "u", "up", "p", "pp"])
     def test_lines_and_p_values_agree(self, chart, whole):
         """Beyond a contour exactly when p < its tail probability, on both sides and at
@@ -3480,10 +3484,8 @@ class TestBinomialPointCI:
             lo, hi = _limits.binomial_point_ci(x, n)
             assert lo <= x / n <= hi
 
-    def test_nan_without_an_exact_statement(self):
+    def test_nan_without_a_usable_count(self):
         assert all(math.isnan(v) for v in _limits.binomial_point_ci(3, 0))
-        assert all(math.isnan(v) for v in _limits.binomial_point_ci(3, 10.5))
-        assert all(math.isnan(v) for v in _limits.binomial_point_ci(2.5, 10))
         assert all(math.isnan(v) for v in _limits.binomial_point_ci(11, 10))
 
 
@@ -3512,8 +3514,88 @@ class TestBinomialDetectability:
 
     def test_nan_without_usable_denominator(self):
         assert math.isnan(_limits.binomial_detectable_rate(3.0, 0))
-        assert math.isnan(_limits.binomial_detectable_rate(3.0, 10.5))
         assert math.isnan(_limits.binomial_detectable_rate(float("inf"), 10))
+
+
+class TestFractionalBinomial:
+    """
+    Binomial and beta-binomial funnels at a fractional denominator ν (n/φ under
+    within_dispersion): every tail interpolated in ν between ⌊ν⌋ and ⌈ν⌉, exact at a
+    whole ν, and the contours solved from those tails (docs/methods.md §4.13).
+    """
+
+    OUT = _limits.contour(0.998)
+    IN = _limits.contour(0.95)
+
+    @pytest.mark.parametrize("m", [1, 7, 40, 300])
+    @pytest.mark.parametrize("cl", [0.1, 0.8])
+    @pytest.mark.parametrize("tau2", [0.0, 0.002])
+    def test_tables_match_the_exact_tails_bit_for_bit(self, m, cl, tau2):
+        table = _limits._tail_table(m, cl, tau2)
+        params = _limits.beta_params(cl, tau2) if tau2 else None
+        for k in range(m + 1):
+            exact = (_dist.beta_binomial_tails(k, m, *params) if params
+                     else _dist.binomial_tails(k, m, cl))
+            assert _limits._table_tails(table, float(k)) == exact
+
+    @pytest.mark.parametrize("cl", [0.1, 0.8])
+    @pytest.mark.parametrize("tau2", [0.0, 0.002])
+    def test_contours_continuous_through_whole_numbers(self, cl, tau2):
+        chart = "pp" if tau2 else "p"
+        from qikit.spc.compute import funnel_limits
+        for m in (4, 12, 37, 150):
+            lim = funnel_limits(chart, cl, np.array([m - 1e-7, float(m), m + 1e-7]), tau2=tau2)
+            for col in ("ucl", "lcl", "ucl_95", "lcl_95"):
+                assert lim[col][0] == pytest.approx(lim[col][1], abs=1e-6)
+                assert lim[col][2] == pytest.approx(lim[col][1], abs=1e-6)
+
+    @pytest.mark.parametrize("chart,tau2", [("p", 0.0), ("pp", 0.002)])
+    def test_contours_monotone_on_a_fine_grid(self, chart, tau2):
+        from qikit.spc.compute import funnel_limits
+        lim = funnel_limits(chart, 0.1, np.arange(1.0, 60.0, 0.05), tau2=tau2)
+        for col in ("ucl", "ucl_95"):
+            assert not (np.diff(lim[col]) > 1e-12).any()
+        for col in ("lcl", "lcl_95"):
+            assert not (np.diff(lim[col]) < -1e-12).any()
+
+    def test_contour_is_where_the_tail_crosses(self):
+        from qikit.spc.pvalues import _point_tails
+        nu, cl = 17.3, 0.4
+        ucl, lcl = _limits.fractional_binomial_pair(cl, nu, 0.0, *self.IN[:2])
+        assert 0 < lcl < cl < ucl < 1
+        (lo_in, _), _ = _point_tails((lcl + 1e-9) * nu, nu, cl, 0.0, "binomial")
+        (lo_out, _), _ = _point_tails((lcl - 1e-9) * nu, nu, cl, 0.0, "binomial")
+        assert lo_out < 0.025 <= lo_in
+        (_, up_in), _ = _point_tails((ucl - 1e-9) * nu, nu, cl, 0.0, "binomial")
+        (_, up_out), _ = _point_tails((ucl + 1e-9) * nu, nu, cl, 0.0, "binomial")
+        assert up_out <= 0.025 < up_in
+
+    def test_upper_contour_is_one_when_nothing_can_flag(self):
+        ucl, _ = _limits.fractional_binomial_pair(0.8, 4.96, 0.0, *self.OUT[:2])
+        assert ucl == 1.0
+
+    def test_tau_zero_reproduces_the_binomial(self):
+        e = np.array([4.96, 12.4, 30.7])
+        a = _limits._mixture_funnel_pair(0.2, e, 0.0, "binomial", *self.OUT)
+        b = _limits._binomial_funnel_pair(0.2, e, *self.OUT)
+        assert a[0].tolist() == b[0].tolist() and a[1].tolist() == b[1].tolist()
+
+    def test_ci_is_clopper_pearson_at_whole_counts_and_continuous(self):
+        exact = _limits.binomial_point_ci(3, 12)
+        near = _limits.binomial_point_ci(3, 12 + 1e-7)
+        assert near == pytest.approx(exact, abs=1e-6)
+        lo, hi = _limits.binomial_point_ci(3.3, 4.96)
+        assert 0 < lo < 3.3 / 4.96 < hi < 1
+        assert _limits.binomial_point_ci(0.0, 4.96)[0] == 0.0
+        assert _limits.binomial_point_ci(4.96, 4.96)[1] == 1.0
+
+    def test_detectable_rate_continuous_through_whole_numbers(self):
+        from qikit.spc.compute import funnel_limits
+        grid = np.array([24 - 1e-7, 24.0, 24 + 1e-7])
+        ucl = funnel_limits("p", 0.1, grid)["ucl"]
+        d = [_limits.binomial_detectable_rate(u * g, g) for u, g in zip(ucl, grid)]
+        assert d[0] == pytest.approx(d[1], abs=1e-6)
+        assert d[2] == pytest.approx(d[1], abs=1e-6)
 
 
 class TestFunnelPowerReporting:

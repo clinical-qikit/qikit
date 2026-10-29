@@ -45,6 +45,23 @@ def _los_stays(rng, k=300, phi_shape=0.6, provider_sd=0.0, mean_stays=60):
     return pd.DataFrame(rows, columns=["provider", "los", "exp_los"])
 
 
+def _surveys(rng, k=300, base=0.8, rho=0.71, provider_sd=0.0, min_surveys=4, items=3):
+    """
+    One row per survey of a multi-item instrument: each survey has a latent
+    propensity drawn from a beta with intraclass correlation rho, so its items agree
+    (design effect 1 + (items − 1)·rho; 2.42 at the defaults). rho = 0 makes the
+    items independent.
+    """
+    rows = []
+    for j in range(k):
+        s = max(min_surveys, int(round(rng.lognormal(np.log(15), 0.8))))
+        theta = float(np.clip(base + provider_sd * rng.standard_normal(), 0.01, 0.99))
+        p = (rng.beta(theta * (1 / rho - 1), (1 - theta) * (1 / rho - 1), s) if rho > 0
+             else np.full(s, theta))
+        rows += [(f"D{j:03d}", int(v), items) for v in rng.binomial(items, p)]
+    return pd.DataFrame(rows, columns=["doctor", "always", "answered"])
+
+
 def _aggregate(stays):
     return stays.groupby("provider", sort=False)[["los", "exp_los"]].sum().reset_index()
 
@@ -173,8 +190,10 @@ class TestInputs:
 
     def test_stay_level_rows_sum_per_unit(self):
         stays = _los_stays(np.random.default_rng(1), k=40)
-        a = funnel(stays, y="los", n="exp_los", measure="oe", unit="provider")
-        b = funnel(_aggregate(stays), y="los", n="exp_los", measure="oe", unit="provider")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the rows show clustered days, by design
+            a = funnel(stays, y="los", n="exp_los", measure="oe", unit="provider")
+            b = funnel(_aggregate(stays), y="los", n="exp_los", measure="oe", unit="provider")
         for col in ("y", "upper_outlier", "p_value", "signal"):
             assert a.data[col].tolist() == b.data[col].tolist()
 
@@ -306,9 +325,6 @@ class TestWithinDispersion:
         with pytest.raises(ValueError, match="several rows per unit"):
             _r(within_dispersion="estimate")
 
-    def test_not_for_proportions(self):
-        with pytest.raises(ValueError, match="measure='oe' and 'rate'"):
-            funnel(y=OBS, n=[v * 10 for v in EXP], measure="proportion", within_dispersion=2.0)
 
     def test_calibrates_the_flag_rate(self):
         """No true provider effect: with φ̂ the tiers hold about their chance share."""
@@ -322,6 +338,94 @@ class TestWithinDispersion:
         assert naive["n_outlier"] > 10 * fixed["expected_false_flags"]["outlier"]
         assert fixed["n_outlier"] <= 4
         assert fixed["n_alert"] <= 2 * fixed["expected_false_flags"]["alert"]
+
+
+class TestClusteredProportions:
+    """within_dispersion on measure="proportion": items clustered in surveys."""
+
+    ARGS = dict(y="always", n="answered", unit="doctor", measure="proportion")
+
+    def test_supplied_phi_is_effective_counts(self):
+        """Rao–Scott: a proportion of n clustered items is binomial in n/φ."""
+        y = [3, 10, 14, 25, 40, 61, 70, 101]
+        n = [12, 18, 24, 36, 60, 90, 99, 150]
+        r = funnel(y=y, n=n, measure="proportion", overdispersion=False, within_dispersion=2.42)
+        scaled = _qic(y=[v / 2.42 for v in y], n=[v / 2.42 for v in n], chart="p", funnel=True)
+        assert r.data["upper_outlier"].tolist() == scaled.data["ucl"].tolist()
+        assert r.data["p_value"].tolist() == pytest.approx(scaled.data["p_value"].tolist(), rel=1e-12)
+        assert r.data["numerator"].tolist() == y
+        assert r.summary["within_dispersion"] == 2.42
+        assert r.summary["within_dispersion_source"] == "supplied"
+        assert r.summary["p_value_method"] == "interpolated"
+        assert r.data[["ci_lower", "ci_upper"]].notna().all().all()
+        assert r.data["min_detectable"].iloc[-3:].notna().all()  # NaN: nothing can flag
+
+    def test_one_is_a_no_op(self):
+        d = _surveys(np.random.default_rng(1), k=60)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            a = funnel(d, **self.ARGS)
+            b = funnel(d, within_dispersion=1.0, **self.ARGS)
+        assert a.data.equals(b.data)
+
+    def test_contours_redrawn_in_the_callers_units(self):
+        y, n = [3, 10, 14, 25, 40], [12, 18, 24, 36, 60]
+        r = funnel(y=y, n=n, measure="proportion", within_dispersion=2.42)
+        assert r.limits(n)["upper_outlier"].tolist() == r.data["upper_outlier"].tolist()
+
+    @pytest.mark.parametrize("base", [0.8, 0.1])
+    def test_estimate_recovers_the_design_effect(self, base):
+        d = _surveys(np.random.default_rng(2), k=400, base=base)
+        r = funnel(d, within_dispersion="estimate", **self.ARGS)
+        assert r.summary["within_dispersion"] == pytest.approx(2.42, rel=0.06)
+        assert r.summary["within_dispersion_source"] == "estimated"
+
+    def test_estimate_is_one_for_independent_items(self):
+        d = _surveys(np.random.default_rng(3), k=400, rho=0.0)
+        r = funnel(d, within_dispersion="estimate", **self.ARGS)
+        assert r.summary["within_dispersion"] == pytest.approx(1.0, abs=0.06)
+
+    def test_estimate_ignores_real_provider_differences(self):
+        a = funnel(_surveys(np.random.default_rng(4), k=400, base=0.3),
+                   within_dispersion="estimate", **self.ARGS).summary["within_dispersion"]
+        b = funnel(_surveys(np.random.default_rng(4), k=400, base=0.3, provider_sd=0.08),
+                   within_dispersion="estimate", **self.ARGS).summary["within_dispersion"]
+        assert b == pytest.approx(a, rel=0.08)
+
+    def test_providers_at_zero_or_all_events_are_kept(self):
+        """At a 3% rate most doctors have no events; they still count toward φ̂."""
+        d = _surveys(np.random.default_rng(5), k=400, base=0.03)
+        theta = d.groupby("doctor")["always"].sum()
+        assert (theta == 0).mean() > 0.3
+        r = funnel(d, within_dispersion="estimate", **self.ARGS)
+        assert r.summary["within_dispersion"] == pytest.approx(2.42, rel=0.15)
+
+    def test_estimate_refuses_one_item_per_row(self):
+        items = pd.DataFrame({"doctor": np.repeat([f"D{i}" for i in range(50)], 6),
+                              "always": np.random.default_rng(6).binomial(1, 0.8, 300),
+                              "answered": 1})
+        with pytest.raises(ValueError, match="one item per row"):
+            funnel(items, within_dispersion="estimate", **self.ARGS)
+
+    def test_estimate_per_facet(self):
+        top = _surveys(np.random.default_rng(7), k=150, rho=0.71).assign(box="top")
+        low = _surveys(np.random.default_rng(8), k=150, rho=0.2).assign(box="bottom")
+        r = funnel(pd.concat([top, low]), facets="box", within_dispersion="estimate", **self.ARGS)
+        phis = {fv: s["within_dispersion"] for fv, s in r.summary["by_facet"].items()}
+        assert phis["top"] == pytest.approx(2.42, rel=0.1)
+        assert phis["bottom"] == pytest.approx(1.4, rel=0.1)
+
+    @pytest.mark.parametrize("base", [0.8, 0.1])
+    def test_calibrates_the_flag_rate(self, base):
+        """No true provider effect: the default over-flags, φ̂ holds the chance share."""
+        d = _surveys(np.random.default_rng(9), k=575, base=base)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            naive = funnel(d, overdispersion=False, **self.ARGS).summary
+        fixed = funnel(d, overdispersion=False, within_dispersion="estimate", **self.ARGS).summary
+        assert naive["n_alert"] > 1.3 * naive["expected_false_flags"]["alert"]
+        assert fixed["n_outlier"] <= 3
+        assert fixed["n_alert"] <= fixed["expected_false_flags"]["alert"]
 
 
 class TestDispersionShape:
@@ -345,6 +449,60 @@ class TestDispersionShape:
                                 unit="provider", within_dispersion="estimate")
         assert caught == []
         assert r.summary["dispersion_shape"] in ("none", "between")
+
+    @pytest.mark.parametrize("base", [0.8, 0.1])
+    def test_survey_rows_fire_where_totals_cannot(self, base):
+        """Clustered items with a real spread between doctors: the totals read
+        "between" (the spread hides the clumping); the survey rows see it."""
+        d = _surveys(np.random.default_rng(11), k=575, base=base,
+                     provider_sd=0.06 if base == 0.8 else 0.04)
+        r, caught = self._warns(data=d, y="always", n="answered", unit="doctor",
+                                measure="proportion")
+        assert len(caught) == 1
+        assert r.summary["dispersion_shape"] in ("within", "both")
+        assert r.summary["within_dispersion_hint"] == pytest.approx(2.42, rel=0.1)
+        assert r.summary["within_dispersion_hint_source"] == "rows"
+        assert "one row per case (per survey" in r.summary["notes"][0]
+        totals = d.groupby("doctor", as_index=False)[["always", "answered"]].sum()
+        t, _ = self._warns(data=totals, y="always", n="answered", unit="doctor",
+                           measure="proportion")
+        assert t.summary["dispersion_shape"] == "between"
+        assert t.summary["within_dispersion_hint_source"] == "totals"
+
+    def test_estimate_silences_the_row_check(self):
+        d = _surveys(np.random.default_rng(11), k=300)
+        r, caught = self._warns(data=d, y="always", n="answered", unit="doctor",
+                                measure="proportion", within_dispersion="estimate")
+        assert caught == []
+
+    @pytest.mark.parametrize("rows", ["independent_items", "one_per_patient"])
+    def test_row_check_quiet_on_independent_cases(self, rows):
+        rng = np.random.default_rng(12)
+        if rows == "independent_items":
+            d = _surveys(rng, k=575, rho=0.0, provider_sd=0.05)
+        else:
+            d = pd.DataFrame({"doctor": np.repeat([f"D{i}" for i in range(400)], 20),
+                              "always": rng.binomial(1, 0.8, 8000), "answered": 1})
+        r, caught = self._warns(data=d, y="always", n="answered", unit="doctor",
+                                measure="proportion")
+        assert caught == []
+
+    def test_row_check_quiet_on_death_rows(self):
+        """Patient-level O/E rows (died 0/1 against predicted risk) vary less than
+        Poisson, not more."""
+        rng = np.random.default_rng(13)
+        risk = rng.beta(1, 9, 20_000)
+        d = pd.DataFrame({"provider": np.repeat([f"P{i}" for i in range(400)], 50),
+                          "died": rng.binomial(1, risk), "risk": risk})
+        r, caught = self._warns(data=d, y="died", n="risk", unit="provider", measure="oe")
+        assert caught == []
+
+    def test_row_check_fires_on_stay_rows(self):
+        stays = _los_stays(np.random.default_rng(14), k=60)
+        r, caught = self._warns(data=stays, y="los", n="exp_los", measure="oe", unit="provider")
+        assert len(caught) == 1
+        assert r.summary["within_dispersion_hint_source"] == "rows"
+        assert r.summary["within_dispersion_hint"] == pytest.approx(5 / 0.6, rel=0.15)
 
     @pytest.mark.parametrize("scenario", ["poisson", "between", "binary"])
     def test_quiet_on_event_counts(self, scenario):

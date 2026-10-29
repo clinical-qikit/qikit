@@ -21,6 +21,9 @@ References
 [6] Laney DB. Improved control charts for attributes. Quality Engineering 14(4), 2002.
 [7] Clayton D, Kaldor J. Empirical Bayes estimates of age-standardized relative risks
     for use in disease mapping. Biometrics 1987;43:671-681.
+[16] Korn EL, Graubard BI. Confidence intervals for proportions with small expected
+    number of positive counts estimated from survey data. Survey Methodology
+    1998;24(2):193-201.
 """
 
 from __future__ import annotations
@@ -34,9 +37,12 @@ import numpy as np
 
 from .constants import D2, D4, Z_80, Z_95, Z_998, a3, b3, b4, c4
 from .dist import (
+    _BISECT_ITERS,
     _EXACT_MAX_LAMBDA,
     _MEAN_SOLVE_MAX_K,
+    _walk_terms,
     beta_binomial_quantiles,
+    binomial_cdf,
     binomial_quantiles,
     binomial_theta_for_cdf,
     byar_quantile,
@@ -412,8 +418,9 @@ def _binomial_funnel_pair(
 
     Asymmetric about the center line, as the Poisson pair is, and for the same reason:
     a physician with 30 patients at a 10% event rate has room for 9 events above
-    expected but only 3 below. A non-integer denominator, which no binomial describes,
-    falls back to [1] eq. 3 and says so through diag.
+    expected but only 3 below. A non-integer denominator (ν = n/φ under
+    within_dispersion) is interpolated between its whole neighbours
+    (fractional_binomial_pair).
     """
     e = np.asarray(n, dtype=float)
     ucl = np.full(len(e), np.nan)
@@ -421,6 +428,13 @@ def _binomial_funnel_pair(
     for i, ni in enumerate(e):
         if not (ni > 0):
             continue
+        if _integer_count(float(ni)) is None:
+            pair = fractional_binomial_pair(cl, float(ni), 0.0, p_lower, p_upper)
+            if not math.isnan(pair[0]):
+                ucl[i], lcl[i] = pair
+                if diag is not None:
+                    diag["interpolated"] = True
+                continue
         (lo, hi), exact = binomial_quantiles((p_lower, p_upper), float(ni), cl, (-z, z))
         if not exact and diag is not None:
             diag["normal"] = True
@@ -694,15 +708,15 @@ def binomial_detectable_rate(t_count: float, n: float) -> float:
 
     Returns inf when no count can flag at all — the upper limit sits at or above n,
     which happens at a handful of cases against a high center line — and NaN when the
-    point has no usable denominator. A non-integer n, which no binomial describes and
-    whose limits already fell back to the normal approximation, is also NaN: there is
-    no exact statement to make about it.
+    point has no usable denominator. A non-integer n (ν = n/φ under within_dispersion)
+    interpolates the chance of flagging in ν between its whole neighbours, as the
+    limits do (§4.13).
     """
     if not (n > 0) or math.isnan(t_count) or math.isinf(t_count):
         return math.nan
     m = _integer_count(n)
     if m is None:
-        return math.nan
+        return _fractional_detectable_rate(t_count / n, n)
     thr = math.floor(t_count)
     if thr < 0:
         return math.nan
@@ -718,15 +732,16 @@ def binomial_point_ci(x: float, n: float) -> tuple[float, float]:
     The binomial counterpart of oe_point_ci's Garwood interval, and the same
     construction: the lower bound is the θ at which x or more events has probability
     0.025, the upper the θ at which x or fewer does. x = 0 gives a lower bound of
-    exactly 0 and x = n an upper bound of exactly 1. Like the band, NaN for a
-    non-integer count or denominator, which no binomial describes.
+    exactly 0 and x = n an upper bound of exactly 1. A non-integer count or
+    denominator (an effective count under within_dispersion) takes the same
+    construction on the interpolated tails (_fractional_point_ci).
     """
     if not (n > 0) or math.isnan(x) or x < 0 or x > n:
         return (math.nan, math.nan)
     m = _integer_count(n)
     k = _integer_count(x)
     if m is None or k is None:
-        return (math.nan, math.nan)
+        return _fractional_point_ci(x, n)
     lo = 0.0 if k == 0 else binomial_theta_for_cdf(k - 1, m, 0.975)
     hi = 1.0 if k == m else binomial_theta_for_cdf(k, m, 0.025)
     return (lo, hi)
@@ -752,6 +767,225 @@ def beta_params(cl: float, tau2: float) -> tuple[float, float] | None:
     if not (s > 0):
         return None
     return cl * s, (1.0 - cl) * s
+
+
+# ---------------------------------------------------------------------------
+# Fractional binomial denominators (docs/methods.md §4.13)
+# ---------------------------------------------------------------------------
+#
+# Under within_dispersion=φ a proportion's model sees ν = n/φ effective cases, which is
+# rarely a whole number, and no binomial has a fractional size. Each quantity below is
+# interpolated linearly in ν between the whole neighbours m₀ = ⌊ν⌋ and m₁ = m₀ + 1, at
+# the same proportion p:
+#
+#     T(p; ν) = (1 − w)·T_m₀(p·m₀) + w·T_m₁(p·m₁),   w = ν − m₀,
+#
+# each T_m being the exact tail at a whole m, itself interpolated between whole counts
+# as every funnel p-value is (§4.11). The contours are this test's boundaries, found by
+# bisection, so "beyond the line" and "p < α" stay one statement; at w = 0 everything
+# is the exact tail. The same holds for the binomial and the beta-binomial, so τ̂ = 0
+# still reproduces the unadjusted chart to the bit.
+
+def _tail_table(m: int, cl: float, tau2: float):
+    """
+    (k_lo, lower, upper) over the kept support of Binomial(m, cl), or of the
+    beta-binomial with between-provider variance tau2 > 0: lower[j] = P(X ≤ k_lo + j)
+    and upper[j] = P(X ≥ k_lo + j), summed in the order dist._walk_tails sums them, so
+    each entry is that function's value bit for bit. None where the exact model is
+    unavailable (no beta distribution has that spread, or the walk ran out), for the
+    caller's normal fallback.
+    """
+    if m == 0 or cl <= 0.0:
+        return 0, [1.0], [1.0]
+    if cl >= 1.0:
+        return m, [1.0], [1.0]
+    if tau2 > 0:
+        params = beta_params(cl, tau2)
+        if params is None:
+            return None
+        a, b = params
+
+        def ratio(j):
+            return (m - j) * (a + j) / ((j + 1) * (b + m - j - 1))
+
+        start = min(m, int(math.floor(m * cl)))
+    else:
+        odds = cl / (1.0 - cl)
+
+        def ratio(j):
+            return (m - j) / (j + 1) * odds
+
+        start = min(m, int(math.floor((m + 1) * cl)))
+    walk = _walk_terms(ratio, start, m)
+    if walk is None:
+        return None
+    k_lo, terms, total = walk
+    lower = []
+    acc = 0.0
+    for t in terms:
+        acc += t
+        lower.append(min(1.0, acc / total))
+    upper = []
+    acc = 0.0
+    for t in reversed(terms):
+        acc += t
+        upper.append(min(1.0, acc / total))
+    upper.reverse()
+    return k_lo, lower, upper
+
+
+def _table_tails(table, o: float) -> tuple[float, float]:
+    """(P(X ≤ o), P(X ≥ o)) from a _tail_table, linear between whole counts."""
+    k_lo, lower, upper = table
+
+    def at(k):
+        j = k - k_lo
+        if j < 0:
+            return 0.0, 1.0
+        if j >= len(lower):
+            return 1.0, 0.0
+        return lower[j], upper[j]
+
+    k0 = math.floor(o)
+    w = o - k0
+    lo0, up0 = at(k0)
+    if w == 0.0:
+        return lo0, up0
+    lo1, up1 = at(k0 + 1)
+    return (1.0 - w) * lo0 + w * lo1, (1.0 - w) * up0 + w * up1
+
+
+def _mixed_tails(tables, m0: int, w: float, p: float) -> tuple[float, float]:
+    """T(p; ν) above: both tails at proportion p, interpolated in ν."""
+    lo0, up0 = _table_tails(tables[0], min(p * m0, float(m0)))
+    lo1, up1 = _table_tails(tables[1], min(p * (m0 + 1), float(m0 + 1)))
+    return (1.0 - w) * lo0 + w * lo1, (1.0 - w) * up0 + w * up1
+
+
+def _fractional_tables(nu: float, cl: float, tau2: float):
+    m0 = int(math.floor(nu))
+    tables = (_tail_table(m0, cl, tau2), _tail_table(m0 + 1, cl, tau2))
+    if tables[0] is None or tables[1] is None:
+        return None
+    return tables, m0, nu - m0
+
+
+def fractional_binomial_tails(o: float, nu: float, cl: float, tau2: float):
+    """
+    (P(X ≤ o), P(X ≥ o)) for a count o out of a fractional ν, by the interpolation
+    above; None where the exact model is unavailable. pvalues._point_tails uses this
+    for every non-integer binomial denominator.
+    """
+    found = _fractional_tables(nu, cl, tau2)
+    if found is None:
+        return None
+    tables, m0, w = found
+    return _mixed_tails(tables, m0, w, o / nu)
+
+
+def fractional_binomial_pair(
+    cl: float, nu: float, tau2: float, p_lower: float, p_upper: float,
+) -> tuple[float, float]:
+    """
+    (ucl, lcl) on the proportion scale at a fractional denominator ν: the proportions
+    at which the interpolated test's upper tail reaches 1 − p_upper and its lower tail
+    reaches p_lower, by _BISECT_ITERS halvings of [0, 1]. At a whole ν these are the
+    exact contours (the interpolated quantile, with the upper one a count further out,
+    _upper_boundary), so the contour is continuous through whole numbers. The upper
+    contour is 1 when even an all-events provider could not flag, and the lower one 0
+    when a no-event provider could not. (NaN, NaN) where the exact model is
+    unavailable, for the caller's normal fallback.
+    """
+    found = _fractional_tables(nu, cl, tau2)
+    if found is None:
+        return math.nan, math.nan
+    tables, m0, w = found
+    a_up = 1.0 - p_upper
+
+    if _mixed_tails(tables, m0, w, 1.0)[1] > a_up:
+        ucl = 1.0
+    else:
+        lo, hi = 0.0, 1.0
+        for _ in range(_BISECT_ITERS):
+            mid = 0.5 * (lo + hi)
+            if _mixed_tails(tables, m0, w, mid)[1] > a_up:
+                lo = mid
+            else:
+                hi = mid
+        ucl = 0.5 * (lo + hi)
+
+    if _mixed_tails(tables, m0, w, 0.0)[0] >= p_lower:
+        lcl = 0.0
+    else:
+        lo, hi = 0.0, 1.0
+        for _ in range(_BISECT_ITERS):
+            mid = 0.5 * (lo + hi)
+            if _mixed_tails(tables, m0, w, mid)[0] < p_lower:
+                lo = mid
+            else:
+                hi = mid
+        lcl = 0.5 * (lo + hi)
+    return ucl, lcl
+
+
+def _fractional_detectable_rate(ucl: float, nu: float) -> float:
+    """
+    binomial_detectable_rate at a fractional ν: the θ at which the chance of landing
+    beyond the drawn upper contour ucl, interpolated in ν between m₀ and m₁ as the
+    tails are, is 80%. inf when it never reaches 80%.
+    """
+    m0 = int(math.floor(nu))
+    w = nu - m0
+    thr0 = math.floor(ucl * m0)
+    thr1 = math.floor(ucl * (m0 + 1))
+
+    def miss(theta):
+        return (1.0 - w) * binomial_cdf(thr0, m0, theta) + w * binomial_cdf(thr1, m0 + 1, theta)
+
+    if miss(1.0) > 0.2:
+        return math.inf
+    lo, hi = 0.0, 1.0
+    for _ in range(_BISECT_ITERS):
+        mid = 0.5 * (lo + hi)
+        if miss(mid) > 0.2:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def _fractional_point_ci(x: float, nu: float) -> tuple[float, float]:
+    """
+    The 95% interval of binomial_point_ci at a fractional count or denominator, built
+    the same way from the interpolated binomial tails: the effective-sample-size
+    Clopper–Pearson interval of Korn and Graubard for clustered data [16].
+    """
+    def tails(theta):
+        return fractional_binomial_tails(x, nu, theta, 0.0)
+
+    if tails(0.5) is None:
+        return math.nan, math.nan
+    lo = 0.0
+    if x > 0:
+        a, b = 0.0, 1.0
+        for _ in range(_BISECT_ITERS):
+            mid = 0.5 * (a + b)
+            if tails(mid)[1] < 0.025:
+                a = mid
+            else:
+                b = mid
+        lo = 0.5 * (a + b)
+    hi = 1.0
+    if x < nu:
+        a, b = 0.0, 1.0
+        for _ in range(_BISECT_ITERS):
+            mid = 0.5 * (a + b)
+            if tails(mid)[0] > 0.025:
+                a = mid
+            else:
+                b = mid
+        hi = 0.5 * (a + b)
+    return lo, hi
 
 
 def _mixture_funnel_pair(
@@ -813,6 +1047,13 @@ def _mixture_funnel_pair(
     for i, ei in enumerate(e):
         if not (ei > 0):
             continue
+        if _integer_count(float(ei)) is None:
+            pair = fractional_binomial_pair(cl, float(ei), tau2, p_lower, p_upper)
+            if not math.isnan(pair[0]):
+                ucl[i], lcl[i] = pair
+                if diag is not None:
+                    diag["interpolated"] = True
+                continue
         (lo, hi), exact = beta_binomial_quantiles((p_lower, p_upper), float(ei), alpha, beta, (-z, z))
         if not exact and diag is not None:
             diag["normal"] = True

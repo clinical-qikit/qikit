@@ -25,7 +25,8 @@ engine charts, whose codes the engine's docstrings and the shared fixtures use:
 | `measure="oe"` | `oep` | Poisson–gamma | Exact quantiles of the additive model [1, eq. 11; 7] | Additive τ² [1, §5], applied |
 
 The contours are 99.8% and 95% by default (`limits=`). `within_dispersion=` scales any
-count model for counts that clump within cases (§4.12). `qic()` keeps p/u with 3σ
+count model for counts that clump within cases (§4.12), and the binomial for the items
+of one survey (§4.13). `qic()` keeps p/u with 3σ
 Shewhart limits and pp/up with Laney's σ_z [6] for time order; it no longer draws
 funnels.
 
@@ -73,6 +74,7 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 | Outcome–volume association | Formal regression test (§4) | **Not yet** (§6) |
 | Multiple comparisons | Small P values; FDR "best carried out separately" (§6) | Exact p-values and Benjamini–Hochberg q-values on every funnel; `signal="fdr"` tiers on q instead of the contours, at `fdr_levels` (§4.11). `expected_false_flags` reports chance flags per tier |
 | Counts that clump within cases (days per stay) | Not covered | Extension: `within_dispersion=φ`, effective counts O/φ against E/φ, with a diagnostic that warns when it is missing (§4.12) |
+| Items clustered in cases (questions of one survey) | Not covered | Extension: the same `within_dispersion=φ` on a proportion, Rao–Scott effective counts y/φ out of n/φ [17], interpolated in n/φ between whole denominators (§4.13) |
 | Change data, continuous outcomes | A.1.2, A.2.2, A.3 | Not offered |
 | Per-point power and intervals | Not part of the method | Extension on every funnel (§4.8) |
 
@@ -231,10 +233,11 @@ Implementation notes (`dist.py`, `stats.ts`):
 - **Validated** against `scipy.stats` (`binom`, `nbinom`, `betabinom`) to < 1e-9, and one
   beta-binomial case against 60-digit `mpmath`. There scipy itself is off by ~1e-5, from
   the cancellation this design avoids.
-- **Fallbacks.** A non-integer denominator, a spread no beta distribution can have
-  (τ² ≥ θ₀(1 − θ₀)), or a distribution too wide to walk (only absurd τ) falls back to
-  eq. 11 as published. `summary["limit_method"]` then says `"normal"` instead of
-  `"exact"`.
+- **Fallbacks.** A spread no beta distribution can have (τ² ≥ θ₀(1 − θ₀)), or a
+  distribution too wide to walk (only absurd τ), falls back to eq. 11 as published.
+  `summary["limit_method"]` then says `"normal"` instead of `"exact"`. A non-integer
+  denominator is interpolated between its whole neighbours (§4.13), and
+  `limit_method` says `"interpolated"`.
 
 ### 4.6 Laney's p′/u′ stay for time order
 
@@ -314,9 +317,9 @@ cannot flag, so they say nothing about the chart's reach.
 **Edge cases.** A point whose limit reaches n cannot flag at any θ. Internally its
 detectable proportion is infinite, so it counts as underpowered and enters the median;
 the column shows NaN. With exact interpolated limits this is effectively unreachable.
-A non-integer denominator (an averaged or weighted n) has no binomial description,
-which is why its limits fall back to the normal approximation. For the same reason its
-detectability and interval are NaN rather than approximated.
+A non-integer denominator (n/φ under `within_dispersion`, or an averaged n) has no
+binomial description. Its detectability and interval are interpolated between the
+whole neighbours, as its limits are (§4.13).
 
 ### 4.9 The volume axis
 
@@ -342,10 +345,11 @@ therefore never sit inside the curve while being flagged, or outside it while no
 being flagged. A test pins this bit-for-bit on every funnel fixture. Between grid
 steps the plot interpolates linearly.
 
-**Binomial charts step in whole numbers.** A non-integer n has no binomial
-description and falls back to the normal approximation (§4.8, "Edge cases"), so a grid
-of fractional steps would mix the two. On p/pp the grid is rounded to integers. The
-Poisson and Poisson–gamma charts take any positive n.
+**Binomial charts step in whole numbers.** On p/pp the grid is rounded to integers,
+where the limits are exact. A non-integer n is interpolated between its whole
+neighbours (§4.13), so the contours stay continuous through every step, including
+under `within_dispersion`, where the model sees n/φ. The Poisson and Poisson–gamma
+charts take any positive n.
 
 **Log scale.** `x_log=True` log-scales the axis, which spreads out a funnel whose
 providers span orders of magnitude. Plotly takes an annotation's position on a log axis
@@ -417,9 +421,11 @@ Benjamini–Hochberg step needs.
   is exactly the inverse of the interpolated quantile, so the line-equals-test property
   below holds for these counts too. `summary["p_value_method"]` is then
   `"interpolated"`.
+- **A denominator between whole numbers** (binomial only: n/φ under
+  `within_dispersion`). Each tail is interpolated in n as well, by the function the
+  contours are solved from (§4.13). `p_value_method` is `"interpolated"`.
 - **Normal fallback.** Where the limits fall back to the normal approximation, the
   p-values do too, with the same mean and variance and no continuity correction:
-  - a non-integer binomial denominator;
   - a `pp` spread no beta distribution can have;
   - a walk past its term limit.
 
@@ -534,6 +540,114 @@ smallest K the thresholds were calibrated at. When the shape is "within" or "bot
 The intercept is reported as `within_dispersion_hint`, an estimate of φ from aggregated
 data alone. Because the fix is a model choice, the diagnostic never applies it.
 
+### 4.13 Multi-item instruments: items clustered in surveys
+
+A survey composite scored per item, such as HCAHPS "Communication with Doctors"
+("Always" answers / items answered over explains, listens and respects), is a
+proportion of items. The items on one survey come from one patient and mostly agree. A
+binomial treats them as independent. If the m items of a survey have intraclass
+correlation ρ, a provider's item count has variance
+
+  n θ(1 − θ) · [1 + (m − 1)ρ] = n θ(1 − θ) · φ,
+
+where φ is Kish's design effect [18]. With three items and ρ = 0.7, φ ≈ 2.4. Twelve items
+from four surveys then carry about as much information as five independent ones.
+
+**Why item counts over-flag, and why the flags move.** Left at φ = 1, the funnel makes
+two errors:
+
+- **Small providers are over-flagged.** Every provider's binomial limits are √φ too
+  narrow. The additive τ² cannot correct this, because the missing variance shrinks with
+  volume (§4.12). Every p-value and q-value is too small as well.
+- **τ̂ is inflated.** τ̂ absorbs part of the clustering variance as if providers really
+  differed, which widens the limits of high-volume providers.
+
+Correcting φ therefore does more than remove flags. τ̂ falls, small providers drop out,
+and some large providers become more clearly unusual.
+
+**Which unit to pass.** Pass one row per survey: y = items meeting the measure, n = items
+answered. Use `measure="proportion"` and `within_dispersion="estimate"`. Two other inputs
+fail:
+
+- **One row per item.** This hides the problem. A row holding a single yes/no has
+  variance fixed by its mean, so it cannot show clustering, and `"estimate"` refuses
+  rows whose n are all 1.
+- **One row per provider.** This leaves only the provider-level shape test (§4.12), which
+  a real between-provider spread can mask. In a downstream example with φ = 2.4 on both
+  top-box and bottom-box, the totals read "within" on top-box but "between" on
+  bottom-box.
+
+Recoding the measure as "all items Always", one binary per survey, would be an exact
+binomial. It is a different measure, though, not the published HCAHPS definition.
+
+**The fix.** `within_dispersion=φ` gives the model y/φ events out of n/φ cases, the
+Rao–Scott effective sample size for clustered binary data [17]. It is the binomial
+analogue of the quasi-Poisson correction in §4.12. The proportion is unchanged.
+
+**Estimating φ.** From survey-level rows:
+
+  φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / nᵢⱼ / [θ̄(1 − θ̄)(N − K)],
+
+- Residuals are taken around each provider's own θ̂ⱼ, so differences between providers
+  stay out of φ̂ (§4.12).
+- The variance uses the pooled θ̄, not each provider's θ̂ⱼ(1 − θ̂ⱼ). At a few surveys per
+  provider many have θ̂ⱼ of 0 or 1. On a simulated bottom-box at 10% (§5), nearly one
+  physician in five had no bottom-box answer at all. Their own rate would drop them,
+  biasing φ̂.
+- With the pooled rate, independent yes/no rows read φ̂ ≈ 1, where their own rate would
+  read N/(N − K).
+- The remaining bias is −τ²/[θ̄(1 − θ̄)]: under 1% at realistic τ.
+
+**A denominator between whole numbers.** n/φ is rarely an integer, and no binomial has a
+fractional size. Rounding it, the usual workaround, moves a five-item-equivalent
+provider by up to 10%. The normal approximation is badly placed at these counts (§4.1).
+qikit interpolates every tail linearly in ν = n/φ between m₀ = ⌊ν⌋ and m₀ + 1, at the
+same proportion p:
+
+  T(p; ν) = (1 − w)·T_m₀(p·m₀) + w·T_m₀₊₁(p·(m₀ + 1)),  w = ν − m₀.
+
+Each T_m is the exact binomial or beta-binomial tail, itself interpolated between whole
+counts (§4.11). Everything follows from this one function:
+
+- **Contours.** The contours are where T crosses each tail probability, found by
+  bisection, so "beyond the line" and "p < α" remain one statement.
+- **Whole ν.** At a whole ν, T is the exact tail. The contours are then the exact ones,
+  continuous through every integer and monotone in volume (both checked by the test
+  suite).
+- **Consistency across models.** The same holds for the binomial and the beta-binomial,
+  so τ̂ = 0 still reproduces the unadjusted chart to the bit.
+- **Intervals and detectability.** The 95% interval inverts the same tails in θ. That is
+  Korn and Graubard's effective-sample-size Clopper–Pearson interval for survey data
+  [16], with this interpolation in place of their beta form. `min_detectable`
+  interpolates the chance of crossing the drawn line in the same way.
+- **Labels.** `summary["limit_method"]` and `summary["p_value_method"]` read
+  `"interpolated"`. The arithmetic is lgamma-free, as in §4.5.
+
+**The case-level check.** Case-level rows are several rows per unit: stays, or surveys.
+When they are present and `within_dispersion` is left at 1, qikit computes the row φ̂
+above, or the count version of §4.12 for oe/rate, and tests it with Pearson χ² on N − K
+degrees of freedom. It warns when φ̂ ≥ 1.25 and p < 0.001. The floor is low because the
+test is powerful: at φ = 1.25 the 99.8% limits are √1.25 too narrow, which in the
+normal approximation lets through nearly three times the nominal false outliers. When it fires:
+
+- `dispersion_shape` becomes "within", or "both" if the totals also show "between";
+- `within_dispersion_hint` is the row φ̂, and `within_dispersion_hint_source` is
+  `"rows"` (otherwise `"totals"`);
+- the warning, note and caption line of §4.12 follow, naming one row per survey as the
+  fix for a proportion.
+
+The check never applies the fix itself. Rows of one yes/no each, and rows that leave
+fewer than 30 residual degrees of freedom, are not tested.
+
+**Reading physician-level composites.** Four surveys at φ = 2.42 give about five
+effective items. Against a top-box rate of 80%, the 99.8% lower contour is then 1.8%:
+only a physician with almost no "Always" answers is an outlier. Against a bottom-box rate
+of 10%, the upper contour is 79%. `min_detectable` and `underpowered` say so per
+provider. For choosing
+physicians for intervention, prefer `signal="fdr"` with a one-sided `worse=`. Top-box and
+bottom-box are two tests of the same items, so a physician flagged on both has one
+finding, not two.
+
 ## 5. Evidence from simulation
 
 The engine was run on simulated cohorts. To reproduce every table below, run
@@ -599,6 +713,64 @@ a binary-outcome O/E at a 15% event rate:
 It is built never to cry wolf on event counts. It catches clustered days reliably from
 about 200 providers, the scale at which length-of-stay benchmarking is usually done.
 
+**Clustered proportions: a three-item survey composite (§4.13).** There were 20
+replicates of K = 575 physicians, matching the downstream request:
+
+- Each physician had a lognormal number of surveys (median 15, minimum 4).
+- Each survey had three items sharing a beta-distributed propensity with intraclass
+  correlation 0.71, so φ = 2.42.
+- Base rates were 80% (top-box, `worse="lower"`) and 10% (bottom-box, `worse="higher"`).
+- "No effect" draws every physician from the base rate, so every flag is false.
+- "Spread" adds a true SD between physicians (0.05 top-box, 0.03 bottom-box) and plants
+  10 physicians 25 points worse (top-box) or 15 points worse (bottom-box).
+- Rates are among the non-planted physicians. The nominal one-sided rates are 0.1%
+  outlier and 2.4% alert.
+
+The arms are:
+
+- **Default:** item counts per physician.
+- **Rounded deflation:** y and n divided by φ̂ and rounded, the downstream workaround.
+- **`"estimate"`:** survey rows.
+
+| Scenario | Arm | Outlier | Alert | Planted caught | `signal="fdr"` flags (false) |
+|---|---|---|---|---|---|
+| Top-box, no effect | default | 0.52% | 4.01% | | 2.5 (2.5) |
+| | rounded deflation | 0.02% | 1.44% | | 0 |
+| | `"estimate"` | 0.01% | 1.25% | | 0 |
+| Top-box, spread + planted | default | 0.41% | 3.49% | 35% | 6.1 (2.5) |
+| | rounded deflation | 0.34% | 2.70% | 33% | 5.3 (2.0) |
+| | `"estimate"` | 0.36% | 2.51% | 32% | 5.2 (1.9) |
+| Bottom-box, no effect | default | 0.41% | 3.58% | | 1.6 (1.6) |
+| | rounded deflation | 0.11% | 1.40% | | 0 |
+| | `"estimate"` | 0.02% | 1.12% | | 0 |
+| Bottom-box, spread + planted | default | 0.34% | 3.54% | 18% | 4.0 (2.2) |
+| | rounded deflation | 0.16% | 2.38% | 22% | 2.9 (0.8) |
+| | `"estimate"` | 0.14% | 1.88% | 23% | 2.6 (0.8) |
+
+φ̂ had a median of 2.36–2.43 against a true 2.42.
+
+- **With no true effect, item counts over-flag.** Outliers run at four to five times
+  nominal, and FDR selection makes one or two false picks per run. With φ̂, the outlier
+  rate drops below nominal and FDR selects no one.
+- **Below nominal is expected.** At about five effective items the exact test is
+  conservative (§5, first table).
+- **On bottom-box, φ̂ halves the false FDR picks** and catches slightly more planted
+  physicians. Removing the clustering from τ̂ narrows the high-volume limits (§4.13).
+- **With real spread, in-distribution outliers stay above nominal in every arm.** That is
+  the published τ̂'s downward bias (§4.3), not the clustering.
+- **Rounding is close to the interpolated fix on average,** but it moves individual
+  physicians. Its no-effect bottom-box outlier rate is 0.11%, against 0.02%.
+
+The case-level row check (§4.13), on top-box survey rows with a between-physician SD of
+0.05, warned in this share of runs (50 replicates at K = 40, 20 at K = 575):
+
+| φ | K = 40 | K = 575 |
+|---|---|---|
+| 1.00 (independent items) | 0% | 0% |
+| 1.10 | 0% | 0% |
+| 1.25 (the floor) | 36% | 10% |
+| 2.42 | 100% | 100% |
+
 ## 6. Known limitations and planned work
 
 - **Small cohorts.** τ̂ is imprecise below about 30 providers (IQR 0.17–0.27 when
@@ -615,6 +787,13 @@ about 200 providers, the scale at which length-of-stay benchmarking is usually d
 - **Within-provider clustering is a single φ per chart (or facet).** Case mix that
   changes how variable stays are between providers is not modelled. Facet by service
   line where φ̂ differs.
+- **Items clustered in surveys use a single pooled φ** (§4.13). A provider whose
+  patients skip items has smaller clusters and a slightly smaller design effect,
+  1 + (m̄ⱼ − 1)ρ. qikit does not model this; it is negligible when item nonresponse is
+  low.
+- **Item-level rows hide the clustering.** qikit cannot tell items from cases when every
+  row is one yes/no. It refuses `"estimate"` on such rows and documents the unit to
+  pass (§4.13).
 - **Planned:** a pre-specified τ [9], the volume test, and binomial variance for
   binary-outcome O/E when case counts are known.
 
@@ -656,3 +835,9 @@ about 200 providers, the scale at which length-of-stay benchmarking is usually d
 15. Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical and
     powerful approach to multiple testing. *Journal of the Royal Statistical Society,
     Series B* 1995;57(1):289–300.
+16. Korn EL, Graubard BI. Confidence intervals for proportions with small expected
+    number of positive counts estimated from survey data. *Survey Methodology*
+    1998;24(2):193–201.
+17. Rao JNK, Scott AJ. A simple method for the analysis of clustered binary data.
+    *Biometrics* 1992;48(2):577–585.
+18. Kish L. *Survey Sampling*. Wiley, 1965.

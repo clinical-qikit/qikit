@@ -184,6 +184,7 @@ def compute(
             **runs_summary,
             "limit_method": (
                 "normal" if diag.get("normal")
+                else "interpolated" if diag.get("interpolated")
                 else limit_method if chart == "oe" else "exact"
             ),
         }

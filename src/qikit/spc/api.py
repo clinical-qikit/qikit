@@ -357,6 +357,7 @@ def _qic(
     levels: tuple = DEFAULT_LEVELS,
     fdr_levels: tuple = (0.05, 0.10),
     within_dispersion: float = 1.0,
+    within_check: Any = None,
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -407,6 +408,8 @@ def _qic(
     directly because the TypeScript engine keeps qic's funnel arguments. See qic() for
     the time-ordered parameters and funnel() for what funnel=True, limit_method,
     signal_side, signal_method, levels, fdr_levels and within_dispersion mean.
+    within_check is funnel()'s case-level clustering check, (φ̂, p) from the rows (a
+    dict per facet on a faceted call), or None when the rows are providers.
     """
     chart = chart.lower().strip()
 
@@ -502,10 +505,10 @@ def _qic(
     if isinstance(within_dispersion, dict) and facets is None:
         raise ValueError("within_dispersion= as a dict (one value per facet) needs facets=.")
     if not isinstance(within_dispersion, dict) and within_dispersion != 1.0:
-        if chart not in ("oe", "oep", "u", "up") or not _has_warn_tier(chart, funnel):
+        if not _has_warn_tier(chart, funnel):
             raise ValueError(
-                "within_dispersion= applies to count funnels (O/E and rate measures), "
-                f"where one case can add many counted units. Got chart={chart!r}."
+                "within_dispersion= applies to funnels (O/E, proportion and rate "
+                f"measures), where one case can add many counted units. Got chart={chart!r}."
             )
         if not (isinstance(within_dispersion, (int, float)) and within_dispersion > 0
                 and math.isfinite(within_dispersion)):
@@ -592,6 +595,9 @@ def _qic(
                 within_dispersion=(
                     within_dispersion.get(fv, 1.0) if isinstance(within_dispersion, dict)
                     else within_dispersion
+                ),
+                within_check=(
+                    within_check.get(fv) if isinstance(within_check, dict) else within_check
                 ),
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
                 point_labels=_subset_per_facet(point_labels, facet_rows, n_rows),
@@ -785,8 +791,10 @@ def _qic(
     # ------------------------------------------------------------------
     # A count whose variance is φ times its mean (patient-days, where one stay adds
     # many days at once) behaves like a Poisson count of O/φ events against E/φ
-    # expected. The ratio is unchanged, so only the denominator the model sees moves;
-    # every limit, p-value, interval and the τ² estimate then follow from it.
+    # expected. A proportion whose cases are clusters of items (the questions of one
+    # survey) is the same correction for binomial counts, Rao and Scott's effective
+    # sample size. The ratio is unchanged, so only the denominator the model sees
+    # moves; every limit, p-value, interval and the τ² estimate then follow from it.
     n_model = n_vals if within_dispersion == 1.0 else n_vals / float(within_dispersion)
 
     # ------------------------------------------------------------------
@@ -880,8 +888,7 @@ def _qic(
         summary["levels"] = tuple(levels)
         summary["fdr_levels"] = tuple(fdr_levels)
         summary["n_tested"] = int(np.sum(np.isfinite(p_value)))
-        if chart in ("oe", "oep", "u", "up"):
-            summary["within_dispersion"] = float(within_dispersion)
+        summary["within_dispersion"] = float(within_dispersion)
 
     if summary.get("overdispersed") and "dispersion_adjusted" not in summary:
         # An unadjusted funnel whose providers spread wider than its null model allows.
@@ -899,26 +906,40 @@ def _qic(
             f"not a fix."
         )
 
+    if "within_dispersion_hint" in summary:
+        summary["within_dispersion_hint_source"] = "totals"
+    if within_check is not None and within_dispersion == 1.0 and _within_check_fires(within_check):
+        # Case-level rows measure the clumping directly, on N − K degrees of freedom
+        # rather than through how the providers' spread grows with volume, so they
+        # catch it where the totals alone cannot (a real between-provider spread hides
+        # it from the shape test) and give the better estimate of φ.
+        shape = summary.get("dispersion_shape")
+        summary["dispersion_shape"] = "both" if shape in ("between", "both") else "within"
+        summary["within_dispersion_hint"] = round(float(within_check[0]), 2)
+        summary["within_dispersion_hint_source"] = "rows"
+
     if summary.get("dispersion_shape") in ("within", "both") and within_dispersion == 1.0:
         # The one over-dispersion the additive τ² cannot absorb: counts that clump inside
         # each unit. Left alone it over-flags small providers and makes every p- and
         # q-value too small, so it is a warning, not just a summary key.
         hint = summary["within_dispersion_hint"]
         if chart in ("oe", "oep", "u", "up"):
+            example = "patient-days, where one stay adds many days"
             fix = (
                 "Pass stay-level rows (one per case) with within_dispersion='estimate', "
                 f"or a known within_dispersion= (the spread here suggests about {hint:.1f})."
             )
         else:
+            example = "the questions of one survey, which one patient answers alike"
             fix = (
-                "Check whether one case can contribute more than one counted unit; a "
-                "proportion funnel assumes each case is one independent yes/no."
+                "Pass one row per case (per survey: y = items meeting the measure, n = "
+                "items answered) with within_dispersion='estimate', or a known "
+                f"within_dispersion= (the spread here suggests about {hint:.1f})."
             )
         summary["dispersion_shape_note"] = (
-            f"Counts look clustered within providers (e.g. patient-days, where one stay "
-            f"adds many days): the spread is about {hint:.1f} times what the count model "
-            f"allows at every volume, so small providers are over-flagged and p- and "
-            f"q-values are too small. {fix}"
+            f"Counts look clustered within providers (e.g. {example}): the spread is "
+            f"about {hint:.1f} times what the count model allows at every volume, so "
+            f"small providers are over-flagged and p- and q-values are too small. {fix}"
         )
         warnings.warn(summary["dispersion_shape_note"], UserWarning, stacklevel=3)
 
@@ -985,6 +1006,20 @@ def _qic(
             "levels": tuple(levels), "within_dispersion": float(within_dispersion),
         }} if has_contours else None,
     )
+
+
+# The case-level clustering check (funnel() passes within_check = (φ̂, p) from the
+# rows): a warning when the rows are clearly more variable than independent cases.
+# The floor matters more than the test, which is very powerful on N − K degrees of
+# freedom: at φ = 1.25 the 99.8% limits are √1.25 too narrow, which in the normal
+# approximation lets through nearly three times the nominal false outliers. Calibrated by simulation (docs/methods.md §5).
+_ROWS_MIN_PHI = 1.25
+_ROWS_MAX_P = 0.001
+
+
+def _within_check_fires(check: tuple[float, float]) -> bool:
+    phi, p = check
+    return bool(phi >= _ROWS_MIN_PHI and p < _ROWS_MAX_P)
 
 
 def _resolve_xlab(xlab: str | None, spacing: str, n_name: str | None) -> str:

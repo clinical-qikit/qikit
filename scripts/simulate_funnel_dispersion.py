@@ -9,6 +9,12 @@ Reproduce the simulation tables in docs/methods.md, section 5.
 2. Clustered counts. Length of stay as observed/expected days, from stay-level gamma
    draws with no true provider effect: flag rates without and with within_dispersion.
 3. The dispersion-shape diagnostic: how often it warns, by scenario and K.
+4. Clustered proportions. A three-item survey composite (HCAHPS "Communication with
+   Doctors"): items on one survey share a latent propensity with intraclass
+   correlation rho, so the design effect is 1 + 2·rho. Flag rates by arm (the
+   default, the manual deflation by a rounded factor, within_dispersion='estimate'),
+   with no true effect and with real spread plus planted outliers; and how often the
+   case-level row check warns.
 
     uv run python scripts/simulate_funnel_dispersion.py
 """
@@ -120,6 +126,70 @@ def shape_rate(kind, k, reps):
     return fired / reps
 
 
+def surveys(k, base, rho, sd=0.0, planted=0, shift=0.0):
+    """One row per survey of three items; the first `planted` doctors move by shift."""
+    s = np.maximum(4, np.round(rng.lognormal(np.log(15), 0.8, k))).astype(int)
+    theta = np.clip(base + sd * rng.standard_normal(k), 0.01, 0.99)
+    theta[:planted] = np.clip(base + shift, 0.01, 0.99)
+    unit = np.repeat(np.arange(k), s)
+    th = theta[unit]
+    p = rng.beta(th * (1 / rho - 1), (1 - th) * (1 / rho - 1)) if rho > 0 else th
+    return pd.DataFrame({"unit": unit, "y": rng.binomial(3, p), "n": 3})
+
+
+def run_surveys(base, worse, reps, sd=0.0, planted=0, shift=0.0, k=575, rho=0.71):
+    """Per arm: in-distribution outlier and alert rates, planted outliers caught
+    (outlier tier), and the FDR-mode flags with the share of them that are false."""
+    arms = ("default", "rounded deflation", "estimate")
+    tally = {a: np.zeros(6) for a in arms}
+    phis = []
+    for _ in range(reps):
+        d = surveys(k, base, rho, sd, planted, shift)
+        totals = d.groupby("unit", as_index=False)[["y", "n"]].sum()
+        args = dict(y="y", n="n", unit="unit", measure="proportion", worse=worse)
+        phi = funnel(d, within_dispersion="estimate", **args).summary["within_dispersion"]
+        phis.append(phi)
+        rounded = totals.assign(y=np.round(totals.y / phi), n=np.round(totals.n / phi))
+        for arm, frame, extra in (
+            ("default", totals, {}),
+            ("rounded deflation", rounded[rounded.n > 0], {}),
+            ("estimate", d, {"within_dispersion": "estimate"}),
+        ):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lim = funnel(frame, **args, **extra).data
+                fdr = funnel(frame, signal="fdr", **args, **extra).data
+            planted_rows = lim.unit.isin(range(planted))
+            sig, fsig = lim.signal, fdr.signal != "none"
+            tally[arm] += [
+                (sig[~planted_rows] == "outlier").mean(),
+                (sig[~planted_rows] == "alert").mean(),
+                (sig[planted_rows] == "outlier").mean() if planted else 0.0,
+                fsig.sum(),
+                (fsig & ~fdr.unit.isin(range(planted))).sum(),
+                (fsig & fdr.unit.isin(range(planted))).sum(),
+            ]
+    label = f"base={base} sd={sd} planted={planted}"
+    for arm, t in tally.items():
+        out, alert, caught, flags, false, true = t / reps
+        print(f"surveys {label:28s} {arm:18s} outlier {out:.2%} alert {alert:.2%}"
+              + (f" planted caught {caught:.0%}" if planted else "")
+              + f" | fdr flags {flags:.1f} (false {false:.1f}, planted {true:.1f})")
+    print(f"surveys {label:28s} phi-hat median {np.median(phis):.2f}")
+
+
+def row_check_rate(rho, k, reps, sd=0.05):
+    """How often the case-level check warns on survey rows (no within_dispersion)."""
+    fired = 0
+    for _ in range(reps):
+        d = surveys(k, 0.8, rho, sd)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            funnel(d, y="y", n="n", unit="unit", measure="proportion")
+        fired += any("clustered" in str(w.message) for w in caught)
+    return fired / reps
+
+
 if __name__ == "__main__":
     for fam, lo, hi in (("counts", 3, 30), ("props", 20, 200)):
         for k in (30, 150):
@@ -132,3 +202,12 @@ if __name__ == "__main__":
     for kind in ("poisson", "between", "binary", "los phi=3", "los phi=8"):
         rates = {k: shape_rate(kind, k, 100 if k < 1000 else 20) for k in (40, 200, 1000)}
         print(f"shape warns: {kind:10s} " + "  ".join(f"K={k}: {r:.0%}" for k, r in rates.items()))
+    print()
+    for base, worse in ((0.8, "lower"), (0.1, "higher")):
+        run_surveys(base, worse, 20)
+        shift = -0.25 if base == 0.8 else 0.15
+        run_surveys(base, worse, 20, sd=0.05 if base == 0.8 else 0.03, planted=10, shift=shift)
+    for rho in (0.0, 0.05, 0.125, 0.71):
+        rates = {k: row_check_rate(rho, k, 50 if k < 575 else 20) for k in (40, 575)}
+        print(f"row check warns: phi={1 + 2 * rho:.2f} " + "  ".join(
+            f"K={k}: {r:.0%}" for k, r in rates.items()))
