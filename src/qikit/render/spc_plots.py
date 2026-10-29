@@ -441,7 +441,9 @@ def _add_chart_traces(
         connectgaps=False,
         cliponaxis=False,
         zorder=2,
-        **_legend(),
+        # Plotly draws a legend icon in the first point's color, which may be a
+        # signal's; _add_legend_entries gives the series an entry of its own instead.
+        **_legend("data", entry=False),
     ), **add_kwargs)
 
     # Target line
@@ -782,9 +784,12 @@ def _add_legend_entries(
     runs_highlight: str, point_size: float,
 ) -> None:
     """
-    Legend-only markers for each signal color the figure draws: the point colors live
-    on the one data trace, so without these a legend could not say what red or amber
-    means. Named for what decided them, unless styles= names them.
+    Legend-only markers for the series and for each signal color the figure draws:
+    the point colors live on the one data trace, so without these a legend could not
+    say what red or amber means, and would draw the series in whatever color its first
+    point happens to be. The series entry shares the data trace's legendgroup, so
+    clicking it still hides the points. Signal entries are named for what decided
+    them, unless styles= names them.
     """
     df = result.data
     st = _resolve_styles(styles, result.chart_type, funnel)
@@ -803,6 +808,13 @@ def _add_legend_entries(
         "warn": f"{stat} < {inner:g}" if stat else "Beyond 95%",
         "runs": "Run signal",
     }
+    size = point_size * 6
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode="markers",
+        marker=dict(color=st["data"]["color"], symbol="circle", size=size),
+        name=st["data"]["name"], legendgroup="data",
+        showlegend=True, hoverinfo="skip", legendrank=1,  # first, before the lines
+    ))
     for role, present, symbol in (
         ("sigma", sigma.any(), "circle"), (amber_role, amber.any(), "diamond"),
     ):
@@ -810,7 +822,7 @@ def _add_legend_entries(
             continue
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode="markers",
-            marker=dict(color=st[role]["color"], symbol=symbol, size=point_size * 6 * 1.3),
+            marker=dict(color=st[role]["color"], symbol=symbol, size=size * 1.3),
             name=st[role]["name"] or defaults[role],
             showlegend=True, hoverinfo="skip",
         ))
@@ -1017,6 +1029,8 @@ def _configure_layout(
             text=caption, xref="paper", yref="paper",
             x=0, y=-0.2, showarrow=False,
             font=dict(size=10, color=TEXT_FAINT), xanchor="left",
+            # Plotly centers each line of a multi-line annotation on the widest.
+            **({"align": "left"} if "<br>" in caption else {}),
         )
 
     grid_color = GRID if show_grid else "rgba(0,0,0,0)"

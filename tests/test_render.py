@@ -1025,6 +1025,11 @@ class TestLegend:
         assert _trace(fig, "95%-").showlegend is False
         assert _trace(fig, "Beyond 99.8%").x == (None,)
         assert _trace(fig, "Beyond 95%") is not None
+        # The series gets its own entry in its routine color, grouped with the points.
+        series = [t for t in fig.data if t.name == "data"]
+        assert [t.showlegend for t in series] == [False, True]
+        assert all(t.legendgroup == "data" for t in series)
+        assert series[1].marker.color == NORMAL
 
     def test_entries_follow_signal_method_and_styles(self):
         fig = _oe_funnel(show_legend=True, signal_method="exact",
@@ -1043,3 +1048,4 @@ class TestLegend:
         fig = qic(y="o", n="e", data=df, chart="oe", funnel=True, facets="site",
                   show_legend=True).plot()
         assert sum(1 for t in fig.data if t.name == "CL" and t.showlegend) == 1
+        assert sum(1 for t in fig.data if t.name == "data" and t.showlegend) == 1
