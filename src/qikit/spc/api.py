@@ -888,7 +888,10 @@ def _qic(
         summary["levels"] = tuple(levels)
         summary["fdr_levels"] = tuple(fdr_levels)
         summary["n_tested"] = int(np.sum(np.isfinite(p_value)))
-        summary["within_dispersion"] = float(within_dispersion)
+        if chart in ("oe", "oep", "u", "up") or within_dispersion != 1.0:
+            # Proportions record it only when set, so the shared p/pp fixtures (and
+            # the TypeScript engine, which has no within_dispersion) keep their shape.
+            summary["within_dispersion"] = float(within_dispersion)
 
     if summary.get("overdispersed") and "dispersion_adjusted" not in summary:
         # An unadjusted funnel whose providers spread wider than its null model allows.

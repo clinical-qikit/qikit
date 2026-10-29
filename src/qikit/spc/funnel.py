@@ -581,8 +581,7 @@ def _tier_summary(spc_summary: dict, settings: dict, data: pd.DataFrame) -> dict
         "underpowered": spc_summary.get("underpowered"),
         "n_underpowered": spc_summary.get("n_underpowered"),
     }
-    if "within_dispersion" in spc_summary:
-        out["within_dispersion"] = spc_summary["within_dispersion"]
+    out["within_dispersion"] = spc_summary.get("within_dispersion", 1.0)
     out["notes"] = [
         spc_summary[key] for key in ("dispersion_shape_note", "power_note", "dispersion_note")
         if spc_summary.get(key)
