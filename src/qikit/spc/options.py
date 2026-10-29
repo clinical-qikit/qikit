@@ -32,6 +32,32 @@ VALID_X_SPACING = (None, "x", "rank", "n")
 # The x title when the caller gives none and the axis is not the volume axis.
 DEFAULT_XLAB = "Subgroup"
 
+# What styles= can restyle, and which attributes each role takes. Defaults live with
+# the renderer (render/spc_plots.py), which owns the palette.
+#   data       — the series line and routine markers
+#   sigma      — sigma_signal markers and their labels
+#   warn       — the amber 95%-tier markers and labels (a funnel drawn with show_95)
+#   runs       — runs-signal markers and labels (time-ordered charts)
+#   cl, ucl, lcl, ucl_95, lcl_95, target — the reference lines
+#   end_labels — the CL/limit labels at the right-hand end of each line
+# "name" renames a trace (its legend entry and end label too); on the signal roles it
+# names the legend-only entry show_legend adds. "visible": False drops a line and its
+# end label from the figure.
+_LINE_ATTRS = ("color", "width", "dash", "visible", "name")
+_POINT_ATTRS = ("color", "name")
+STYLE_ROLES: dict[str, tuple[str, ...]] = {
+    "data": ("color", "width", "name"),
+    "sigma": _POINT_ATTRS, "warn": _POINT_ATTRS, "runs": _POINT_ATTRS,
+    "cl": _LINE_ATTRS, "ucl": _LINE_ATTRS, "lcl": _LINE_ATTRS,
+    "ucl_95": _LINE_ATTRS, "lcl_95": _LINE_ATTRS, "target": _LINE_ATTRS,
+    "end_labels": ("color", "size"),
+}
+# Group roles, applied before the specific ones so "ucl" can still override "limits".
+STYLE_ALIASES: dict[str, tuple[str, ...]] = {
+    "limits": ("ucl", "lcl"), "limits_95": ("ucl_95", "lcl_95"),
+}
+VALID_DASHES = ("solid", "dot", "dash", "longdash", "dashdot", "longdashdot")
+
 
 def resolve_x_spacing(x_spacing: str | None, funnel: bool, n_varies: bool) -> str:
     """
@@ -86,6 +112,79 @@ def validate_x_spacing(
     return spacing
 
 
+def validate_styles(styles: dict | None) -> dict[str, dict]:
+    """
+    Check styles= and expand it to one attribute dict per concrete role.
+
+    Group roles ("limits", "limits_95") apply first and a specific role overrides
+    them, so {"limits": {"width": 2}, "ucl": {"color": "red"}} gives ucl both. Only
+    the caller's own attributes come back; the renderer supplies the defaults.
+    """
+    if styles is None:
+        return {}
+    if not isinstance(styles, dict):
+        raise ValueError(
+            f"styles must be a dict of role -> attributes, got {type(styles).__name__}."
+        )
+    valid_roles = sorted(STYLE_ROLES) + sorted(STYLE_ALIASES)
+    out: dict[str, dict] = {}
+    for role in sorted(styles, key=lambda r: r not in STYLE_ALIASES):
+        attrs = styles[role]
+        if role in STYLE_ALIASES:
+            targets, allowed = STYLE_ALIASES[role], _LINE_ATTRS
+        elif role in STYLE_ROLES:
+            targets, allowed = (role,), STYLE_ROLES[role]
+        else:
+            raise ValueError(f"styles: unknown role {role!r}. Valid roles: {valid_roles}.")
+        if not isinstance(attrs, dict):
+            raise ValueError(f"styles[{role!r}] must be a dict of attributes.")
+        unknown = sorted(set(attrs) - set(allowed))
+        if unknown:
+            raise ValueError(
+                f"styles[{role!r}]: unknown attribute(s) {unknown}. "
+                f"Valid for this role: {list(allowed)}."
+            )
+        for key, val in attrs.items():
+            if key in ("width", "size") and not (
+                isinstance(val, (int, float)) and not isinstance(val, bool) and val > 0
+            ):
+                raise ValueError(f"styles[{role!r}][{key!r}] must be a positive number.")
+            if key == "dash" and val not in VALID_DASHES:
+                raise ValueError(
+                    f"styles[{role!r}]['dash'] must be one of {VALID_DASHES}, got {val!r}."
+                )
+            if key == "visible" and not isinstance(val, bool):
+                raise ValueError(f"styles[{role!r}]['visible'] must be True or False.")
+            if key in ("color", "name") and not isinstance(val, str):
+                raise ValueError(f"styles[{role!r}][{key!r}] must be a string.")
+        for target in targets:
+            out.setdefault(target, {}).update(attrs)
+    return out
+
+
+def validate_range(name: str, value: object, numeric: bool) -> tuple | None:
+    """
+    Check an x_range= / y_range= pair: (low, high), either end None for "from the
+    data". numeric demands numbers (y always; x may be dates).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)) or not hasattr(value, "__len__") or len(value) != 2:
+        raise ValueError(f"{name} must be a (low, high) pair; either end may be None.")
+    lo, hi = value
+    for end in (lo, hi):
+        if numeric and end is not None and (
+            isinstance(end, bool) or not isinstance(end, (int, float))
+        ):
+            raise ValueError(f"{name} ends must be numbers or None, got {end!r}.")
+    if (
+        isinstance(lo, (int, float)) and isinstance(hi, (int, float))
+        and not lo < hi
+    ):
+        raise ValueError(f"{name} needs low < high, got {value!r}.")
+    return (lo, hi)
+
+
 @dataclass(frozen=True)
 class PlotOptions:
     """Display-only params for qic(), single source of truth for _plot_opts."""
@@ -126,3 +225,9 @@ class PlotOptions:
     hover_extra: list[str] = field(default_factory=list)
     funnel: bool = False
     x_nticks_all: bool = False
+    # Kept as the caller wrote them; validate_styles/validate_range run at render too,
+    # because plot(**overrides) bypasses qic().
+    x_range: tuple | None = None
+    y_range: tuple | None = None
+    styles: dict | None = None
+    show_legend: bool = False

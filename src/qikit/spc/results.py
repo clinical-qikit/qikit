@@ -4,6 +4,7 @@ results.py — result dataclasses returned by qic(), paretochart(), and bchart()
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -180,7 +181,10 @@ class SPCResult:
 
     def plot(self, **overrides: Any) -> go.Figure:
         """
-        Render as a Plotly Figure. Keyword args override stored display options.
+        Render as a Plotly Figure. Keyword args override stored display options:
+        any qic() display parameter (show_95, show_labels, label_signals,
+        x_spacing, x_log, x_range, y_range, styles, show_legend, width, height, …).
+        An unknown name raises TypeError rather than being ignored.
 
         Trace names are a stable public contract, for callers who restyle the
         figure: "data" (the points), "Target", "CL", the outer limits "UCL"/"LCL"
@@ -191,9 +195,24 @@ class SPCResult:
         one value per point. The layout of the data trace's customdata and
         hovertemplate is not part of that contract; use point_labels= and
         hover_extra= on qic() to change what the tooltip says.
+
+        styles={role: {"name": ...}} renames a trace, and from then on the name is
+        yours to rely on. With show_legend=True each signal color drawn also gets a
+        legend-only trace: "Beyond 99.8%" (sigma; "Beyond UCL/LCL" off a funnel),
+        "Beyond 95%" (warn) or "Run signal" (runs), or "p < …"/"q < …" under
+        signal_method="exact"/"fdr".
         """
         from qikit.render.spc_plots import plot_result
 
+        from .options import PlotOptions
+
+        valid = {f.name for f in dataclasses.fields(PlotOptions)}
+        unknown = sorted(set(overrides) - valid)
+        if unknown:
+            raise TypeError(
+                f"plot() got unexpected keyword argument(s) {unknown}. Valid names: "
+                f"{sorted(valid)}."
+            )
         opts = {**self._plot_opts, **overrides}
         return plot_result(self, **opts)
 

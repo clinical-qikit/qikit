@@ -30,7 +30,7 @@ from .limits import (
 )
 from .options import (
     DEFAULT_XLAB, PlotOptions, VALID_LABEL_SIGNALS, VALID_RUNS_HIGHLIGHT, VALID_X_SPACING,
-    validate_x_spacing,
+    validate_range, validate_styles, validate_x_spacing,
 )
 from .results import BChartResult, ParetoResult, SPCResult, n_varies
 from .pvalues import bh_q_values, signal_thresholds
@@ -137,6 +137,10 @@ def qic(
     label_signals: str | None = None,
     x_spacing: str | None = None,
     x_log: bool = False,
+    x_range: tuple | None = None,
+    y_range: tuple | None = None,
+    styles: dict | None = None,
+    show_legend: bool = False,
     flip: bool = False,
     strip_horizontal: bool = False,
     print_summary: bool = False,
@@ -312,6 +316,37 @@ def qic(
                result.plot(x_spacing=...).
     x_log : log-scale the volume axis; valid only with x_spacing="n" (a funnel's
                default). Overridable via result.plot(x_log=...).
+    show_labels : the CL/limit labels at the right-hand end of each line
+               ("CL=…", "99.8%+=…"). False hides them. Restyle them with
+               styles={"end_labels": {...}}.
+    show_95 : draw the inner band: the 95% contours on a funnel or O/E chart, 2σ
+               lines elsewhere. On a funnel it also colors the warn tier amber.
+    width, height : figure size in pixels. None (default) leaves the figure
+               responsive, which suits notebooks and Streamlit; Plotly's static
+               export then draws it at 700×500. Set both for slides.
+    x_range : (low, high) for the x axis, in the units drawn: the denominator on
+               a volume axis, 1-based positions under x_spacing="rank", numbers
+               or dates otherwise. Either end may be None, meaning "from the data".
+               Rejected on a categorical axis. The y axis then fits the points
+               inside the range, the center line, and each drawn limit's in-range
+               value nearest the center line, so trimmed low-volume points and
+               the funnel's flare no longer stretch it.
+    y_range : (low, high) for the y axis on the stored scale (as result.data["y"]:
+               after multiply=, proportions as 0–1 even with y_percent=True).
+               Either end may be None, meaning fitted as for x_range.
+    styles : restyle the figure by role — {role: {attribute: value}}. Roles:
+               data (color, width, name); sigma, warn, runs (marker color, and
+               the legend name); cl, ucl, lcl, ucl_95, lcl_95, target (color,
+               width, dash, visible, name); end_labels (color, size); and the
+               groups limits (ucl+lcl) and limits_95 (ucl_95+lcl_95), which a
+               specific role overrides. visible=False drops a line and its end
+               label. name renames the trace, its legend entry and its end label,
+               so the trace name contract becomes yours. E.g.
+               styles={"limits_95": {"color": "#777", "width": 1.5,
+               "dash": "solid"}, "lcl": {"visible": False}}.
+    show_legend : draw a legend (off by default, since the end labels name the
+               lines). Paired limits share one entry, and each signal color drawn
+               gets a legend-only entry.
 
     Returns
     -------
@@ -388,6 +423,10 @@ def qic(
         raise ValueError(
             f"x_spacing must be one of {VALID_X_SPACING}, got {x_spacing!r}."
         )
+    # Checked here for an early error; stored as given, and checked again at render.
+    validate_styles(styles)
+    validate_range("x_range", x_range, numeric=False)
+    validate_range("y_range", y_range, numeric=True)
     if signal_side not in VALID_SIGNAL_SIDES:
         raise ValueError(
             f"signal_side must be one of {VALID_SIGNAL_SIDES}, got {signal_side!r}."
@@ -440,6 +479,7 @@ def qic(
         label_signals=label_signals, x_spacing=x_spacing, x_log=x_log,
         xlab_given=xlab is not None, n_name=n_name, funnel=funnel,
         hover_extra=hover_extra_names,
+        x_range=x_range, y_range=y_range, styles=styles, show_legend=show_legend,
     )
 
     # ------------------------------------------------------------------
