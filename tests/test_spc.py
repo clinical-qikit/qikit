@@ -2546,24 +2546,33 @@ class TestAdjustedFunnels:
 
 
 class TestPoissonMeanInversion:
-    """dist.poisson_cdf / poisson_mean_for_cdf — the primitive behind both O/E
+    """dist.poisson_tails / poisson_mean_for_cdf — the primitives behind both O/E
     detectability and the per-point intervals."""
 
     def test_cdf_known_values(self):
-        assert _dist.poisson_cdf(3, 5) == pytest.approx(0.2650259, abs=1e-7)
-        assert _dist.poisson_cdf(2, 5) == pytest.approx(0.1246520, abs=1e-7)
-        assert _dist.poisson_cdf(0, 1) == pytest.approx(math.exp(-1))
+        assert _dist.poisson_tails(3, 5)[0] == pytest.approx(0.2650259, abs=1e-7)
+        assert _dist.poisson_tails(2, 5)[0] == pytest.approx(0.1246520, abs=1e-7)
+        assert _dist.poisson_tails(0, 1)[0] == pytest.approx(math.exp(-1))
 
     def test_cdf_edges(self):
-        assert _dist.poisson_cdf(-1, 5) == 0.0
-        assert _dist.poisson_cdf(3, 0) == 1.0  # all mass at zero
-        assert math.isnan(_dist.poisson_cdf(3, float("nan")))
-        assert math.isnan(_dist.poisson_cdf(3, -1))
+        assert _dist.poisson_tails(-1, 5) == (0.0, 1.0)
+        assert all(math.isnan(v) for v in _dist.poisson_tails(3, 0))
+        assert all(math.isnan(v) for v in _dist.poisson_tails(3, float("nan")))
 
-    @pytest.mark.parametrize("k", [0, 1, 3, 10, 50, 200])
+    @pytest.mark.parametrize("k", [0, 1, 3, 10, 50, 200, 2_000, 10_000])
     @pytest.mark.parametrize("p", [0.025, 0.2, 0.5, 0.975])
     def test_mean_for_cdf_inverts(self, k, p):
-        assert _dist.poisson_cdf(k, _dist.poisson_mean_for_cdf(k, p)) == pytest.approx(p)
+        mu = _dist.poisson_mean_for_cdf(k, p)
+        assert _dist.poisson_tails(k, mu)[0] == pytest.approx(p, rel=1e-9)
+
+    def test_mean_for_cdf_is_fast_at_hospital_volumes(self):
+        """Newton steps, not fifty full CDF sweeps: a thousand-provider funnel with
+        counts in the thousands took ~17 s on the bisection."""
+        import time
+        t = time.perf_counter()
+        for k in range(5_000, 5_050):
+            _dist.poisson_mean_for_cdf(k, 0.975)
+        assert time.perf_counter() - t < 0.5
 
     def test_lgamma_results_are_quantized_for_cross_platform_reproducibility(self):
         """math.lgamma's last ulp differs between platforms, and both routines
@@ -2637,7 +2646,7 @@ class TestOEDetectability:
         of it. Verified against the same event the chart actually signals on."""
         t = _dist.poisson_quantile_interp(0.999, e)
         rho = _limits.oe_detectable_ratio(t, e)
-        power = 1.0 - _dist.poisson_cdf(math.floor(t), rho * e)
+        power = 1.0 - _dist.poisson_tails(math.floor(t), rho * e)[0]
         assert power == pytest.approx(0.8)
 
     def test_signal_event_matches_sigma_signal_semantics(self):
