@@ -30,7 +30,8 @@
     "chart": "oe",
     "funnel": true,
     "clOverride": 1.0,
-    "exclude": 7
+    "exclude": 7,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "warn_signal": true,

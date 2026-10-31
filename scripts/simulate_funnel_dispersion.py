@@ -6,6 +6,7 @@ Reproduce the simulation tables in docs/methods.md, section 5.
    genuine outlier, and report how often each chart flags an in-distribution provider
    above its 99.8% limit (nominal 0.1%) and how often it catches the outlier. Also
    checks that the adjusted limits equal the unadjusted ones whenever tau-hat is 0.
+   Each adjusted chart is run with all three tau_method estimators on the same draws.
 2. Clustered counts. Length of stay as observed/expected days, from stay-level gamma
    draws with no true provider effect: flag rates without and with within_dispersion.
 3. The dispersion-shape diagnostic: how often it warns, by scenario and K.
@@ -32,8 +33,10 @@ rng = np.random.default_rng(2026)
 
 def run(family, k, tau, reps, lo, hi):
     plain, adj = ("oe", "oep") if family == "counts" else ("p", "pp")
-    res = {plain: [0, 0], adj: [0, 0]}
-    taus, same = [], 0
+    pub, ml = adj + " spiegelhalter", adj + " ml"
+    res = {plain: [0, 0], pub: [0, 0], adj: [0, 0], ml: [0, 0]}
+    taus = {pub: [], adj: [], ml: []}
+    same = 0
     for _ in range(reps):
         n = rng.uniform(lo, hi, k)
         if family == "counts":
@@ -51,11 +54,16 @@ def run(family, k, tau, reps, lo, hi):
             y = rng.binomial(n.astype(int), th).astype(float)
         ratio = y / n
         rp = compute(plain, ratio, n, funnel=True)
-        ra = compute(adj, ratio, n, funnel=True)
-        taus.append(ra["summary"]["dispersion_tau"])
-        if taus[-1] == 0:
-            same += np.array_equal(rp["ucl"], ra["ucl"])
-        for name, r in ((plain, rp), (adj, ra)):
+        fits = {
+            pub: compute(adj, ratio, n, funnel=True, tau_method="spiegelhalter"),
+            adj: compute(adj, ratio, n, funnel=True),
+            ml: compute(adj, ratio, n, funnel=True, tau_method="ml"),
+        }
+        for name, r in fits.items():
+            taus[name].append(r["summary"]["dispersion_tau"])
+        if taus[adj][-1] == 0:
+            same += np.array_equal(rp["ucl"], fits[adj]["ucl"])
+        for name, r in ((plain, rp), *fits.items()):
             flagged = ratio > r["ucl"]
             res[name][0] += flagged[:-1].sum()
             res[name][1] += flagged[-1]
@@ -63,11 +71,15 @@ def run(family, k, tau, reps, lo, hi):
         f"{c}: in-dist {v[0] / (reps * (k - 1)):.2%}, outlier {v[1] / reps:.0%}"
         for c, v in res.items()
     )
-    zero = sum(t == 0 for t in taus)
+    zero = sum(t == 0 for t in taus[adj])
+    spreads = " | ".join(
+        f"tau-hat {name.split(' ')[-1] if ' ' in name else 'winsorized'} median "
+        f"{np.median(t):.3f} (IQR {np.percentile(t, 25):.3f}-{np.percentile(t, 75):.3f})"
+        for name, t in taus.items()
+    )
     print(
-        f"{family:6s} K={k:<3d} tau={tau:<4} | {cells} | tau-hat median "
-        f"{np.median(taus):.3f} (IQR {np.percentile(taus, 25):.3f}-"
-        f"{np.percentile(taus, 75):.3f}) | identical when tau-hat=0: {same}/{zero}"
+        f"{family:6s} K={k:<3d} tau={tau:<4} | {cells} | {spreads} | identical when "
+        f"tau-hat=0: {same}/{zero}"
     )
 
 

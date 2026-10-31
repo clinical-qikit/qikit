@@ -358,6 +358,9 @@ def _qic(
     fdr_levels: tuple = (0.05, 0.10),
     within_dispersion: float = 1.0,
     within_check: Any = None,
+    tau_method: str = "winsorized",
+    tau_fixed: Any = None,
+    test_min_expected: float | None = None,
     # Layout
     nrow: int | None = None,
     ncol: int | None = None,
@@ -410,6 +413,8 @@ def _qic(
     signal_side, signal_method, levels, fdr_levels and within_dispersion mean.
     within_check is funnel()'s case-level clustering check, (φ̂, p) from the rows (a
     dict per facet on a faceted call), or None when the rows are providers.
+    tau_method, tau_fixed (τ², or a dict of τ² per facet) and test_min_expected are
+    funnel()'s tau_method=, tau= and test_min_expected= (methods §4.16, §4.11).
     """
     chart = chart.lower().strip()
 
@@ -599,6 +604,9 @@ def _qic(
                 within_check=(
                     within_check.get(fv) if isinstance(within_check, dict) else within_check
                 ),
+                tau_method=tau_method,
+                tau_fixed=tau_fixed.get(fv) if isinstance(tau_fixed, dict) else tau_fixed,
+                test_min_expected=test_min_expected,
                 notes=_subset_per_facet(notes, facet_rows, n_rows),
                 point_labels=_subset_per_facet(point_labels, facet_rows, n_rows),
                 hover_extra=hover_extra,
@@ -808,6 +816,7 @@ def _qic(
         s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
         funnel=funnel, exclude_mask=exclude_mask,
         limit_method=limit_method or "exact", signal_side=signal_side, levels=levels,
+        tau_method=tau_method, tau_fixed=tau_fixed,
     )
 
     # ------------------------------------------------------------------
@@ -838,7 +847,13 @@ def _qic(
     warn_sig = None
     q_value = None
     if _has_warn_tier(chart, funnel):
-        q_value = bh_q_values(p_value)
+        # Independent filtering (methods §4.11): a rule on the model denominator alone,
+        # never on outcomes, decides who enters the Benjamini–Hochberg step.
+        filtered = (
+            np.zeros(n_pts, dtype=bool) if test_min_expected is None
+            else np.isfinite(p_value) & (n_model < float(test_min_expected))
+        )
+        q_value = bh_q_values(np.where(filtered, np.nan, p_value))
         if signal_method == "limits":
             # The contours are the exact test's boundaries, so this is p < α as well.
             y_warn = np.where(exclude_mask, np.nan, y_calc)
@@ -888,6 +903,9 @@ def _qic(
         summary["levels"] = tuple(levels)
         summary["fdr_levels"] = tuple(fdr_levels)
         summary["n_tested"] = int(np.sum(np.isfinite(p_value)))
+        if test_min_expected is not None:
+            summary["test_min_expected"] = float(test_min_expected)
+            summary["n_filtered"] = int(np.sum(filtered))
         if chart in ("oe", "oep", "u", "up") or within_dispersion != 1.0:
             # Proportions record it only when set, so the shared p/pp fixtures (and
             # the TypeScript engine, which has no within_dispersion) keep their shape.
@@ -1343,6 +1361,7 @@ def _compute_spc_arrays(
     s_bar_val, sigma_hat_val, subgroup_n_val, part_indices, freeze_idx, spec,
     funnel: bool = False, exclude_mask=None, limit_method: str = "exact",
     signal_side: str = "both", levels: tuple = DEFAULT_LEVELS,
+    tau_method: str = "winsorized", tau_fixed: float | None = None,
 ):
     n_pts = len(y_calc)
     if exclude_mask is None:
@@ -1367,7 +1386,7 @@ def _compute_spc_arrays(
                 sigma_hat=sigma_hat_val, subgroup_n=subgroup_n_val,
                 exclude_mask=exclude_mask[start:end],
                 limit_method=limit_method, funnel=funnel, signal_side=signal_side,
-                levels=levels,
+                levels=levels, tau_method=tau_method, tau_fixed=tau_fixed,
             )
             cl_arr[start:end], ucl_arr[start:end], lcl_arr[start:end] = seg_raw["cl"], seg_raw["ucl"], seg_raw["lcl"]
             seg_u95, seg_l95 = _inner_band(seg_raw, spec)
@@ -1402,7 +1421,7 @@ def _compute_spc_arrays(
             chart_for_compute, y_calc, n_vals, mask, cl, subgroup_n_val, method, s_bar_val,
             sigma_hat=sigma_hat_val, exclude_mask=exclude_mask,
             limit_method=limit_method, funnel=funnel, signal_side=signal_side,
-            levels=levels,
+            levels=levels, tau_method=tau_method, tau_fixed=tau_fixed,
         )
         cl_arr, ucl_arr, lcl_arr = res["cl"], res["ucl"], res["lcl"]
         ucl_95_arr, lcl_95_arr = _inner_band(res, spec)

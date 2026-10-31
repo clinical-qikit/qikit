@@ -33,7 +33,8 @@
     ],
     "chart": "oe",
     "funnel": true,
-    "exclude": 2
+    "exclude": 2,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [

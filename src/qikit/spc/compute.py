@@ -14,7 +14,8 @@ import numpy as np
 import math
 
 from .limits import (
-    CHARTS, DEFAULT_LEVELS, FUNNEL_CHARTS, VALID_CHARTS, dispersion_shape, funnel_dispersion,
+    _WINSOR_CONSISTENCY, CHARTS, DEFAULT_LEVELS, FUNNEL_CHARTS, VALID_CHARTS, dispersion_shape,
+    funnel_dispersion, tau2_ml,
 )
 from .pvalues import funnel_p_values
 from .signals import _runs_signals, _sigma_signals
@@ -35,6 +36,8 @@ def compute(
     funnel: bool = False,
     signal_side: str = "both",
     levels: tuple = DEFAULT_LEVELS,
+    tau_method: str = "winsorized",
+    tau_fixed: float | None = None,
 ) -> dict[str, Any]:
     """
     Compute SPC limits and signals for a single chart.
@@ -124,12 +127,28 @@ def compute(
     dispersion: dict[str, Any] = {}
     tau2 = 0.0
     if spec.family is not None and n is not None:
-        phi, tau2 = funnel_dispersion(cl_val, y, n, mask, spec.family)
-        dispersion = {
-            "dispersion_phi": phi,
-            "dispersion_tau": math.sqrt(tau2),
-            "overdispersed": tau2 > 0,
-        }
+        published = tau_method == "spiegelhalter"
+        phi, tau2 = funnel_dispersion(
+            cl_val, y, n, mask, spec.family,
+            method="spiegelhalter" if published else "winsorized",
+        )
+        dispersion = {"dispersion_phi": phi}
+        if not published:
+            # dispersion_phi is the debiased value; the published one is kept beside it.
+            dispersion["dispersion_phi_raw"] = phi / _WINSOR_CONSISTENCY
+            dispersion["dispersion_debiased"] = True
+        if tau_fixed is not None:
+            # A τ fixed in advance (methods §4.16); this period's estimate is kept so a
+            # reader can see whether the spread has moved since τ was set.
+            dispersion["dispersion_tau_estimated"] = math.sqrt(tau2)
+            dispersion["tau_source"] = "pre-specified"
+            tau2 = float(tau_fixed)
+        elif tau_method == "ml":
+            dispersion["dispersion_tau_estimated"] = math.sqrt(tau2)
+            tau2, ci = tau2_ml(cl_val, y, n, mask, spec.family)
+            dispersion["dispersion_tau_ci"] = ci
+        dispersion["dispersion_tau"] = math.sqrt(tau2)
+        dispersion["overdispersed"] = tau2 > 0
         if spec.adjusted:
             dispersion["dispersion_method"] = "additive"
             dispersion["dispersion_adjusted"] = tau2 > 0

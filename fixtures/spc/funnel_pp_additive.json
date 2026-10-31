@@ -32,7 +32,8 @@
       600
     ],
     "chart": "pp",
-    "funnel": true
+    "funnel": true,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [

@@ -24,6 +24,7 @@ References
 
 from __future__ import annotations
 
+import functools
 import math
 
 import numpy as np
@@ -116,17 +117,26 @@ def poisson_mean_for_cdf(k: int, p: float) -> float:
             f"poisson_mean_for_cdf: k={k} exceeds the solve ceiling "
             f"({_MEAN_SOLVE_MAX_K}); the caller should use a closed-form approximation."
         )
-    k = int(k)
+    return _poisson_mean_solve(int(k), float(p))
+
+
+@functools.lru_cache(maxsize=8192)
+def _poisson_mean_solve(k: int, p: float) -> float:
+    """poisson_mean_for_cdf after validation, memoized: a funnel solves the same few
+    (k, p) pairs for many providers (intervals at p = 0.025/0.975, detectability at
+    0.2), and the solve is a pure function of them."""
     if k == 0:
         return round(-math.log(p), _QUANTIZE_DECIMALS)  # F(0; μ) = e^(−μ)
 
     log_p = math.log(p)
     log_k_fact = math.lgamma(k + 1.0)
     steps = np.log(np.arange(k, 0, -1, dtype=float))  # log j for j = k, k−1, …, 1
+    logs = np.zeros(k + 1)
 
     def log_cdf(mu: float) -> tuple[float, float]:
         # Running products (k/μ)(k−1)/μ… are f(k−i)/f(k); summed, S = F(k)/f(k).
-        logs = np.concatenate(([0.0], np.cumsum(steps - math.log(mu))))
+        # logs[0] stays 0; the rest is rewritten in place, the same cumsum as before.
+        np.cumsum(steps - math.log(mu), out=logs[1:])
         top = float(logs.max())
         log_s = top + math.log(float(np.sum(np.exp(logs - top))))
         return k * math.log(mu) - mu - log_k_fact + log_s, math.exp(log_s)
@@ -184,7 +194,7 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
     def ratio(k):
         return lam / (k + 1)
 
-    out = _walk_quantiles((p,), ratio, int(math.floor(lam)), None)
+    out = _walk_quantiles((p,), ratio, int(math.floor(lam)), None, ("poisson", lam))
     # The walk cannot run out: a Poisson's spread is √λ ≤ 317 terms at the ceiling.
     return out[0]
 
@@ -219,55 +229,129 @@ _TAIL_EPS = 1e-20
 _MAX_TERMS = 100_000
 
 
-def _walk_terms(ratio, start, upper):
+# Walks already taken, by distribution. A funnel point's two contours and its
+# p-value all walk the same pmf; caching it walks once. Entries are read-only arrays.
+_WALK_CACHE: dict = {}
+_WALK_CACHE_MAX = 4096
+
+
+def _walk_terms(ratio, start, upper, key=None):
     """
     Unnormalised pmf terms of a unimodal distribution given only its term ratio.
 
-    ratio(k) = f(k+1)/f(k); start is a point near the mode; upper is the last
-    support point (None when unbounded). Returns (k_lo, terms, total): terms[j] is
-    proportional to f(k_lo + j), and total is their plain left-to-right sum. None
-    when the walk exceeds _MAX_TERMS.
-    """
-    # Upward from start, then downward; terms are relative to f(start) = 1.
-    up = [1.0]
-    peak = 1.0
-    u = 1.0
-    k = start
-    while upper is None or k < upper:
-        u = u * ratio(k)
-        k += 1
-        if u > peak:
-            peak = u
-        if u < _TAIL_EPS * peak:
-            break
-        up.append(u)
-        if len(up) > _MAX_TERMS:
-            return None
-    down = []
-    u = 1.0
-    k = start
-    while k > 0:
-        u = u / ratio(k - 1)
-        k -= 1
-        if u > peak:
-            peak = u
-        if u < _TAIL_EPS * peak:
-            break
-        down.append(u)
-        if len(down) > _MAX_TERMS:
-            return None
+    ratio(k) = f(k+1)/f(k), evaluated on a float array of k (every ratio here is
+    plain + − × ÷, so the array call rounds exactly as a scalar call would); start is
+    a point near the mode; upper is the last support point (None when unbounded).
+    Returns (k_lo, terms, total): terms is a float array, terms[j] proportional to
+    f(k_lo + j), and total their plain left-to-right sum. None when the walk exceeds
+    _MAX_TERMS.
 
-    terms = down[::-1] + up
-    k_lo = start - len(down)
-    # Plain left-to-right accumulation, not sum(): from Python 3.12 the builtin uses
-    # compensated summation, which the TypeScript twin does not.
-    total = 0.0
-    for t in terms:
-        total += t
+    Vectorised in blocks: the upward walk is a running product and the downward one
+    a running quotient (np.multiply/np.divide.accumulate, which are strictly
+    sequential), and the stopping rule is the running peak's, so every term, the
+    point the walk stops and the total are bit-identical to the scalar loop the
+    TypeScript twin keeps (methods §4.5). A walk that ends inside the scalar phase
+    returns its terms as a tuple of floats instead. key, when given, names the
+    distribution for _WALK_CACHE.
+    """
+    if key is not None:
+        hit = _WALK_CACHE.get(key)
+        if hit is not None or key in _WALK_CACHE:
+            return hit
+        walk = _walk_terms(ratio, start, upper)
+        if len(_WALK_CACHE) >= _WALK_CACHE_MAX:
+            _WALK_CACHE.clear()
+        if walk is not None and isinstance(walk[1], np.ndarray):
+            walk[1].flags.writeable = False
+        _WALK_CACHE[key] = walk
+        return walk
+    up = _walk_side(ratio, start, upper, 1, peak=1.0)
+    if up is None:
+        return None
+    up_terms, peak = up
+    if len(up_terms) + 1 > _MAX_TERMS:
+        return None
+    down = _walk_side(ratio, start, 0, -1, peak=peak)
+    if down is None:
+        return None
+    down_terms, _ = down
+    if len(down_terms) > _MAX_TERMS:
+        return None
+    k_lo = start - len(down_terms)
+    if isinstance(down_terms, list) and isinstance(up_terms, list):
+        # A short walk stays a tuple of floats, summed by plain loops downstream.
+        terms = tuple(down_terms[::-1]) + (1.0,) + tuple(up_terms)
+        total = 0.0
+        for t in terms:
+            total += t
+        return k_lo, terms, total
+    terms = np.concatenate((down_terms[::-1], [1.0], up_terms))
+    # np.cumsum accumulates left to right, unlike sum() (compensated from Python 3.12)
+    # or np.sum (pairwise), and so matches the TypeScript twin's plain loop.
+    total = float(np.cumsum(terms)[-1])
     return k_lo, terms, total
 
 
-def _walk_quantiles(probs, ratio, start, upper):
+# The first _WALK_SCALAR terms of each side are taken one at a time, which is faster
+# than numpy for the short walks of physician-level counts; past that, blocks of
+# _WALK_BLOCK (doubling) carry the long walks of hospital volumes. Both phases do the
+# same sequential arithmetic, so where the switch falls changes no bit.
+_WALK_SCALAR = 64
+_WALK_BLOCK = 256
+
+
+def _walk_side(ratio, start, stop, step, peak):
+    """
+    One side of _walk_terms: the terms after f(start) = 1 going up (step 1, to stop =
+    upper or unbounded) or down (step −1, to 0), and the running peak. Stops before
+    the first term below _TAIL_EPS of the peak so far. None past _MAX_TERMS.
+    """
+    head = []
+    u = 1.0
+    k = start
+    while len(head) < _WALK_SCALAR and (stop is None or (k < stop if step > 0 else k > stop)):
+        u = u * ratio(k) if step > 0 else u / ratio(k - 1)
+        k += step
+        if u > peak:
+            peak = u
+        if u < _TAIL_EPS * peak:
+            return head, peak
+        head.append(u)
+    if not (stop is None or (k < stop if step > 0 else k > stop)):
+        return head, peak
+    out = [np.array(head)]
+    n_kept = len(head)
+    block = _WALK_BLOCK
+    while stop is None or (k < stop if step > 0 else k > stop):
+        room = block if stop is None else min(block, abs(stop - k))
+        if step > 0:
+            ks = np.arange(k, k + room, dtype=float)
+            vals = np.multiply.accumulate(np.concatenate(([u], ratio(ks))))[1:]
+        else:
+            ks = np.arange(k - 1, k - 1 - room, -1, dtype=float)
+            vals = np.divide.accumulate(np.concatenate(([u], ratio(ks))))[1:]
+        peaks = np.maximum.accumulate(np.concatenate(([peak], vals)))[1:]
+        low = np.flatnonzero(vals < _TAIL_EPS * peaks)
+        if len(low):
+            cut = int(low[0])
+            out.append(vals[:cut])
+            peak = float(peaks[cut])
+            break
+        out.append(vals)
+        n_kept += room
+        if n_kept > _MAX_TERMS:
+            return None
+        peak = float(peaks[-1])
+        u = float(vals[-1])
+        k += step * room
+        block *= 2
+    terms = np.concatenate(out)
+    if len(terms) > _MAX_TERMS:
+        return None
+    return terms, peak
+
+
+def _walk_quantiles(probs, ratio, start, upper, key=None):
     """
     Continuity-interpolated quantiles of a unimodal pmf given only its term ratio.
 
@@ -275,11 +359,32 @@ def _walk_quantiles(probs, ratio, start, upper):
     max(0, r − δ) with δ = (F(r) − p)/f(r) exactly as poisson_quantile_interp
     ([1] A.1.1), or None when the walk exceeds _MAX_TERMS.
     """
-    walk = _walk_terms(ratio, start, upper)
+    walk = _walk_terms(ratio, start, upper, key)
     if walk is None:
         return None
     k_lo, terms, total = walk
+    if not isinstance(terms, np.ndarray):
+        return _scalar_quantiles(probs, k_lo, terms, total)
+    cdf = np.cumsum(terms / total)
 
+    out = []
+    for p in probs:
+        hit = np.flatnonzero(cdf >= p)
+        if not len(hit):
+            # p sits in the float plateau at the top of the CDF; the support's last
+            # kept point is the answer.
+            out.append(float(k_lo + len(terms) - 1))
+            continue
+        j = int(hit[0])
+        prev = float(cdf[j - 1]) if j > 0 else 0.0
+        jump = float(cdf[j]) - prev
+        delta = (float(cdf[j]) - p) / jump if jump > 0 else 0.0
+        out.append(round(max(0.0, k_lo + j - delta), _QUANTIZE_DECIMALS))
+    return out
+
+
+def _scalar_quantiles(probs, k_lo, terms, total):
+    """_walk_quantiles on a short walk's tuple of terms, one term at a time."""
     out = []
     for p in probs:
         cdf = 0.0
@@ -292,14 +397,22 @@ def _walk_quantiles(probs, ratio, start, upper):
                 break
             r += 1
         else:
-            # p sits in the float plateau at the top of the CDF; the support's last
-            # kept point is the answer.
             out.append(float(k_lo + len(terms) - 1))
             continue
         jump = cdf - prev
         delta = (cdf - p) / jump if jump > 0 else 0.0
         out.append(round(max(0.0, r - delta), _QUANTIZE_DECIMALS))
     return out
+
+
+def _seq_sum(terms) -> float:
+    """Left-to-right sum of a walk's terms (a tuple or an array slice), as stats.ts sums."""
+    if isinstance(terms, np.ndarray):
+        return float(np.cumsum(terms)[-1]) if len(terms) else 0.0
+    total = 0.0
+    for t in terms:
+        total += t
+    return total
 
 
 def _normal_quantiles(probs, mean, var, zs):
@@ -332,7 +445,7 @@ def binomial_quantiles(probs, n, theta, zs):
         return (m - k) / (k + 1) * odds
 
     start = min(m, int(math.floor((m + 1) * theta)))
-    out = _walk_quantiles(probs, ratio, start, m)
+    out = _walk_quantiles(probs, ratio, start, m, ("binomial", m, theta))
     if out is None:
         return _normal_quantiles(probs, m * theta, m * theta * (1.0 - theta), zs), False
     return out, True
@@ -362,13 +475,12 @@ def binomial_cdf(k: int, m: int, theta: float) -> float:
         return (m - j) / (j + 1) * odds
 
     start = min(m, int(math.floor((m + 1) * theta)))
-    walk = _walk_terms(ratio, start, m)
+    walk = _walk_terms(ratio, start, m, ("binomial", m, theta))
     if walk is None:
         return math.nan
     k_lo, terms, total = walk
-    cdf = 0.0
-    for j in range(min(k - k_lo + 1, len(terms))):
-        cdf += terms[j]
+    j = min(k - k_lo + 1, len(terms))
+    cdf = _seq_sum(terms[:j]) if j > 0 else 0.0
     return min(1.0, cdf / total)
 
 
@@ -417,7 +529,7 @@ def poisson_gamma_quantiles(probs, lam, size, zs):
         return (k + size) / (k + 1) * q
 
     start = int(math.floor((size - 1.0) * lam / size)) if size > 1.0 else 0
-    out = _walk_quantiles(probs, ratio, start, None)
+    out = _walk_quantiles(probs, ratio, start, None, ("poisson_gamma", lam, size))
     if out is None:
         return _normal_quantiles(probs, lam, lam + lam * lam / size, zs), False
     return out, True
@@ -444,7 +556,7 @@ def beta_binomial_quantiles(probs, n, alpha, beta, zs):
         return (m - k) * (alpha + k) / ((k + 1) * (beta + m - k - 1))
 
     start = min(m, int(math.floor(m * theta)))
-    out = _walk_quantiles(probs, ratio, start, m)
+    out = _walk_quantiles(probs, ratio, start, m, ("beta_binomial", m, alpha, beta))
     if out is None:
         var = m * theta * (1.0 - theta) * (alpha + beta + m) / (alpha + beta + 1.0)
         return _normal_quantiles(probs, m * theta, var, zs), False
@@ -462,7 +574,7 @@ def beta_binomial_quantiles(probs, n, alpha, beta, zs):
 # _TAIL_EPS cut sit below 1e-16 of the mass, so a p-value smaller than that reads 0.
 
 
-def _walk_tails(k, ratio, start, upper):
+def _walk_tails(k, ratio, start, upper, key=None):
     """
     (P(X ≤ k), P(X ≥ k)) for a unimodal pmf given only its term ratio.
 
@@ -472,7 +584,7 @@ def _walk_tails(k, ratio, start, upper):
     A k outside the kept support gives (0, 1) below it and (1, 0) above it. None when
     the walk exceeds _MAX_TERMS, for the caller's normal fallback.
     """
-    walk = _walk_terms(ratio, start, upper)
+    walk = _walk_terms(ratio, start, upper, key)
     if walk is None:
         return None
     k_lo, terms, total = walk
@@ -482,12 +594,8 @@ def _walk_tails(k, ratio, start, upper):
         return 0.0, 1.0
     if j > last:
         return 1.0, 0.0
-    lower = 0.0
-    for i in range(j + 1):
-        lower += terms[i]
-    upper_sum = 0.0
-    for i in range(last, j - 1, -1):
-        upper_sum += terms[i]
+    lower = _seq_sum(terms[: j + 1])
+    upper_sum = _seq_sum(terms[j:][::-1])
     return min(1.0, lower / total), min(1.0, upper_sum / total)
 
 
@@ -504,7 +612,7 @@ def poisson_tails(k: int, lam: float):
     def ratio(j):
         return lam / (j + 1)
 
-    return _walk_tails(int(k), ratio, int(math.floor(lam)), None)
+    return _walk_tails(int(k), ratio, int(math.floor(lam)), None, ("poisson", lam))
 
 
 def binomial_tails(k: int, m: int, theta: float):
@@ -526,7 +634,7 @@ def binomial_tails(k: int, m: int, theta: float):
         return (m - j) / (j + 1) * odds
 
     start = min(m, int(math.floor((m + 1) * theta)))
-    return _walk_tails(k, ratio, start, m)
+    return _walk_tails(k, ratio, start, m, ("binomial", m, theta))
 
 
 def poisson_gamma_tails(k: int, lam: float, size: float):
@@ -542,7 +650,7 @@ def poisson_gamma_tails(k: int, lam: float, size: float):
         return (j + size) / (j + 1) * q
 
     start = int(math.floor((size - 1.0) * lam / size)) if size > 1.0 else 0
-    return _walk_tails(int(k), ratio, start, None)
+    return _walk_tails(int(k), ratio, start, None, ("poisson_gamma", lam, size))
 
 
 def beta_binomial_tails(k: int, m: int, alpha: float, beta: float):
@@ -558,4 +666,124 @@ def beta_binomial_tails(k: int, m: int, alpha: float, beta: float):
         return (m - j) * (alpha + j) / ((j + 1) * (beta + m - j - 1))
 
     start = min(m, int(math.floor(m * theta)))
-    return _walk_tails(int(k), ratio, start, m)
+    return _walk_tails(int(k), ratio, start, m, ("beta_binomial", m, alpha, beta))
+
+
+# ---------------------------------------------------------------------------
+# Posterior tails for funnel()'s prob_worse (docs/methods.md §4.14)
+# ---------------------------------------------------------------------------
+#
+# The shrunk estimate's posterior is a gamma (counts) or a beta (proportions) with real
+# parameters, so its tail is a regularized incomplete gamma or beta function. Both are
+# the standard series / continued-fraction pair (Numerical Recipes §6.2, §6.4) on
+# lgamma, accurate to ~1e-14 relative and used only for a reported probability, never
+# for a limit or a signal, so the lgamma platform noise that the funnel's own walk
+# avoids does not matter here.
+
+_INC_EPS = 1e-15
+_INC_MAX_ITER = 100_000
+_INC_TINY = 1e-300
+
+
+def _gamma_series(a: float, x: float) -> float:
+    """Regularized lower incomplete gamma P(a, x) by its series, for x < a + 1."""
+    term = total = 1.0 / a
+    ap = a
+    for _ in range(_INC_MAX_ITER):
+        ap += 1.0
+        term *= x / ap
+        total += term
+        if abs(term) < abs(total) * _INC_EPS:
+            break
+    return total * math.exp(-x + a * math.log(x) - math.lgamma(a))
+
+
+def _gamma_cf(a: float, x: float) -> float:
+    """Regularized upper incomplete gamma Q(a, x) by Lentz's continued fraction."""
+    b = x + 1.0 - a
+    c = 1.0 / _INC_TINY
+    d = 1.0 / b
+    h = d
+    for i in range(1, _INC_MAX_ITER):
+        an = -i * (i - a)
+        b += 2.0
+        d = an * d + b
+        d = _INC_TINY if abs(d) < _INC_TINY else d
+        c = b + an / c
+        c = _INC_TINY if abs(c) < _INC_TINY else c
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < _INC_EPS:
+            break
+    return math.exp(-x + a * math.log(x) - math.lgamma(a)) * h
+
+
+def gamma_tails(a: float, x: float) -> tuple[float, float]:
+    """
+    (P(X ≤ x), P(X > x)) for X ~ Gamma(shape a, rate 1): the regularized incomplete
+    gamma pair P(a, x), Q(a, x), each computed directly rather than as 1 minus the
+    other. For a rate β pass x·β. NaN for a ≤ 0 or a NaN argument.
+    """
+    if not (a > 0) or math.isnan(x):
+        return math.nan, math.nan
+    if x <= 0:
+        return 0.0, 1.0
+    if x < a + 1.0:
+        p = _gamma_series(a, x)
+        return p, 1.0 - p if p < 0.5 else _gamma_cf(a, x)
+    q = _gamma_cf(a, x)
+    return (1.0 - q if q < 0.5 else _gamma_series(a, x)), q
+
+
+def _beta_cf(a: float, b: float, x: float) -> float:
+    """The continued fraction of the regularized incomplete beta (Lentz)."""
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    d = _INC_TINY if abs(d) < _INC_TINY else d
+    d = 1.0 / d
+    h = d
+    for m in range(1, _INC_MAX_ITER):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        d = _INC_TINY if abs(d) < _INC_TINY else d
+        c = 1.0 + aa / c
+        c = _INC_TINY if abs(c) < _INC_TINY else c
+        d = 1.0 / d
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        d = _INC_TINY if abs(d) < _INC_TINY else d
+        c = 1.0 + aa / c
+        c = _INC_TINY if abs(c) < _INC_TINY else c
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < _INC_EPS:
+            break
+    return h
+
+
+def beta_tails(x: float, a: float, b: float) -> tuple[float, float]:
+    """
+    (P(X ≤ x), P(X > x)) for X ~ Beta(a, b): the regularized incomplete beta I_x(a, b)
+    and its complement, the smaller of the two always taken from its own continued
+    fraction. NaN for non-positive parameters or a NaN argument.
+    """
+    if not (a > 0) or not (b > 0) or math.isnan(x):
+        return math.nan, math.nan
+    if x <= 0:
+        return 0.0, 1.0
+    if x >= 1:
+        return 1.0, 0.0
+    front = math.exp(
+        math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+        + a * math.log(x) + b * math.log1p(-x)
+    )
+    if x < (a + 1.0) / (a + b + 2.0):
+        lower = front * _beta_cf(a, b, x) / a
+        return lower, 1.0 - lower if lower < 0.5 else front * _beta_cf(b, a, 1.0 - x) / b
+    upper = front * _beta_cf(b, a, 1.0 - x) / b
+    return (1.0 - upper if upper < 0.5 else front * _beta_cf(a, b, x) / a), upper

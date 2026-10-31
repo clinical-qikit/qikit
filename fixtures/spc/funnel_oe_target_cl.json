@@ -25,7 +25,8 @@
     ],
     "chart": "oe",
     "funnel": true,
-    "clOverride": 1.0
+    "clOverride": 1.0,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": 1.0,

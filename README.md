@@ -76,9 +76,17 @@ including where qikit departs from the paper.
 | Events out of cases (complication %, top-box %) | `measure="proportion"`, `y=events`, `n=cases` |
 | Events over exposure (infections per line-day) | `measure="rate"`, `y=events`, `n=exposure` |
 | **Days**, or anything where one case adds many units (length of stay as O/E days) | stay-level rows, one per case, and `within_dispersion="estimate"` |
+| The same, summed per provider in SQL so the stays never leave the warehouse | one row per provider with `cases=` (k) and `sum_sq=` (`SUM(POWER(obs, 2) / exp)`), and `within_dispersion="estimate"` |
+| Stays whose variability differs by DRG or service line | `within_dispersion="<column>"`: one case-mix-weighted φᵢ per provider, from SQL |
+| Leaders will ask "is this flag one patient?" | case-level rows (automatic), or `max_case_y=`/`max_case_n=` from SQL: see `p_value_drop1`, `fragility` |
 | **Survey items**, scored per item (HCAHPS composites such as Communication with Doctors) | one row per survey (`y` = items "Always", `n` = items answered), `measure="proportion"`, `within_dispersion="estimate"` |
 | A measure where only one direction is bad | `worse="higher"` (mortality) or `worse="lower"` (top-box) |
 | Hundreds of providers, and few false alarms matter more than the drawn lines | `signal="fdr"` |
+| Many very-low-volume providers diluting the FDR step | `test_min_expected=` (a volume floor for the FDR step only) |
+| To rank flagged providers for action | sort by `eb_excess`, not `raw_excess` |
+| To reproduce a published funnel exactly (FunnelPlotR, CQC) | `tau_method="spiegelhalter"` |
+| The spread between providers known from earlier periods, or fewer than 30 providers | `tau=<value>` (fixed in advance) |
+| "Is this provider probably worse than average?" (the CMS question) | read `prob_worse`; `signal` answers "unusual among peers?" |
 | A benchmark against the risk model itself, not the peer average | `center=1.0` |
 
 Rows that share a `unit` are summed, so stay-level or year-level data aggregates itself.
@@ -102,12 +110,24 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 | `min_detectable` | The smallest true value this provider could have flagged with 80% power |
 | `ci_lower`, `ci_upper` | Exact 95% interval for the provider's own value |
 | `excluded` | Left out with `exclude=` (drawn faded, not tested) |
+| `raw_excess` | (observed − cl × denominator), signed so positive is worse: excess days or events |
+| `reliability` | τ²/(τ² + V₀), 0–1: how much of the provider's difference is signal. 0 everywhere when τ̂ = 0 |
+| `eb_rate`, `eb_excess` | The shrunk (empirical Bayes) value and its excess: the exact posterior mean of the chart's own model. Rank flagged providers on `eb_excess` |
+| `prob_worse` | Posterior probability that the true value is worse than the center line (CMS-style "worse than average"); NaN when τ̂ = 0 |
+| `p_value_drop1` | The p-value with the provider's single most extreme case removed (needs case rows or `max_case_y=`/`max_case_n=`); descriptive, no q-value |
+| `flag_survives_drop1` | For flagged providers: still flagged without that case? |
+| `fragility` | Case rows: the fewest worst cases whose removal clears the flag (1 = one case carries it) |
+| `effective_denominator` | Only with a `within_dispersion` column: n/φᵢ, the plot's x axis |
 
 `r.summary` holds the model and how to read the counts:
 
 - `n_outlier`, `n_alert`, and `expected_false_flags`.
 - `tau`: the estimated spread of true values between providers.
 - `count_model`, `within_dispersion`, `dispersion_shape` and `underpowered`.
+- `tau_method`, `tau_source` ("estimated" or "pre-specified"), `tau_estimated` (this
+  period's estimate, even when `tau=` is fixed), `tau_ci` (`tau_method="ml"`).
+- `phi_raw`, `phi_debiased`: the over-dispersion estimate before and after its
+  consistency factor; `n_filtered`, `n_fragile`.
 - `notes`: sentences ready to show a reader.
 
 On a faceted funnel the same keys are under `by_facet`.
@@ -142,8 +162,15 @@ the combined tier ([methods §4.11](docs/methods.md)).
 
 No risk model captures everything, so providers differ by more than chance allows. With
 `overdispersion=True` (the default) each provider is judged against that spread as
-well as chance. qikit uses Spiegelhalter's additive random-effects model, with τ
-estimated as published. The smallest providers' limits barely move. The busiest level
+well as chance. qikit uses Spiegelhalter's additive random-effects model. By default τ is
+estimated by his winsorized method with the consistency factor of his eq. 9
+(`tau_method="winsorized"`); without it (`"spiegelhalter"`, as published) the estimate is
+0 for a real spread of 0.10 across 1,000 physicians, and average providers flag about
+twice as often as stated ([methods §4.3](docs/methods.md)). `tau_method="ml"` is the
+random-effects literature's maximum likelihood (with an interval for τ, but not robust:
+one gross outlier among 30 providers inflates it), and `tau=` fixes τ in advance from
+earlier periods
+([methods §4.16](docs/methods.md)). The smallest providers' limits barely move. The busiest level
 off at about the center ± z·τ instead of closing onto the line. When τ̂ is 0, which is
 common at physician scale, the chart is identical to `overdispersion=False`.
 
@@ -268,7 +295,12 @@ r.plot(
 | `exclude` | `None` | A boolean column, or a list of unit ids, left out of the model |
 | `center` | pooled | A fixed center line, e.g. `1.0` on O/E |
 | `overdispersion` | `True` | Judge against the spread between providers (τ) |
-| `within_dispersion` | `1.0` | Clustered counts or survey items: a number, or `"estimate"` from case-level rows (stays, surveys) |
+| `within_dispersion` | `1.0` | Clustered counts or survey items: a number, `"estimate"` from case-level rows (stays, surveys) or SQL totals, or a column of per-provider φᵢ |
+| `tau_method` | `"winsorized"` | How τ is estimated: `"winsorized"` (debiased, robust), `"spiegelhalter"` (as published), `"ml"` (maximum likelihood, with `tau_ci`) |
+| `tau` | `None` | A τ fixed in advance (a number, or one per facet), instead of estimating it |
+| `cases`, `sum_sq` | `None` | Per-provider SQL totals (k and Σy²/n) so `"estimate"` needs no case rows |
+| `max_case_y`, `max_case_n` | `None` | Per-provider SQL worst case, for `p_value_drop1` |
+| `test_min_expected` | `None` | Volume floor for the FDR step only (independent filtering) |
 | `worse` | `None` | `"higher"` or `"lower"`: flag one side, one-sided p-values |
 | `signal` | `"limits"` | `"limits"` (exact test, drawn) or `"fdr"` (q-values) |
 | `limits` | `(0.998, 0.95)` | Outer and inner contour coverage |

@@ -24,7 +24,8 @@
       105.0
     ],
     "chart": "oe",
-    "funnel": true
+    "funnel": true,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [
