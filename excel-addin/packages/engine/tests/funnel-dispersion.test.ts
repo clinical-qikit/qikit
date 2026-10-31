@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { compute, funnelDispersion } from '../src';
+import { compute, funnelDispersion, WINSOR_CONSISTENCY } from '../src';
 import {
   betaBinomialQuantiles, binomialQuantiles, poissonGammaQuantiles, poissonQuantileInterp,
 } from '../src/stats';
@@ -52,9 +52,18 @@ describe('funnelDispersion', () => {
   test('matches Spiegelhalter eqs. 4, 6, 8 and 10 written out by hand', () => {
     const y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88];
     const n = [12, 18, 25, 30, 38, 45, 55, 64, 72, 85, 96, 110];
-    const r = compute({ y, n, chart: 'oep', funnel: true });
+    const r = compute({ y, n, chart: 'oep', funnel: true, tauMethod: 'spiegelhalter' });
     expect(r.summary.dispersion_phi).toBeCloseTo(6.261737, 6);
     expect(r.summary.dispersion_tau).toBeCloseTo(0.335455, 6);
+  });
+
+  test('the default multiplies the winsorized φ̂ by the eq. 9 consistency factor', () => {
+    const y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88];
+    const n = [12, 18, 25, 30, 38, 45, 55, 64, 72, 85, 96, 110];
+    const r = compute({ y, n, chart: 'oep', funnel: true });
+    expect(r.summary.dispersion_phi).toBeCloseTo(6.261737027903767 * WINSOR_CONSISTENCY, 9);
+    expect(() => compute({ y, n, chart: 'oep', funnel: true, tauMethod: 'ml' as any }))
+      .toThrow(/tauMethod must be/);
   });
 
   test('τ̂² is zero, never negative, without heterogeneity', () => {

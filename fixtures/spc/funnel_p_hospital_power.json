@@ -28,7 +28,8 @@
       1050
     ],
     "chart": "p",
-    "funnel": true
+    "funnel": true,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [

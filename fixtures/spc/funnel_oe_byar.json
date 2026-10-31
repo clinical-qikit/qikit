@@ -25,7 +25,8 @@
     ],
     "chart": "oe",
     "funnel": true,
-    "limitMethod": "byar"
+    "limitMethod": "byar",
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [

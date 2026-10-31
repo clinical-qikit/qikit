@@ -31,7 +31,8 @@
     "funnel": true,
     "exclude": [
       4
-    ]
+    ],
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [

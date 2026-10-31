@@ -4,6 +4,8 @@ export type ChartType =
 
 /** Quantile method for the oe chart's Poisson funnel limits. */
 export type LimitMethod = 'exact' | 'byar';
+/** How a funnel estimates τ. The Python engine also has 'ml' and a fixed tau=. */
+export type TauMethod = 'winsorized' | 'spiegelhalter';
 
 /** The count model behind a funnel: Poisson for u/oe, binomial for p. */
 export type DispersionFamily = 'poisson' | 'binomial';
@@ -50,6 +52,10 @@ export interface SPCInput {
    *  interpolation; "byar" is the closed-form Wilson-Hilferty approximation, which
    *  drifts below expected counts of ~20 — exactly where per-provider volumes live. */
   limitMethod?: LimitMethod;
+  /** τ estimator for funnels: "winsorized" (default) multiplies the 10%-winsorized
+   *  φ̂ by its Gaussian consistency factor 1.4735 [Spiegelhalter 2005, eq. 9];
+   *  "spiegelhalter" leaves it out, as published. docs/methods.md §4.3, §4.16. */
+  tauMethod?: TauMethod;
   /** Point connectivity: true = lines+markers, false = markers only.
    *  Undefined = renderer infers from the x-axis. Funnel mode forces false. */
   connect?: boolean;

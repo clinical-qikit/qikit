@@ -110,6 +110,8 @@ for path in paths:
 
     if "limitMethod" in inputs:
         inputs["limit_method"] = inputs.pop("limitMethod")
+    if "tauMethod" in inputs:
+        inputs["tau_method"] = inputs.pop("tauMethod")
 
     # Strip TS-only keys before calling Python qic — it re-derives subgroup sizes
     # and the sigma estimate from the grouping column.

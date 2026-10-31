@@ -1,4 +1,4 @@
-import { ChartSpec, DispersionFamily, LimitDiag, LimitMethod, SPCInput, SPCResult } from './spc-types';
+import { ChartSpec, DispersionFamily, LimitDiag, LimitMethod, SPCInput, SPCResult, TauMethod } from './spc-types';
 import { nanmean, nanmedian, nansum, screenedMeanMR } from './spc-helpers';
 import { D2, D4, Z_80, Z_95, Z_998, a3, b3, b4, c4 } from './constants';
 import {
@@ -291,14 +291,22 @@ function binomialFunnelPair(
 }
 
 /**
+ * 1 / E[Z_W²] for a standard normal winsorized at 10% per tail [1, eq. 9]: the repr of
+ * limits._WINSOR_CONSISTENCY, so both engines multiply by the same double.
+ */
+export const WINSOR_CONSISTENCY = 1.473503694638025;
+
+/**
  * Spiegelhalter's over-dispersion estimate for a funnel: returns [φ̂, τ̂²]. Twin of
  * funnel_dispersion in limits.py, whose docstring records each choice: Pearson
- * residuals on the natural scale [1, eq. 4], 10% winsorized φ̂ [1, eqs. 6, 8] with no
- * debiasing factor (as [1] did not adopt one), and the method-of-moments τ̂² [1, eq. 10]
- * with τ̂² = 0 whenever φ̂ < (K−1)/K. φ̂ is NaN with fewer than two usable points.
+ * residuals on the natural scale [1, eq. 4], 10% winsorized φ̂ [1, eqs. 6, 8], times
+ * the consistency factor of [1, eq. 9] unless method is 'spiegelhalter' (as published),
+ * and the method-of-moments τ̂² [1, eq. 10] with τ̂² = 0 whenever φ̂ < (K−1)/K. φ̂ is
+ * NaN with fewer than two usable points.
  */
 export function funnelDispersion(
-  cl: number, y: number[], n: number[] | undefined, mask: boolean[], family: DispersionFamily
+  cl: number, y: number[], n: number[] | undefined, mask: boolean[], family: DispersionFamily,
+  method: TauMethod = 'winsorized',
 ): [number, number] {
   if (!n) throw new Error('Over-dispersion estimation requires denominators (n).');
 
@@ -326,7 +334,8 @@ export function funnelDispersion(
     const c = Math.min(hi, Math.max(lo, zi));
     total += c * c;
   }
-  const phi = total / k;
+  let phi = total / k;
+  if (method === 'winsorized') phi *= WINSOR_CONSISTENCY;
 
   if (k * phi <= k - 1) return [phi, 0.0];
   let sw = 0;
@@ -674,6 +683,13 @@ export function compute(input: SPCInput): SPCResult {
     );
   }
   const limitMethod: LimitMethod = input.limitMethod ?? 'exact';
+  const tauMethod: TauMethod = input.tauMethod ?? 'winsorized';
+  if (tauMethod !== 'winsorized' && tauMethod !== 'spiegelhalter') {
+    throw new Error(
+      `tauMethod must be "winsorized" or "spiegelhalter", got "${tauMethod}". ` +
+      `The Python engine also offers "ml" and a fixed tau.`
+    );
+  }
   if (chart === 'oe' && limitMethod !== 'exact' && limitMethod !== 'byar') {
     throw new Error(`limitMethod must be "exact" or "byar", got "${limitMethod}".`);
   }
@@ -866,7 +882,7 @@ export function compute(input: SPCInput): SPCResult {
     const segExtra: Record<string, unknown> = {};
     let tau2 = 0.0;
     if (spec.family && segN) {
-      const [phi, t2] = funnelDispersion(clVal, segY, segN, segMask, spec.family);
+      const [phi, t2] = funnelDispersion(clVal, segY, segN, segMask, spec.family, tauMethod);
       tau2 = t2;
       segExtra.dispersion_phi = phi;
       segExtra.dispersion_tau = Math.sqrt(t2);

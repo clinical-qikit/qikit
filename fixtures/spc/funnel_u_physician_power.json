@@ -29,7 +29,8 @@
     ],
     "chart": "u",
     "funnel": true,
-    "multiply": 1000
+    "multiply": 1000,
+    "tauMethod": "spiegelhalter"
   },
   "check": {
     "cl": [

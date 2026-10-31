@@ -2213,7 +2213,7 @@ class TestOEOverdispersion:
         return qic(y=y or self.Y, n=self.N, chart="oep", funnel=True, **kw)
 
     def test_detects_overdispersion(self):
-        r = self._oep()
+        r = self._oep(tau_method="spiegelhalter")
         assert r.summary["dispersion_adjusted"] is True
         assert r.summary["overdispersed"] is True
         assert r.summary["dispersion_method"] == "additive"
@@ -2230,9 +2230,15 @@ class TestOEOverdispersion:
         w = n / cl
         k = len(y)
         tau2 = (k * phi - (k - 1)) / (w.sum() - (w ** 2).sum() / w.sum())  # eq. 10
-        r = self._oep()
+        r = self._oep(tau_method="spiegelhalter")
         assert r.summary["dispersion_phi"] == pytest.approx(phi)
         assert r.summary["dispersion_tau"] == pytest.approx(math.sqrt(tau2))
+        # The default differs only by eq. 9's consistency factor on φ̂ (methods §4.3).
+        c = _limits.winsor_consistency()
+        tau2_d = (k * phi * c - (k - 1)) / (w.sum() - (w ** 2).sum() / w.sum())
+        d = self._oep()
+        assert d.summary["dispersion_phi"] == pytest.approx(phi * c)
+        assert d.summary["dispersion_tau"] == pytest.approx(math.sqrt(tau2_d))
 
     def test_clears_points_the_unadjusted_chart_flags(self):
         """The point of the adjustment: 2 of 12 flagged at 99.8% is not a credible
@@ -2413,7 +2419,8 @@ class TestFunnelDispersionEstimator:
         y = np.array([4, 9, 3, 15, 8, 22, 30, 12], float)
         n = np.array([40, 60, 50, 90, 100, 150, 200, 160], float)
         cl = y.sum() / n.sum()
-        phi, tau2 = _limits.funnel_dispersion(cl, y / n, n, np.ones(8, bool), "binomial")
+        phi, tau2 = _limits.funnel_dispersion(cl, y / n, n, np.ones(8, bool), "binomial",
+                                              method="spiegelhalter")
         z = (y / n - cl) / np.sqrt(cl * (1 - cl) / n)
         lo, hi = np.percentile(z, [10, 90])
         assert phi == pytest.approx(np.mean(np.clip(z, lo, hi) ** 2))
@@ -2536,7 +2543,7 @@ class TestAdjustedFunnels:
         df = pd.read_csv("data/examples/physician_mortality_oe.csv")
         agg = df.groupby("physician", as_index=False)[["observed_deaths", "expected_deaths"]].sum()
         r = qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
-                chart="up", funnel=True)
+                chart="up", funnel=True, tau_method="spiegelhalter")
         assert r.summary["dispersion_tau"] == 0.0
         assert sorted(r.data.loc[r.data["sigma_signal"], "x"]) == ["SURG-07", "SURG-15", "SURG-21"]
 
@@ -3682,6 +3689,8 @@ def _fixture_result(path):
         inputs["cl"] = inputs.pop("clOverride")
     if "limitMethod" in inputs:
         inputs["limit_method"] = inputs.pop("limitMethod")
+    if "tauMethod" in inputs:
+        inputs["tau_method"] = inputs.pop("tauMethod")
     return qic(**inputs)
 
 

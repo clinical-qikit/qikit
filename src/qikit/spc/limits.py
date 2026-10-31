@@ -460,13 +460,39 @@ def _p_funnel_limits_95(
     return _binomial_funnel_pair(cl, n, *contour(levels[1]), diag)
 
 
+# Spiegelhalter winsorizes 10% from each tail [1, eq. 6].
+_WINSOR_P = 0.10
+
+
+def winsor_consistency(p: float = _WINSOR_P) -> float:
+    """
+    c(p) = 1 / E[Z_W²] for Z ~ N(0, 1) winsorized at its p and 1 − p quantiles [1, eq. 9]:
+    E[Z_W²] = (1 − 2p) − 2z·φ(z) + 2p·z², z = Φ⁻¹(1 − p). c(0.10) = 1.4735.
+    """
+    z = NormalDist().inv_cdf(1.0 - p)
+    pdf = math.exp(-0.5 * z * z) / math.sqrt(2.0 * math.pi)
+    return 1.0 / ((1.0 - 2.0 * p) - 2.0 * z * pdf + 2.0 * p * z * z)
+
+
+_WINSOR_CONSISTENCY = winsor_consistency(_WINSOR_P)
+
+# τ estimators of funnel(tau_method=) and qic(tau_method=); methods §4.16.
+TAU_METHODS = ("winsorized", "spiegelhalter", "ml")
+
+
 def funnel_dispersion(
     cl: float, y: np.ndarray, n: np.ndarray | None, mask: np.ndarray, family: str,
+    method: str = "winsorized",
 ) -> tuple[float, float]:
     """
     Spiegelhalter's over-dispersion estimate for a funnel: returns (φ̂, τ̂²).
 
-    Implemented as published [1, §5], with each choice recorded in docs/methods.md:
+    method="winsorized" (the default everywhere) multiplies mean(z_W²) by the Gaussian
+    consistency factor c(0.10) = 1.4735 of [1, eq. 9] before the τ² = 0 gate, so φ̂
+    averages 1 rather than 0.68 under pure chance (methods §4.3). method="spiegelhalter"
+    leaves it out, exactly as published [1, §5] and as FunnelPlotR and CQC compute it;
+    the shared fixtures that check the published numbers pin it. Each choice is recorded
+    in docs/methods.md:
 
     - Pearson residuals on the natural scale, zᵢ = (yᵢ − θ₀)/√V₀ᵢ [1, eq. 4], where
       V₀ᵢ = θ₀/nᵢ for counts ("poisson": u, oe) and θ₀(1 − θ₀)/nᵢ for proportions
@@ -474,10 +500,11 @@ def funnel_dispersion(
       variance V₀ᵢ + τ² of [1, eq. 11].
     - 10% winsorizing, φ̂ = mean(z_W²) [1, eqs. 6, 8], so the outliers being screened
       for cannot widen the limits past themselves.
-    - No debiasing factor. Winsorizing shrinks the variance of a normal sample to 0.68
-      of its value, and [1, eq. 9] gives the correction w(0.10) = 1.47, but [1] found it
-      gave "somewhat wide limits" and did not adopt it. Neither do we, so φ̂ averages
-      about 0.68 under pure chance and the method under- rather than over-adjusts.
+    - The debiasing factor. Winsorizing shrinks the variance of a normal sample to 0.68
+      of its value, and [1, eq. 9] gives the correction w(0.10) = 1.47. [1] found it
+      gave "somewhat wide limits" at its dozen-provider example and did not adopt it;
+      without it φ̂ averages about 0.68 under pure chance and τ̂ is 0 at a true τ = 0.10
+      across 1,000 physicians (methods §4.3), which is why it is the default.
     - The additive random-effects variance by the method of moments [1, eq. 10; 3],
       τ̂² = (Kφ̂ − (K−1)) / (Σwᵢ − Σwᵢ²/Σwᵢ) with wᵢ = 1/V₀ᵢ, and τ̂² = 0 whenever
       φ̂ < (K−1)/K: no evidence of heterogeneity means none is assumed. It never goes
@@ -509,8 +536,10 @@ def funnel_dispersion(
     if k < 2:
         return math.nan, 0.0
 
-    lo, hi = np.percentile(z_valid, [10.0, 90.0])
+    lo, hi = np.percentile(z_valid, [100.0 * _WINSOR_P, 100.0 * (1.0 - _WINSOR_P)])
     phi = float(np.mean(np.clip(z_valid, lo, hi) ** 2))
+    if method == "winsorized":
+        phi *= _WINSOR_CONSISTENCY
 
     if k * phi <= k - 1:
         return phi, 0.0
@@ -518,6 +547,119 @@ def funnel_dispersion(
     sw = float(np.sum(wv))
     tau2 = (k * phi - (k - 1)) / (sw - float(np.sum(wv * wv)) / sw)
     return phi, max(0.0, tau2)
+
+
+# Profile-likelihood 95% interval: the χ²₁ 0.95 point halved.
+_ML_CI_DROP = 0.5 * 3.841458820694124
+_ML_GRID = 80
+_ML_ITERS = 60
+
+
+_LGAMMA = np.frompyfunc(math.lgamma, 1, 1)
+
+
+def _lgamma(x: np.ndarray) -> np.ndarray:
+    """math.lgamma elementwise, on real arguments (numpy has no lgamma)."""
+    return np.asarray(_LGAMMA(x), dtype=float)
+
+
+def _mixture_loglik(tau: float, cl: float, o: np.ndarray, e: np.ndarray, family: str) -> float:
+    """
+    The marginal log-likelihood of counts o at denominators e under the chart's own
+    random-effects model with spread tau around cl: Poisson–gamma (size cl²/τ²) for
+    counts, beta-binomial (α + β = cl(1 − cl)/τ² − 1) for proportions; τ = 0 is the plain
+    Poisson or binomial. Terms that do not involve τ are dropped. Real (effective)
+    counts are allowed, through lgamma. −inf where no beta has that spread.
+    """
+    if family == "poisson":
+        mu = cl * e
+        if tau <= 0:
+            return float(np.sum(o * np.log(mu) - mu))
+        r = cl * cl / (tau * tau)
+        return float(np.sum(
+            _lgamma(o + r) - math.lgamma(r) + r * np.log(r / (r + mu))
+            + o * np.log(mu / (r + mu))
+        ))
+    if tau <= 0:
+        return float(np.sum(o * math.log(cl) + (e - o) * math.log1p(-cl)))
+    params = beta_params(cl, tau * tau)
+    if params is None:
+        return -math.inf
+    a, b = params
+    s = a + b
+    return float(np.sum(
+        _lgamma(o + a) + _lgamma(e - o + b) - _lgamma(e + s)
+    ) + len(o) * (math.lgamma(s) - math.lgamma(a) - math.lgamma(b)))
+
+
+def tau2_ml(
+    cl: float, y: np.ndarray, n: np.ndarray, mask: np.ndarray, family: str,
+) -> tuple[float, tuple[float, float]]:
+    """
+    τ̂² by maximum likelihood, with its profile-likelihood 95% interval for τ:
+    returns (τ̂², (lo, hi)) (methods §4.16).
+
+    The likelihood is the one the adjusted limits are drawn from (_mixture_loglik), with
+    θ₀ = cl held fixed, as the moment estimator holds it. It uses every provider's whole
+    count, needs no consistency factor, and on clean data returns exactly 0 when chance
+    explains the spread best. It is not robust: nothing limits an outlier's pull, so a
+    single gross outlier among 30 providers, or 3% among 150, inflates τ̂ and widens the
+    limits it would have crossed (methods §4.16, §5). Searched on log τ (a grid, then
+    golden section), with τ = 0 compared explicitly as the boundary. (0, (nan, nan))
+    when fewer than two points carry a usable count.
+    """
+    e = np.asarray(n, dtype=float)
+    yy = np.asarray(y, dtype=float)
+    ok = mask & np.isfinite(yy) & np.isfinite(e) & (e > 0)
+    o, e = yy[ok] * e[ok], e[ok]
+    if family == "binomial":
+        o = np.clip(o, 0.0, e)
+    if len(o) < 2 or not (cl > 0) or (family == "binomial" and not (cl < 1)):
+        return 0.0, (math.nan, math.nan)
+
+    def ll(t):
+        return _mixture_loglik(t, cl, o, e, family)
+
+    top = 3.0 * cl if family == "poisson" else 0.999 * math.sqrt(cl * (1.0 - cl))
+    grid = np.geomspace(1e-4 * top, top, _ML_GRID)
+    vals = np.array([ll(t) for t in grid])
+    j = int(np.argmax(vals))
+    lo_t, hi_t = grid[max(j - 1, 0)], grid[min(j + 1, len(grid) - 1)]
+    g = (math.sqrt(5.0) - 1.0) / 2.0
+    a, b = math.log(lo_t), math.log(hi_t)
+    for _ in range(_ML_ITERS):
+        c, d = b - g * (b - a), a + g * (b - a)
+        if ll(math.exp(c)) >= ll(math.exp(d)):
+            b = d
+        else:
+            a = c
+    t_hat = math.exp(0.5 * (a + b))
+    l_hat = ll(t_hat)
+    l_zero = ll(0.0)
+    if l_zero >= l_hat:
+        t_hat, l_hat = 0.0, l_zero
+    target = l_hat - _ML_CI_DROP
+
+    def crossing(inside, outside):
+        # Bisection on log τ between a point above the target and one below it.
+        lo, hi = math.log(inside), math.log(outside)
+        for _ in range(_ML_ITERS):
+            mid = 0.5 * (lo + hi)
+            if ll(math.exp(mid)) >= target:
+                lo = mid
+            else:
+                hi = mid
+        return math.exp(0.5 * (lo + hi))
+
+    anchor = t_hat if t_hat > 0 else grid[0]
+    if l_zero >= target:
+        ci_lo = 0.0
+    else:
+        below = [t for t in grid if t < anchor and ll(t) < target]
+        ci_lo = crossing(anchor, below[-1]) if below else 0.0
+    above = [t for t in grid if t > anchor and ll(t) < target]
+    ci_hi = crossing(anchor, above[0]) if above else math.inf
+    return t_hat * t_hat, (ci_lo, ci_hi)
 
 
 # The dispersion-shape test (dispersion_shape below) calls clumping "within" when the
@@ -816,10 +958,14 @@ def _tail_table(m: int, cl: float, tau2: float):
             return (m - j) / (j + 1) * odds
 
         start = min(m, int(math.floor((m + 1) * cl)))
-    walk = _walk_terms(ratio, start, m)
+    walk = _walk_terms(ratio, start, m, ("tail_table", m, cl, tau2))
     if walk is None:
         return None
     k_lo, terms, total = walk
+    if isinstance(terms, np.ndarray):
+        lower = np.minimum(1.0, np.cumsum(terms) / total).tolist()
+        upper = np.minimum(1.0, np.cumsum(terms[::-1]) / total)[::-1].tolist()
+        return k_lo, lower, upper
     lower = []
     acc = 0.0
     for t in terms:
