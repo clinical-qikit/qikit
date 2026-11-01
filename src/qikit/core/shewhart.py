@@ -97,7 +97,7 @@ def shewhart(
         amr = screened_mean_mr(y[mask])
         constant = MDC_CONSTANT / 3.0 if mdc else 1.0 / D2[2]
         s = amr * constant
-        sigma = np.full(k, s if s > 0 else np.nan)
+        sigma: np.ndarray = np.full(k, s if s > 0 else np.nan)
     elif chart == "c":
         cl = _mean(y[mask]) if center is None else float(center)
         sigma = np.full(k, math.sqrt(cl) if cl >= 0 else np.nan)
