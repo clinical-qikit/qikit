@@ -1040,6 +1040,143 @@ as those indicators. For a physician screen the default is preferred: its limits
 exact rather than normal on a transformed scale, which matters at the small expected
 counts most physicians have. `funnel_sensitivity()` shows which flags change.
 
+### 4.18 Benchmarks: what the best providers achieve (`benchmark=`)
+
+A funnel shows which providers differ from the centre line. The centre line is the
+average, and the average is not a goal. `benchmark=` adds a goal that the best providers
+in the same data already reach. It is drawn as a dashed line, and it does not change
+`signal`. Both options need `worse=`. `benchmark_share=` (default 0.10) defines "the
+best".
+
+| `benchmark=` | What it is | Suits |
+|---|---|---|
+| `"abc"` | Kiefe and Weissman's achievable benchmark of care [38, 39]: the pooled rate of the best providers holding 10% of patients | Process-of-care proportions (H&P in 24 h, vaccination) |
+| `"eb"` | The 90th percentile, toward better, of the shrunk estimates `eb_rate` [44] | Outcomes (O/E mortality, length of stay, readmission) |
+
+**The ABC method.** These are the three steps of Kiefe et al. [38, Table 1], restated by
+Weissman et al. [39, Table 1]:
+
+1. Rank providers best first by the adjusted performance fraction,
+   APF = (x + 1)/(d + 2). The authors give it as a Bayesian estimator, citing Agresti.
+   It is the posterior mean under a uniform prior, and it keeps a provider with 3 of 3
+   from topping the list on luck: that provider's APF is 0.8, below 196 of 200 at 0.975.
+   The APF is "used solely for the purpose of ranking". In no event should it be used to
+   compare individual providers [39, p. 272].
+2. Starting with the best provider, add providers until together they hold at least 10%
+   of all patients. The 10% is of patients, not providers, so a run of tiny providers
+   cannot make up the group. The point where the group reaches 10% is the breakpoint.
+   Every provider tied at the breakpoint joins, so the share held can run past 10%, to
+   12% "or even higher" [39, p. 273]. qikit reports it as `coverage` in `summary["benchmark"]`.
+3. The ABC is the group's patients who received the intervention divided by all of the
+   group's patients: the pooled raw rate Σx/Σd. It is not the mean of their rates and
+   not their APFs. Some providers in the group can fall below the ABC itself.
+
+`worse=` sets the direction. With `worse="lower"`, a high value is good and providers are
+ranked from the highest APF down. With `worse="higher"`, as for low-value care [42], they
+are ranked from the lowest up. Excluded providers neither join the group nor count
+toward the share.
+
+**Worked examples checked in `tests/test_funnel.py`:**
+- *GAMUT* [41]. Delta (196/200), Envoy (193/200) and SkyWest (125/130) hold 530 of 5,237
+  patients (10.1%), so the ABC is 514/530 = 0.970.
+- *Kiefe 1998, smoking-cessation counselling* [38]. Across 106 hospitals and 1,253
+  patients the pooled rate was 14%. The 12 best hospitals held at least 125 patients and
+  gave an ABC of 49%. The source data are not published, so this one is not a test.
+
+**At physician level.** In the randomised trial [40], 70 physicians, each with at least 20
+eligible patients, were ranked on the APF until 10% of patients were included. The ABCs
+for five diabetes process measures ranged from 82% to 99%. Adding the ABC to feedback
+raised the odds of appropriate care by 1.33 to 1.57 times.
+
+**The share.** Weissman et al. call 10% "somewhat arbitrary". Another share may be used if
+it is agreed before the benchmark providers are identified [39, p. 273]. Hall et al. [43]
+used 15%, to include more patients and hospitals and to reduce the influence of small
+ones. Set `benchmark_share=` in advance, never after seeing who would be in the group.
+
+**Minimum sufficient denominator (MSD).** Kiefe et al. [38, Table 3] tabulate, for each
+mean rate p̄, the fewest patients at which 100% performance would differ significantly
+from p̄. They give no formula. The smallest N with p̄ᴺ < 0.025 reproduces all 19 rows of
+their table, so the rule is: N of N treated must be a one-sided exact binomial event at
+2.5% (two-sided 5%). That is a reconstruction, not the authors' stated formula. The nine
+MSDs Hall et al. report [43, Table 4] match the same table read at the overall rate
+rounded down to 5%. At a 94% rate they used the 90% row (36), where the exact rule gives
+60.
+
+qikit ranks every provider on the APF, as Kiefe and Weissman do, and reports the MSD in
+`summary["benchmark"]` without using it to rank:
+- `msd`: the exact rule, at the centre line in the good direction (1 − p̄ when lower is
+  better).
+- `n_below_msd`: how many eligible providers fall below it.
+- `without_small`: the ABC recomputed without those providers.
+- A note when that changes the ABC by more than 5%.
+
+Hall et al. used the MSD as a switch, with the APF only below it and the raw rate above.
+They found their warfarin benchmark fell from 94% to 76% when hospitals below the MSD
+were excluded. `without_small` is that check. For counts with
+`worse="higher"`, the MSD is the analogue for zero events: the expected count at which
+P(0) = e^(−θ₀n) < 0.025, so n > 3.69/θ₀.
+
+**Reporting.** Following Hall et al. [43], `summary["benchmark"]` holds `method`,
+`share` and `value`, and under `"abc"` also:
+- `providers`: how many providers set the ABC.
+- `coverage`: their share of the patients.
+- `group_denominator`: the median and range of those providers' patients.
+- `msd`, `n_below_msd` and `without_small`, as above.
+
+The `meets_benchmark` column marks whether each provider is at the benchmark or better.
+Hall's "top performers" are those at or above it.
+
+A note calls the ABC provisional when fewer than three providers set it.
+
+**O/E and rates under `"abc"`: an extension, against the authors' advice.** The ABC was
+designed for process-of-care indicators. Weissman et al. "urge that it be applied to
+outcome measures with only extreme caution, if at all" [39, p. 271]. Outcomes need risk
+adjustment, are less sensitive to quality, and can be gamed through coding [39,
+pp. 274–275]. They also oppose the ABC where "the right rate is not known, particularly
+when the purpose is to decrease use of medical services" [39, p. 274], which covers
+length of stay and low-value care.
+
+qikit still computes it for `"oe"` and `"rate"`. It ranks by (y + 1)/(n + 1/θ₀), the
+same posterior-mean idea with a prior worth one event at the centre line; for O/E with
+θ₀ = 1 that is (O + 1)/(E + 1). Under `within_dispersion`, ranking uses y/φ out of n/φ.
+Each such result carries a note pointing to `"eb"`.
+
+**`"eb"`: the shrunk-percentile benchmark.** This is the (1 − `benchmark_share`) quantile
+of `eb_rate` across eligible providers, toward the better side: the 10th percentile of
+O/E when higher is worse. It uses the posterior means of the funnel's own random-effects
+model (§4.14). O'Brien et al. [44] proposed it, and Hall et al. [43] compared it with the
+ABC. The two were within 3% for most indicators, but the shrunk version was 7–32% lower
+where small providers dominated, because shrinkage pulls their lucky extremes back. It
+needs no adjustment for small numbers, it is defined for any measure the funnel fits, and
+it suits outcomes. When the funnel finds no spread (τ̂ = 0, or `overdispersion=False`)
+every shrunk estimate is the centre line, and so is the benchmark; a note says so. Hall
+et al. kept the ABC for its transparency. "eb" is less transparent, and better founded
+for outcomes.
+
+The percentile counts providers, as O'Brien et al. do, not patients as the ABC does. At
+physician level, many low-volume physicians are shrunk close to the centre line, which
+pulls the percentile toward it. A patient-weighted percentile would match the ABC's "10%
+of patients", but it is not the published method.
+
+**When the two disagree.** On an outcome, report `"eb"`. An ABC far better than the
+`"eb"` benchmark is pooling providers who were lucky. On the bundled surgeon data, with
+τ̂ = 0, the ABC is an O/E of 0.61 and `"eb"` is the centre line, 1.02. There is no
+spread the data can show, so no surgeon is reliably better than average.
+
+**Peer groups.** Hall et al. found that benchmarks from regional stroke centres differed
+from those of all hospitals. Larger centres face different case mix and constraints
+[43]. `facets=` gives each peer group its own benchmark, for example
+`facets="hospital_type"`. Choose peer groups for comparability before looking at the
+benchmarks.
+
+**Intended use.** The authors present the ABC in confidential, non-punitive feedback.
+They discourage its use for physician compensation, credentialing or public report cards,
+where statistical confidence matters more [39, p. 274]. Hall et al. report no confidence
+interval around the ABC, "because the purpose of our benchmarks is to drive quality
+improvement". The same holds for `"eb"`. A benchmark is a goal, not a test. At physician
+volumes the gap between a provider and the benchmark is often within chance, and
+`min_detectable` and `ci_lower`/`ci_upper` say how far the provider's own data can tell.
+
 ## 5. Evidence from simulation
 
 The engine was run on simulated cohorts. To reproduce every table below, run
@@ -1371,3 +1508,22 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
     Statistical Society, Series A* 2012;175(1):1–47. (The CQC methods.)
 37. NHS England (formerly NHS Digital). Summary Hospital-level Mortality Indicator
     (SHMI): indicator specification and methodology, current edition.
+38. Kiefe CI, Weissman NW, Allison JJ, Farmer R, Weaver M, Williams OD. Methodology
+    matters—XII. Identifying achievable benchmarks of care: concepts and methodology.
+    *International Journal for Quality in Health Care* 1998;10(5):443–447.
+    doi:10.1093/intqhc/10.5.443
+39. Weissman NW, Allison JJ, Kiefe CI, et al. Achievable benchmarks of care: the ABCs of
+    benchmarking. *Journal of Evaluation in Clinical Practice* 1999;5(3):269–281.
+    doi:10.1046/j.1365-2753.1999.00203.x
+40. Kiefe CI, Allison JJ, Williams OD, Person SD, Weaver MT, Weissman NW. Improving
+    quality improvement using achievable benchmarks for physician feedback: a randomized
+    controlled trial. *JAMA* 2001;285(22):2871–2879. doi:10.1001/jama.285.22.2871
+41. GAMUT Quality Improvement Collaborative. Achievable Benchmarks of Care (ABC): worked
+    example. https://www.gamutqi.org/abc
+42. Achievable benchmarks of care in low-value care delivery in children's hospitals.
+    PMC12680974. https://pmc.ncbi.nlm.nih.gov/articles/PMC12680974/
+43. Hall RE, Khan F, Bayley MT, et al. Benchmarks for acute stroke care delivery.
+    *International Journal for Quality in Health Care* 2013;25(6):710–718.
+    doi:10.1093/intqhc/mzt069
+44. O'Brien SM, DeLong ER, Peterson ED. Impact of case volume on hospital performance
+    assessment. *Archives of Internal Medicine* 2008;168:1277–1283.

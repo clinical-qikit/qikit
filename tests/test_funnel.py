@@ -1063,3 +1063,139 @@ class TestProbWorse:
                     lower, _ = dist.beta_tails(p, float(k), float(m - k + 1))
                     assert lower == pytest.approx(dist.binomial_tails(k, m, p)[1], rel=1e-10,
                                                   abs=1e-14)
+
+
+class TestAchievableBenchmark:
+    """benchmark="abc": Kiefe et al. (1998), Weissman et al. (1999), methods §4.18."""
+
+    @staticmethod
+    def gamut():
+        # GAMUT's worked example: the top programs, padded to its total of 5,237 patients.
+        rows = [("Delta", 196, 200), ("Envoy", 193, 200), ("SkyWest", 125, 130),
+                ("Frontier", 472, 500)]
+        rows += [(f"P{i}", 335, 400) for i in range(10)] + [("P10", 180, 207)]
+        return pd.DataFrame(rows, columns=["unit", "y", "n"])
+
+    def abc(self, df=None, **kw):
+        kw = {"measure": "proportion", "unit": "unit", "worse": "lower", "benchmark": "abc", **kw}
+        return funnel(self.gamut() if df is None else df, y="y", n="n", **kw)
+
+    def test_reproduces_the_published_worked_example(self):
+        r = self.abc()
+        s = r.summary["benchmark"]
+        assert r.data["denominator"].sum() == 5237
+        assert s["value"] == pytest.approx(514 / 530)
+        assert s["providers"] == 3
+        assert s["coverage"] == pytest.approx(530 / 5237)
+        assert s["method"] == "abc" and s["share"] == 0.10
+        assert set(r.data.loc[r.data.benchmark_group, "unit"]) == {"Delta", "Envoy", "SkyWest"}
+        assert (r.data["benchmark"] == s["value"]).all()
+        assert s["group_denominator"] == {"median": 200.0, "min": 130.0, "max": 200.0}
+
+    def test_meets_benchmark_marks_providers_at_or_better(self):
+        r = self.abc()
+        met = set(r.data.loc[r.data.meets_benchmark, "unit"])
+        # Delta 0.98 is at the ABC 0.9698; Envoy 0.965 and SkyWest 0.962 helped set it but
+        # fall below it, as Weissman et al. note contributors can.
+        assert met == {"Delta"}
+
+    def test_the_adjustment_keeps_a_tiny_perfect_provider_off_the_top(self):
+        # 3/3 has APF 0.8, below 196/200 (0.975): the benchmark is not set by luck.
+        df = pd.concat([self.gamut(), pd.DataFrame({"unit": ["Tiny"], "y": [3], "n": [3]})])
+        assert not self.abc(df).data.set_index("unit").loc["Tiny", "benchmark_group"]
+
+    def test_includes_every_provider_tied_at_the_breakpoint(self):
+        # Weissman et al. (1999): all providers tied at the breakpoint join the benchmark.
+        df = pd.DataFrame({"unit": ["a", "b", "c", "d"], "y": [50, 50, 50, 400],
+                           "n": [50, 50, 50, 850]})
+        r = self.abc(df)
+        assert set(r.data.loc[r.data.benchmark_group, "unit"]) == {"a", "b", "c"}
+        assert r.summary["benchmark"]["coverage"] == pytest.approx(150 / 1000)
+        assert r.summary["benchmark"]["value"] == 1.0
+
+    def test_benchmark_share_moves_the_cut(self):
+        r = self.abc(benchmark_share=0.15)       # Hall et al. (2013)
+        assert r.summary["benchmark"]["coverage"] >= 0.15
+        assert set(r.data.loc[r.data.benchmark_group, "unit"]) >= {"Delta", "Envoy", "SkyWest", "Frontier"}
+        with pytest.raises(ValueError, match="strictly between 0 and 1"):
+            self.abc(benchmark_share=1.0)
+
+    @pytest.mark.parametrize("mean, msd", [(0.95, 72), (0.90, 36), (0.85, 23), (0.80, 17),
+                                           (0.70, 11), (0.50, 6), (0.30, 4), (0.05, 2)])
+    def test_msd_reproduces_kiefe_table_3(self, mean, msd):
+        # Providers of 1,000 cases each at the mean: the centre line is exactly `mean`.
+        df = pd.DataFrame({"unit": range(20), "y": [int(1000 * mean)] * 20, "n": [1000] * 20})
+        assert self.abc(df).summary["benchmark"]["msd"] == msd
+        # For a lower-is-better rate the good direction is 1 − p.
+        flipped = df.assign(y=1000 - df.y)
+        assert self.abc(flipped, worse="higher").summary["benchmark"]["msd"] == msd
+
+    def test_without_small_shows_a_benchmark_leaning_on_low_volume(self):
+        # Perfect 20/20 providers (APF 0.955) outrank a 90% field, yet sit below the MSD.
+        rng = np.random.default_rng(5)
+        big = pd.DataFrame({"unit": [f"B{i}" for i in range(20)], "n": 200})
+        big["y"] = rng.binomial(200, 0.9, 20)
+        small = pd.DataFrame({"unit": [f"S{i}" for i in range(30)], "y": 20, "n": 20})
+        r = self.abc(pd.concat([big, small]))
+        s = r.summary["benchmark"]
+        assert s["msd"] > 20 and s["n_below_msd"] == 30
+        assert s["value"] == 1.0 and s["without_small"] < 0.97
+        assert any("minimum sufficient denominator" in n for n in r.summary["notes"])
+
+    def test_oe_and_excluded_providers(self):
+        rng = np.random.default_rng(4)
+        e = rng.uniform(2, 40, 50)
+        df = pd.DataFrame({"unit": range(50), "o": rng.poisson(e), "e": e})
+        best = int(df.assign(r=df.o / df.e).sort_values("r").unit.iloc[0])  # best O/E
+        r = funnel(df, y="o", n="e", measure="oe", unit="unit", worse="higher",
+                   benchmark="abc", exclude=[best])
+        group = r.data[r.data.benchmark_group]
+        b = r.summary["benchmark"]
+        assert b["value"] < 1.0 and b["coverage"] >= 0.10
+        assert best not in set(group.unit)
+        assert b["msd"] == pytest.approx(-math.log(0.025) / r.summary["center"])
+        assert any("extreme caution" in n for n in r.summary["notes"])
+        assert "achievable benchmark (ABC)" in str(r)
+
+    def test_faceted_and_plotted(self):
+        df = pd.concat([self.gamut().assign(m="a"), self.gamut().assign(m="b", y=lambda d: d.y // 2)])
+        r = self.abc(df, facets="m")
+        assert r.summary["by_facet"]["a"]["benchmark"]["value"] == pytest.approx(514 / 530)
+        assert r.data.groupby("m")["benchmark"].nunique().eq(1).all()
+        assert sum(t.name == "ABC" for t in r.plot().data) == 2
+        assert sum(t.name == "Mine" for t in r.plot(styles={"target": {"name": "Mine"}}).data) == 2
+
+    def test_needs_a_direction_and_is_off_by_default(self):
+        with pytest.raises(ValueError, match="needs worse="):
+            funnel(self.gamut(), y="y", n="n", measure="proportion", benchmark="abc")
+        r = funnel(self.gamut(), y="y", n="n", measure="proportion")
+        assert "benchmark" not in r.data and "benchmark" not in r.summary
+
+
+class TestShrunkPercentileBenchmark:
+    """benchmark="eb": the 90th percentile of the shrunk estimates (O'Brien et al. 2008)."""
+
+    def oe(self, tau=0.3, k=200, seed=6):
+        rng = np.random.default_rng(seed)
+        e = rng.uniform(5, 60, k)
+        theta = np.exp(rng.normal(0, tau, k)) if tau else np.ones(k)
+        return pd.DataFrame({"unit": range(k), "o": rng.poisson(e * theta), "e": e})
+
+    def test_is_the_better_side_quantile_of_eb_rate(self):
+        r = funnel(self.oe(), y="o", n="e", measure="oe", unit="unit", worse="higher",
+                   benchmark="eb")
+        assert r.summary["benchmark"]["value"] == pytest.approx(np.quantile(r.data.eb_rate, 0.10))
+        assert r.summary["benchmark"]["value"] < r.summary["center"]
+        assert set(r.summary["benchmark"]) == {"method", "share", "value"}
+        assert "benchmark_group" not in r.data
+        lower = funnel(self.oe(), y="o", n="e", measure="oe", unit="unit", worse="lower",
+                       benchmark="eb", benchmark_share=0.2)
+        assert lower.summary["benchmark"]["value"] == pytest.approx(np.quantile(lower.data.eb_rate, 0.80))
+        assert sum(t.name == "Benchmark" for t in r.plot().data) == 1
+        assert "shrunk percentile" in str(r)
+
+    def test_with_no_spread_it_is_the_centre_line(self):
+        r = funnel(self.oe(tau=0, k=60), y="o", n="e", measure="oe", unit="unit",
+                   worse="higher", benchmark="eb", overdispersion=False)
+        assert r.summary["benchmark"]["value"] == pytest.approx(r.summary["center"])
+        assert any("no spread" in n for n in r.summary["notes"])

@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`benchmark=` on `funnel()`:** a goal the best providers already reach, drawn as a
+  dashed line, with `benchmark_share=` (default 0.10) defining "the best". Both need
+  `worse=`; methods §4.18.
+  - `"abc"`: Kiefe and Weissman's achievable benchmark of care. Providers are ranked by
+    (x + 1)/(n + 2), and the best are pooled until they hold 10% of patients, ties
+    included. It reproduces GAMUT's worked example. It reports the providers who set it
+    and their volumes, and the minimum sufficient denominator (whose exact rule
+    reproduces Kiefe's Table 3). It also gives the ABC without providers below that
+    denominator (Hall et al. 2013).
+  - `"eb"`: the 90th percentile of the shrunk `eb_rate` toward the better side (O'Brien
+    et al. 2008), for outcome measures.
+  - `summary["benchmark"]` is one dict: `method`, `share`, `value`, and under `"abc"`
+    `providers`, `coverage`, `group_denominator`, `msd`, `n_below_msd` and
+    `without_small`. The columns are `benchmark`, `meets_benchmark`, and
+    `benchmark_group` under `"abc"`.
+  - Python only. The TypeScript engine and the Excel add-in do not have it yet.
+
 ## 1.0.0 (2026-11-01)
 
 1.0 is a breaking release. `qic()` and `funnel()` now share one vocabulary, display

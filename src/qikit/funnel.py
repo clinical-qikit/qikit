@@ -41,6 +41,10 @@ from .validate import (
 
 MEASURES = ("oe", "proportion", "rate")
 SIGNALS = ("limits", "fdr")
+BENCHMARKS = (None, "abc", "eb")
+# A provider holding fewer cases than the minimum sufficient denominator could reach
+# 100% by chance at this one-sided level (Kiefe 1998, Table 3; methods §4.18).
+_MSD_ALPHA = 0.025
 DEFAULT_FDR_LEVELS = (0.05, 0.10)
 _SIDES = {None: "both", "higher": "above", "lower": "below"}
 
@@ -50,7 +54,8 @@ _COLUMNS = (
     "lower_outlier", "upper_outlier", "lower_alert", "upper_alert",
     "p_value", "q_value", "signal", "direction", "min_detectable", "ci_lower", "ci_upper",
     "excluded", "raw_excess", "reliability", "eb_rate", "eb_excess", "prob_worse",
-    "p_value_drop1", "flag_survives_drop1", "fragility",
+    "p_value_drop1", "flag_survives_drop1", "fragility", "benchmark", "benchmark_group",
+    "meets_benchmark",
 )
 
 # Internal working columns on the normalized frame.
@@ -104,6 +109,8 @@ def funnel(
     signal: str = "limits",
     limits: tuple[float, float] = DEFAULT_LEVELS,
     fdr_levels: tuple[float, float] = DEFAULT_FDR_LEVELS,
+    benchmark: str | None = None,
+    benchmark_share: float = 0.10,
     multiply: float = 1.0,
     **removed: Any,
 ) -> FunnelResult:
@@ -140,6 +147,8 @@ def funnel(
     | to rank flagged providers for action               | sort by eb_excess, not raw_excess      |
     | to say "probably worse than average" (CMS-style)   | read prob_worse; signal is unchanged   |
     | several measures or service lines in one call      | facets=["measure"] (one or more cols)  |
+    | a goal the best providers already reach (ABC)      | benchmark="abc" with worse=            |
+    | the same goal for an outcome (O/E mortality, LOS)  | benchmark="eb" with worse=             |
 
     Two questions, both legitimate (methods §2): the default, overdispersion=True, asks
     "is this provider unusual among its peers?", judging each provider against the
@@ -186,6 +195,10 @@ def funnel(
       signal answers "is it unusual among peers?" (methods §4.16). NaN when τ = 0.
     - p_value_drop1, flag_survives_drop1, fragility: single-case robustness (case-level
       rows, or max_case_y=/max_case_n= from SQL). Descriptive, never a test (§4.15).
+    - benchmark, meets_benchmark: with benchmark=, the goal (the same value on every row
+      of a facet) and whether the provider's own value is at it or better.
+      benchmark_group (benchmark="abc"): the best performers the ABC pools. A goal, not a
+      test: signal is unchanged (methods §4.18).
     - one column per facets= column, and the hover= columns.
 
     result.summary: n_providers, n_tested, n_outlier, n_alert, expected_false_flags
@@ -194,7 +207,10 @@ def funnel(
     transformed scale under "cqc"/"shmi", see tau_scale), phi, tau_method, tau_source,
     tau_estimated, tau_ci ("ml"), count_model, limit_method, p_value_method,
     within_dispersion and its source, dispersion_shape, underpowered, n_underpowered,
-    min_detectable_median, n_filtered, n_fragile, and notes (sentences to show readers).
+    min_detectable_median, n_filtered, n_fragile, notes (sentences to show readers), and
+    with benchmark=, benchmark: a dict of method, share and value, and under "abc" also
+    providers, coverage (their share of the denominator), group_denominator (median,
+    min, max), msd (minimum sufficient denominator), n_below_msd and without_small.
     Faceted: the counts summed, notes prefixed, and each facet's summary in by_facet.
     print(result) summarizes it in words.
 
@@ -246,6 +262,17 @@ def funnel(
         q < fdr_levels[0], alert when q < fdr_levels[1].
     limits : (outer, inner) contour coverage, default (0.998, 0.95).
     fdr_levels : (outlier, alert) false discovery rates for signal="fdr".
+    benchmark : a goal drawn beside the funnel; needs worse= (methods §4.18).
+        "abc": Kiefe and Weissman's achievable benchmark of care. Providers are ranked best
+        first by (x + 1)/(n + 2), taken until they hold benchmark_share of the
+        denominator (ties at that point included), and their raw counts pooled. Designed
+        for process proportions; on "oe" and "rate" the ranking adds one event at the
+        centre line instead, an extension its authors would caution against.
+        "eb": the (1 − benchmark_share) quantile of the shrunk eb_rate across providers,
+        toward the better side (O'Brien et al. 2008): the 90th percentile by default.
+        Suits outcomes; equals the centre line when the funnel finds no spread.
+    benchmark_share : the share defining "best", 0.10 by default. Choose it before
+        looking at who the best providers are.
     multiply : scale the plotted y, e.g. 1000 for a rate per 1,000.
 
     Display options (title, axis labels, styles, x_log, ...) are arguments of
@@ -257,6 +284,7 @@ def funnel(
         measure=measure, overdispersion=overdispersion, tau_method=tau_method, tau=tau,
         worse=worse, signal=signal, limits=limits, fdr_levels=fdr_levels,
         fdr_min=fdr_min_denominator, multiply=multiply, center=center, facets=facets,
+        benchmark=benchmark, benchmark_share=benchmark_share,
     )
     if (cases is None) != (sum_sq is None):
         raise ValueError(
@@ -297,6 +325,8 @@ class _Settings:
     multiply: float
     center: float | None
     facets: tuple[str, ...]
+    benchmark: str | None = None
+    benchmark_share: float = 0.10
     hover: tuple[str, ...] = ()
     limit_method: str = "exact"
 
@@ -310,12 +340,21 @@ class _Settings:
 
 
 def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits,
-              fdr_levels, fdr_min, multiply, center, facets, limit_method="exact") -> _Settings:
+              fdr_levels, fdr_min, multiply, center, facets, benchmark=None,
+              benchmark_share=0.10, limit_method="exact") -> _Settings:
     check_choice("measure", measure, MEASURES)
     check_choice("worse", worse, WORSE)
     check_choice("signal", signal, SIGNALS)
     check_choice("tau_method", tau_method, TAU_METHODS)
     check_choice("limit_method", limit_method, _LIMIT_METHODS)
+    check_choice("benchmark", benchmark, BENCHMARKS)
+    if benchmark is not None and worse is None:
+        raise ValueError(
+            f"benchmark={benchmark!r} needs worse='higher' or 'lower': the benchmark is what "
+            "the best providers achieve, so it needs to know which direction is better."
+        )
+    if not check_number("benchmark_share", benchmark_share, 0.0, strict=True) < 1.0:
+        raise ValueError(f"benchmark_share is a share strictly between 0 and 1, got {benchmark_share!r}.")
     if tau_method == "shmi" and measure == "proportion":
         transform_scale("shmi", "binomial")  # raises with the fix
     check_number("multiply", multiply, 0.0, strict=True)
@@ -333,7 +372,8 @@ def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits
         fdr_levels=check_levels("fdr_levels", fdr_levels, outer_wider=False),
         fdr_min=fdr_min, multiply=float(multiply),
         center=None if center is None else float(center),
-        facets=tuple(split_facets(facets)), limit_method=limit_method,
+        facets=tuple(split_facets(facets)), benchmark=benchmark,
+        benchmark_share=float(benchmark_share), limit_method=limit_method,
     )
 
 
@@ -534,6 +574,8 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     }
     summary["expected_false_flags"] = _expected_false_flags(st, summary)
     notes: list[str] = []
+    if st.benchmark is not None:
+        _add_benchmark(table, summary, notes, st, num, den, n_model, ratio, cl, excluded)
     summary.update({"dispersion_shape": None, "within_dispersion_hint": None,
                     "within_dispersion_hint_source": None, "underpowered": None,
                     "n_underpowered": None, "min_detectable_median": None})
@@ -549,6 +591,113 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
                       else "denominator"].to_numpy(dtype=float),
     }
     return table, summary, model
+
+
+def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, ratio, cl,
+                   excluded) -> None:
+    """The benchmark= columns, summary keys and notes for one facet (methods §4.18)."""
+    m, share = st.multiply, st.benchmark_share
+    eligible = ~excluded & np.isfinite(num) & (den > 0)
+    if st.benchmark == "eb":
+        eb = table["eb_rate"].to_numpy(dtype=float) / m
+        q = 1.0 - share if st.worse == "lower" else share
+        value = float(np.quantile(eb[eligible], q)) if eligible.any() else math.nan
+        bench = {"method": "eb", "share": share, "value": value * m}
+        if summary["tau"] == 0 or not st.overdispersion:
+            notes.append("The funnel finds no spread between providers, so every shrunk "
+                         "estimate equals the centre line and so does the benchmark.")
+    else:
+        value, group = _abc(st, share, num, den, n_model, cl, eligible)
+        msd = _msd(st, cl)
+        small = eligible & (n_model < msd)
+        without, _ = _abc(st, share, num, den, n_model, cl, eligible & ~small)
+        held = den[group]
+        table["benchmark_group"] = group
+        bench = {
+            "method": "abc", "share": share, "value": value * m,
+            "providers": int(group.sum()),
+            "coverage": float(held.sum() / den[eligible].sum()) if group.any() else 0.0,
+            "group_denominator": (
+                {"median": float(np.median(held)), "min": float(held.min()),
+                 "max": float(held.max())} if group.any() else None),
+            "msd": msd if math.isfinite(msd) else None,
+            "n_below_msd": int(small.sum()),
+            "without_small": without * m,
+        }
+        if st.measure != "proportion":
+            notes.append(
+                "The achievable benchmark was designed for process-of-care proportions; its "
+                "authors urge that it be applied to outcome measures with extreme caution, if "
+                "at all. benchmark=\"eb\" is the outcome alternative."
+            )
+        if 0 < group.sum() < 3:
+            notes.append(
+                f"The achievable benchmark rests on {int(group.sum())} provider(s): one or "
+                f"two high-volume providers hold {share:.0%} of the denominator, so treat it "
+                "as provisional."
+            )
+        if small.any() and math.isfinite(without) and abs(without - value) > 0.05 * abs(value):
+            notes.append(
+                f"Without the {int(small.sum())} providers below the minimum sufficient "
+                f"denominator ({msd:.3g}) the achievable benchmark would be "
+                f"{_two_sig(without * m)} rather than {_two_sig(value * m)}: it leans on "
+                "low-volume providers."
+            )
+    summary["benchmark"] = bench
+    table["benchmark"] = np.full(len(table), bench["value"])
+    with np.errstate(invalid="ignore"):
+        meets = ratio >= value if st.worse == "lower" else ratio <= value
+    table["meets_benchmark"] = meets & np.isfinite(ratio)
+
+
+def _abc(st: _Settings, share: float, num, den, n_model, cl, eligible) -> tuple[float, np.ndarray]:
+    """
+    Kiefe's achievable benchmark of care (methods §4.18): (ABC, which providers it pools).
+    The eligible providers are ranked best first by an adjusted rate that keeps one with
+    few cases from topping the list on luck, taken in that order until they hold the
+    share of the eligible denominator, together with every provider tied with the one
+    that reaches it (Weissman et al. 1999). The ABC is their pooled raw rate Σy/Σn.
+    """
+    group = np.zeros(len(num), dtype=bool)
+    if not eligible.any():
+        return math.nan, group
+    # Counts on the scale the model sees (y/φ out of n/φ under within_dispersion).
+    with np.errstate(divide="ignore", invalid="ignore"):
+        y_eff = np.where(den > 0, num * n_model / den, np.nan)
+    if st.measure == "proportion":
+        adjusted = (y_eff + 1.0) / (n_model + 2.0)          # Kiefe's APF, Beta(1, 1) prior
+    else:
+        prior_n = 1.0 / cl if cl > 0 else math.inf          # one event at the centre line
+        adjusted = (y_eff + 1.0) / (n_model + prior_n)
+    rank = -adjusted if st.worse == "lower" else adjusted   # ascending: best first
+    idx = np.flatnonzero(eligible)
+    idx = idx[np.argsort(rank[idx], kind="stable")]
+    reached = np.cumsum(den[idx]) >= share * float(den[idx].sum()) * (1 - 1e-12)
+    breakpoint = rank[idx[int(np.argmax(reached))]]
+    # Everyone tied at the breakpoint joins, so the share held can run past the target.
+    chosen = idx[rank[idx] <= breakpoint + 1e-12 * abs(breakpoint)]
+    group[chosen] = True
+    return float(num[chosen].sum() / den[chosen].sum()), group
+
+
+def _msd(st: _Settings, cl: float) -> float:
+    """
+    The minimum sufficient denominator (methods §4.18): the fewest cases at which perfect
+    performance would be a one-sided 2.5% event if the provider's true rate were the
+    centre line. On a proportion, the smallest N with p̄ᴺ < 0.025, p̄ the rate in the good
+    direction; it reproduces every row of Kiefe et al.'s Table 3. On a count with
+    worse="higher", the exposure at which zero events has probability e^(−θ₀n) < 0.025.
+    """
+    if st.measure == "proportion":
+        good = cl if st.worse == "lower" else 1.0 - cl
+        if good <= 0:
+            return 1.0
+        if good >= 1:
+            return math.inf
+        return float(math.floor(math.log(_MSD_ALPHA) / math.log(good)) + 1)
+    if st.worse == "higher" and cl > 0:
+        return -math.log(_MSD_ALPHA) / cl
+    return math.inf
 
 
 def _pooled(ratio, n_model, mask) -> float:

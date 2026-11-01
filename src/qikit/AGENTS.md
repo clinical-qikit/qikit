@@ -46,6 +46,10 @@ replacement; read the message and apply it.
   `within_dispersion="estimate"`. Keep `tau_method="spiegelhalter"` (the default)
   unless the user asks for CQC/SHMI (`"cqc"`, `"shmi"`) or for the stated chance-flag
   rate to hold (`"winsorized"`).
+- **A goal, not the average:** `benchmark="abc"` (process proportions; Kiefe 1998) or
+  `"eb"` (outcomes; shrunk 90th percentile), with `worse=`. It adds `summary["benchmark"]`
+  (a dict: `method`, `share`, `value`, and the ABC's provenance), the `benchmark` and
+  `meets_benchmark` columns, and a dashed line. Methods §4.18.
 - **No signal is not reassurance.** Physician funnels are often underpowered: read
   `summary["underpowered"]` and the `min_detectable` column before saying a provider
   is fine.
