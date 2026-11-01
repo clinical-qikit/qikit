@@ -131,6 +131,19 @@ before reporting anything.
   `funnel_sensitivity(<same arguments>)`. It returns one row per provider with
   `signal_spiegelhalter`, `signal_winsorized`, `signal_ml`, `signal_unadjusted` and
   `consistent`. Report a flag that is not consistent as model-dependent.
+- **A goal to show beside the funnel** (with `worse=`; methods §4.18):
+  - Process proportions (H&P in 24 h): `benchmark="abc"`, the achievable benchmark of
+    care. `summary["benchmark"]` holds `value`, `providers`, `group_denominator` and
+    `without_small`. If `without_small` differs, a note says the ABC leans on
+    low-volume providers; quote it.
+  - Outcomes (O/E mortality, LOS, readmission): `benchmark="eb"`, the 90th percentile
+    of the shrunk estimates. Report it rather than an ABC. If both were run and the
+    ABC is far better than `"eb"`, say the ABC pools lucky low-volume providers.
+  - Peer groups (teaching vs community, specialty): `facets=` gives each its own
+    benchmark. Choose them before looking.
+  - `benchmark_share=` (default 0.10) is set before looking, never tuned afterwards.
+  - Use it in confidential feedback only, never for credentialing, compensation or
+    public report cards.
 - Several measures: one call with `facets="<measure column>"` (or a list of columns);
   each gets its own centre line, spread and FDR step, and the facet columns lead
   `r.data`.
@@ -170,6 +183,9 @@ Reporting rules:
   `p_value_drop1`. It is descriptive, and no false discovery rate survives choosing each
   provider's worst case.
 - Keep the figure's auto caption. It states the rule that colored the points.
+- Report a benchmark as "the best providers here achieve X", never as a standard a
+  provider failed. `meets_benchmark` False is not a signal; at low volume it is often
+  chance.
 
 ## Columns of `r.data`
 
@@ -177,7 +193,9 @@ Reporting rules:
 lower_alert, upper_alert, p_value, q_value, signal, direction, min_detectable,
 ci_lower, ci_upper, excluded, raw_excess, reliability, eb_rate, eb_excess, prob_worse,
 p_value_drop1, flag_survives_drop1, fragility` (plus `effective_denominator` under a
-`within_dispersion` column, the `facets=` columns first, and any `hover=` columns).
+`within_dispersion` column; `benchmark`, `meets_benchmark` and, for the ABC only,
+`benchmark_group` with `benchmark=`; the `facets=` columns first; and any `hover=`
+columns).
 
 Display options (`title=`, `styles=`, `label_signals=`, `x_log=`, sizes) go to
 `r.plot()`, not to `funnel()`.

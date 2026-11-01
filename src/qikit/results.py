@@ -252,6 +252,13 @@ def _describe(summary: dict) -> str:
             text += f"; spread between providers tau = {s['tau']:.3g}{on}"
         if s.get("within_dispersion", 1.0) != 1.0:
             text += f"; within_dispersion = {s['within_dispersion']:.3g}"
+        b = s.get("benchmark")
+        if b is not None:
+            if b["method"] == "abc":
+                text += (f"; achievable benchmark (ABC) = {b['value']:.4g} from "
+                         f"{b['providers']} providers")
+            else:
+                text += f"; benchmark (shrunk percentile) = {b['value']:.4g}"
         return text
 
     if "by_facet" in summary:

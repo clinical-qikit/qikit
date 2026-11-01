@@ -165,6 +165,12 @@ def plot_funnel(result, **given) -> go.Figure:
     })
     for col in meta.get("hover", []):
         frame[col] = d[col].to_numpy()
+    if "benchmark" in d:
+        frame["target"] = d["benchmark"].to_numpy(dtype=float)  # drawn with the target role
+        name = "ABC" if "benchmark_group" in d else "Benchmark"
+        given_styles = opts["styles"]
+        layers = given_styles if isinstance(given_styles, (list, tuple)) else [given_styles]
+        opts = {**opts, "styles": [{"target": {"name": name}}, *layers]}
     curve = None
     if by_volume:
         lim = result.limits()

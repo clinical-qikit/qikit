@@ -63,6 +63,7 @@ CHOICES = {
     "label_signals": {v for v in LABEL_SIGNALS if v},
     "runs_highlight": {"localized", "all", "none"},
     "scales": {"fixed", "free", "free_x", "free_y"},
+    "benchmark": {"abc", "eb"},
 }
 
 
@@ -92,7 +93,8 @@ def _funnel_results():
     exp = rng.uniform(2, 30, 30)
     oe = pd.DataFrame({"unit": units, "obs": rng.poisson(exp), "exp": exp, "name": units,
                        "svc": ["A", "B"] * 15})
-    yield funnel(oe, y="obs", n="exp", measure="oe", unit="unit", label="name", hover=["svc"])
+    yield funnel(oe, y="obs", n="exp", measure="oe", unit="unit", label="name", hover=["svc"],
+                 worse="higher", benchmark="abc")
     yield funnel(oe, y="obs", n="exp", measure="oe", unit="unit", facets="svc", signal="fdr")
     cases = rng.integers(20, 300, 30)
     prop = pd.DataFrame({"unit": units, "y": rng.binomial(cases, 0.2), "n": cases})

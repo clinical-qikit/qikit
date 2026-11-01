@@ -126,6 +126,8 @@ including where qikit departs from the paper.
 | "Does this flag depend on the model?" | `funnel_sensitivity(...)` |
 | "Is this provider probably worse than average?" (the CMS question) | read `prob_worse`; `signal` answers "unusual among peers?" |
 | A benchmark against the risk model itself, not the peer average | `center=1.0` |
+| A goal the best providers already reach, on a process measure (achievable benchmark of care) | `benchmark="abc"` with `worse=` |
+| The same goal on an outcome (O/E mortality, LOS, readmission) | `benchmark="eb"` with `worse=` |
 
 Rows that share a `unit` are summed, so stay-level or year-level data aggregates itself.
 
@@ -156,6 +158,8 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 | `flag_survives_drop1` | For flagged providers: still flagged without that case? |
 | `fragility` | Case rows: the fewest worst cases whose removal clears the flag (1 = one case carries it) |
 | `effective_denominator` | Only with a `within_dispersion` column: n/φᵢ, the plot's x axis |
+| `benchmark`, `meets_benchmark` | Only with `benchmark=`: the goal (same on every row of a facet), and whether this provider is at it or better |
+| `benchmark_group` | Only with `benchmark="abc"`: whether this provider is one of the best performers the ABC pools |
 
 `r.summary` holds the model and how to read the counts:
 
@@ -166,6 +170,12 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 - `phi`: the over-dispersion ratio as the chosen method defines it.
 - `count_model`, `limit_method`, `within_dispersion`, `dispersion_shape`, `underpowered`,
   `n_filtered`, `n_fragile`.
+- With `benchmark=`: `benchmark`, a dict of `method`, `share` and `value`. Under
+  `"abc"` it also holds:
+  - `providers` and `group_denominator`: who sets it and their volumes.
+  - `coverage`: their share of patients.
+  - `msd` and `n_below_msd`: Kiefe's minimum sufficient denominator.
+  - `without_small`: the ABC without providers below it.
 - `notes`: sentences ready to show a reader.
 
 On a faceted funnel the same keys are under `by_facet`.
@@ -309,6 +319,35 @@ r = funnel(df, y="observed_deaths", n="expected_deaths", measure="oe", unit="phy
 r.data[r.data.signal != "none"]
 ```
 
+### An achievable goal: `benchmark=`
+
+The centre line is the average, and the average is not a goal. `benchmark=` adds one
+the best providers in the same data already reach:
+
+- `"abc"`, the achievable benchmark of care (Kiefe et al. 1998), for process measures.
+  It is the pooled rate of the best providers who together hold at least 10% of
+  patients. Providers are ranked by (x + 1)/(n + 2) so that 3 of 3 cannot top the list on
+  luck.
+- `"eb"`, for outcomes. It is the 90th percentile, toward better, of the shrunk
+  estimates `eb_rate` (O'Brien et al. 2008).
+
+```python
+r = funnel(df, y="hp_within_24h", n="admissions", measure="proportion", unit="physician",
+           worse="lower", benchmark="abc", multiply=100)
+b = r.summary["benchmark"]
+b["value"]                           # e.g. 97.0: the % the best physicians achieve
+r.data[r.data.benchmark_group]       # who set it
+b["without_small"]                   # does it lean on low-volume physicians?
+r.plot()                             # the benchmark as a dashed line
+
+funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon", worse="higher",
+       benchmark="eb").summary["benchmark"]["value"]   # an achievable O/E
+```
+
+The ABC's authors designed it for process measures. They urge extreme caution with
+outcomes, and discourage its use for pay, credentialing or public report cards (methods
+§4.18). Both are goals for confidential feedback, not tests, so `signal` is unchanged.
+
 ### Figures
 
 ```python
@@ -355,6 +394,8 @@ r.plot(
 | `signal` | `"limits"` | `"limits"` (exact test, drawn) or `"fdr"` (q-values) |
 | `limits` | `(0.998, 0.95)` | Outer and inner contour coverage |
 | `fdr_levels` | `(0.05, 0.10)` | Outlier and alert false discovery rates under `signal="fdr"` |
+| `benchmark` | `None` | `"abc"` (achievable benchmark of care) or `"eb"` (shrunk 90th percentile), drawn as a dashed line; needs `worse=` |
+| `benchmark_share` | `0.10` | What counts as "the best": 10% of patients for `"abc"`, the 90th percentile for `"eb"` |
 | `multiply` | `1` | Scale y, e.g. `1000` for a rate per 1,000 |
 
 ## In Snowflake
