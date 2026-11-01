@@ -783,7 +783,7 @@ def _add_robustness(table, rows, agg, st: _Settings, cl, tau2, scale, n_model, p
     provider's own count and denominator move, so each recomputed p-value is the chart's.
     """
     k = len(table)
-    p_drop = np.full(k, np.nan)
+    p_drop: np.ndarray = np.full(k, np.nan)
     survives = pd.array([pd.NA] * k, dtype="boolean")
     fragility = pd.array([pd.NA] * k, dtype="Int64")
     groups = rows.groupby(_UNIT, sort=False)
@@ -794,7 +794,7 @@ def _add_robustness(table, rows, agg, st: _Settings, cl, tau2, scale, n_model, p
         tot_y = table["numerator"].to_numpy(dtype=float)
         tot_n = table["denominator"].to_numpy(dtype=float)
         own = tot_y - cl * tot_n
-        dirs = np.full(k, -1.0 if st.worse == "lower" else 1.0)
+        dirs: np.ndarray = np.full(k, -1.0 if st.worse == "lower" else 1.0)
         if st.worse is None:
             dirs = np.where(own >= 0, 1.0, -1.0)
         if st.signal == "fdr":
@@ -816,7 +816,8 @@ def _add_robustness(table, rows, agg, st: _Settings, cl, tau2, scale, n_model, p
             return pv, ratio
 
         cases_of = {}
-        worst_y, worst_n = np.full(k, np.nan), np.full(k, np.nan)
+        worst_y: np.ndarray = np.full(k, np.nan)
+        worst_n = np.full(k, np.nan)
         if case_level:
             for j, u in enumerate(units):
                 g = rows.loc[groups.groups[u]]

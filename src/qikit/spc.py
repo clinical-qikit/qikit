@@ -384,7 +384,7 @@ def _chart(frame: pd.DataFrame, s: dict) -> tuple[pd.DataFrame, dict[str, Any]]:
     else:
         y_calc = y
     y_signal = np.where(excluded, np.nan, y_calc)
-    columns = {k_: np.full(k, np.nan) for k_ in ("cl", "ucl", "lcl", "ucl_95", "lcl_95")}
+    columns: dict[str, np.ndarray] = {k_: np.full(k, np.nan) for k_ in ("cl", "ucl", "lcl", "ucl_95", "lcl_95")}
     outlier = np.zeros(k, dtype=bool)
     runs = np.zeros(k, dtype=bool)
     cause: np.ndarray | None = None

@@ -199,7 +199,7 @@ def design(
     n_runs = len(matrix)
     
     # Randomize
-    run_order = np.arange(1, n_runs + 1)
+    run_order: np.ndarray = np.arange(1, n_runs + 1)
     if randomize == "full":
         rng = np.random.default_rng(seed)
         run_order = rng.permutation(run_order)
