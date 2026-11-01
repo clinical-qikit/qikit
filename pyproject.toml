@@ -13,11 +13,30 @@ description = "SPC charts and QI tools for healthcare"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "pandas>=2.0", "plotly>=5.15"]
+authors = [{ name = "David Van Dyke" }]
+keywords = ["spc", "control chart", "funnel plot", "quality improvement", "healthcare", "qicharts2"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Typing :: Typed",
+]
+# The analysis needs numpy and pandas only, so a Snowpark UDTF or stored procedure
+# installs nothing else; figures need the "plot" extra.
+dependencies = ["numpy>=1.24", "pandas>=2.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4", "mypy>=1.8"]
-app = ["streamlit>=1.30.0", "openpyxl>=3.1.0"]
+plot = ["plotly>=5.15"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4", "mypy>=1.8", "plotly>=5.15"]
+app = ["streamlit>=1.30.0", "openpyxl>=3.1.0", "plotly>=5.15"]
+
+[project.urls]
+Homepage = "https://github.com/clinical-qikit/qikit"
+Methods = "https://github.com/clinical-qikit/qikit/blob/main/docs/methods.md"
+Changelog = "https://github.com/clinical-qikit/qikit/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/qikit/__init__.py"
@@ -32,6 +51,11 @@ line-length = 99
 [tool.ruff.lint]
 # Compact one-line guards (`if x: return`) are deliberate house style in the engine.
 ignore = ["E701", "E702"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+files = ["src/qikit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

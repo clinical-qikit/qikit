@@ -306,7 +306,7 @@ export const WINSOR_CONSISTENCY = 1.473503694638025;
  */
 export function funnelDispersion(
   cl: number, y: number[], n: number[] | undefined, mask: boolean[], family: DispersionFamily,
-  method: TauMethod = 'winsorized',
+  method: TauMethod = 'spiegelhalter',
 ): [number, number] {
   if (!n) throw new Error('Over-dispersion estimation requires denominators (n).');
 
@@ -487,9 +487,10 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: false, isAttribute: false, floorLcl: false
   },
   mr: {
+    // UCL = D4·MR̄; LCL = 0 (D3 = 0 for n = 2), as qicharts2 draws it.
     center: (yb) => nanmean(yb),
-    limits: (cl, y) => [new Array(y.length).fill(D4[2] * cl), new Array(y.length).fill(NaN)],
-    needsN: false, isAttribute: false, floorLcl: false
+    limits: (cl, y) => [new Array(y.length).fill(D4[2] * cl), new Array(y.length).fill(0)],
+    needsN: false, isAttribute: false, floorLcl: true
   },
   p: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
@@ -498,7 +499,7 @@ export const CHARTS: Record<string, ChartSpec> = {
       const lcl = n!.map(ni => cl - 3 * Math.sqrt(cl * (1 - cl) / ni));
       return [ucl, lcl];
     },
-    needsN: true, isAttribute: true, floorLcl: true
+    needsN: true, isAttribute: true, floorLcl: true, capUcl: 1
   },
   u: {
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
@@ -518,46 +519,38 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: false, isAttribute: false, floorLcl: true
   },
   g: {
+    // Limits from the baseline mean m, m ± 3√(m(m + 1)) (Montgomery p. 319); the centre
+    // line drawn is the median, as qicharts2. Returns the limits about m and the median
+    // as the per-point centre line. A clOverride is the mean.
     center: (yb) => nanmedian(yb),
-    limits: (cl, y) => {
-      const sigma = Math.sqrt(Math.max(cl * (cl + 1), 0));
-      return [new Array(y.length).fill(cl + 3 * sigma), new Array(y.length).fill(cl - 3 * sigma)];
+    limits: (cl, y, _n, mask, _subN, _sBar, _sigmaHat, _lm, _t2, _diag, clOverride) => {
+      const m = clOverride !== undefined ? cl : nanmean(y.filter((_v, i) => mask[i]));
+      const sigma = Math.sqrt(Math.max(m * (m + 1), 0));
+      const k = y.length;
+      return [new Array(k).fill(m + 3 * sigma), new Array(k).fill(m - 3 * sigma),
+              new Array(k).fill(cl), new Array(k).fill(m + 2 * sigma), new Array(k).fill(m - 2 * sigma)];
     },
     needsN: false, isAttribute: false, floorLcl: true
   },
   pp: {
-    // Laney p' chart: σ'ᵢ = √(p̄(1−p̄)/nᵢ)·σ_z, σ_z = max(1, MR̄(z)/d2). Laney (2002).
-    // The floor keeps p' from coming out *narrower* than the naive p chart on an
-    // underdispersed sample — the method only ever widens.
+    // Laney p' chart: σ'ᵢ = √(p̄(1−p̄)/nᵢ)·σ_z, σ_z = screened MR̄(z)/d2, no floor, as
+    // qicharts2 implements Laney (2002). Twin of laney_sigma_z in shewhart.py.
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, n, mask) => {
       const sigmaBase = n!.map(ni => Math.sqrt(cl * (1 - cl) / ni));
       const z = y.map((v, i) => (v - cl) / sigmaBase[i]);
-      const zValid = z.filter((v, i) => mask[i] && !isNaN(v));
-      let sigmaZ = 1.0;
-      if (zValid.length > 1) {
-        const mrs = [];
-        for (let i = 1; i < zValid.length; i++) mrs.push(Math.abs(zValid[i] - zValid[i - 1]));
-        sigmaZ = Math.max(1.0, nanmean(mrs) / D2[2]);
-      }
+      const sigmaZ = screenedMeanMR(z, mask) / D2[2];
       return [sigmaBase.map(s => cl + 3 * s * sigmaZ), sigmaBase.map(s => cl - 3 * s * sigmaZ)];
     },
-    needsN: true, isAttribute: true, floorLcl: true
+    needsN: true, isAttribute: true, floorLcl: true, capUcl: 1
   },
   up: {
-    // Laney u' chart: σ'ᵢ = √(ū/nᵢ)·σ_z, σ_z = max(1, MR̄(z)/d2). Laney (2002).
-    // Same floor as pp: an underdispersed sample falls back to the naive u limits.
+    // Laney u' chart: σ'ᵢ = √(ū/nᵢ)·σ_z, σ_z = screened MR̄(z)/d2, no floor.
     center: (yb, nb) => nansum(yb.map((v, i) => v * nb![i])) / nansum(nb!),
     limits: (cl, y, n, mask) => {
       const sigmaBase = n!.map(ni => Math.sqrt(cl / ni));
       const z = y.map((v, i) => (v - cl) / sigmaBase[i]);
-      const zValid = z.filter((v, i) => mask[i] && !isNaN(v));
-      let sigmaZ = 1.0;
-      if (zValid.length > 1) {
-        const mrs = [];
-        for (let i = 1; i < zValid.length; i++) mrs.push(Math.abs(zValid[i] - zValid[i - 1]));
-        sigmaZ = Math.max(1.0, nanmean(mrs) / D2[2]);
-      }
+      const sigmaZ = screenedMeanMR(z, mask) / D2[2];
       return [sigmaBase.map(s => cl + 3 * s * sigmaZ), sigmaBase.map(s => cl - 3 * s * sigmaZ)];
     },
     needsN: true, isAttribute: true, floorLcl: true
@@ -683,7 +676,7 @@ export function compute(input: SPCInput): SPCResult {
     );
   }
   const limitMethod: LimitMethod = input.limitMethod ?? 'exact';
-  const tauMethod: TauMethod = input.tauMethod ?? 'winsorized';
+  const tauMethod: TauMethod = input.tauMethod ?? 'spiegelhalter';
   if (tauMethod !== 'winsorized' && tauMethod !== 'spiegelhalter') {
     throw new Error(
       `tauMethod must be "winsorized" or "spiegelhalter", got "${tauMethod}". ` +
@@ -900,7 +893,7 @@ export function compute(input: SPCInput): SPCResult {
 
     // Limits
     // Important: for t-chart, we need to pass clVal which is in transformed space
-    const [uclSeg, lclSeg, clSeg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod, tau2Arg, diag);
+    const [uclSeg, lclSeg, clSeg, u95Seg, l95Seg] = spec.limits(clVal, segY, segN, segMask, subgroupN, sBar, sigmaHat, limitMethod, tau2Arg, diag, clOverride) as number[][];
 
     // A chart whose limits come from a distribution supplies its own 95% band; the
     // 2/3-of-3σ shortcut below holds only for symmetric, normal limits.
@@ -917,20 +910,24 @@ export function compute(input: SPCInput): SPCResult {
       // clSeg is present only for charts whose center line varies per point; an
       // explicit clOverride is the user's line and outranks it.
       const clHere = (clOverride === undefined && clSeg) ? clSeg[j] : clVal;
+      const cap = spec.capUcl ?? Infinity;
       clArr[s + j] = clHere;
-      uclArr[s + j] = uclSeg[j];
+      uclArr[s + j] = Math.min(uclSeg[j], cap);
       lclArr[s + j] = spec.floorLcl ? Math.max(0, lclSeg[j]) : lclSeg[j];
       let u95: number;
       let l95: number;
       if (band95) {
         u95 = band95[0][j];
         l95 = band95[1][j];
+      } else if (u95Seg) {
+        u95 = u95Seg[j];
+        l95 = l95Seg[j];
       } else {
         const spread = uclSeg[j] - clHere;
         u95 = clHere + spread * (2 / 3);
         l95 = clHere - spread * (2 / 3);
       }
-      ucl95Arr[s + j] = u95;
+      ucl95Arr[s + j] = Math.min(u95, cap);
       lcl95Arr[s + j] = spec.floorLcl ? Math.max(0, l95) : l95;
     }
 

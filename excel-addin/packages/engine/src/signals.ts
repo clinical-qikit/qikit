@@ -1,23 +1,29 @@
 import { SignalMethod } from './spc-types';
 
-export function longestRunThreshold(n: number): number {
-  if (n < 10) return n + 1;
-  return Math.floor(Math.log2(n)) + 3;
+/**
+ * Longest run expected by chance among n useful points: round(log2 n) + 3, as qicharts2
+ * computes it (Anhoej & Olesen 2014). A run longer than this signals. Twin of
+ * longest_run_max in rules.py.
+ */
+export function longestRunMax(n: number): number {
+  return n > 0 ? Math.round(Math.log2(n)) + 3 : 0;
 }
 
-export function crossingsThreshold(n: number): number {
-  if (n < 10) return -1;
-  const trials = n - 1;
-  // PMF accumulated in log space: the binomial coefficient overflows to
-  // Infinity past n ~ 1032, which silently returned wrong thresholds.
+/**
+ * Fewest crossings expected by chance: R's qbinom(0.05, n − 1, 0.5), the smallest k with
+ * P(X ≤ k) ≥ 0.05. Fewer crossings than this signal. Twin of n_crossings_min in rules.py.
+ * Accumulated in log space: the binomial coefficient overflows past n ≈ 1,030.
+ */
+export function nCrossingsMin(n: number): number {
+  const trials = Math.max(n - 1, 0);
   let logPmf = -trials * Math.LN2; // k = 0
-  let cumprob = 0;
+  let cdf = 0;
   for (let k = 0; k <= trials; k++) {
     if (k > 0) logPmf += Math.log((trials - k + 1) / k);
-    cumprob += Math.exp(logPmf);
-    if (cumprob > 0.05) return k - 1;
+    cdf += Math.exp(logPmf);
+    if (cdf >= 0.05) return k;
   }
-  return 0;
+  return trials;
 }
 
 export function countCrossings(y: number[], cl: number[]): number {
@@ -226,14 +232,14 @@ export function detectSignals(
   if (method === 'anhoej') {
     const longest = longestRun(y, cl);
     const crossings = countCrossings(y, cl);
-    const runThresh = longestRunThreshold(nUseful);
-    const crossThresh = crossingsThreshold(nUseful);
+    const runMax = longestRunMax(nUseful);
+    const crossMin = nCrossingsMin(nUseful);
 
-    const runSignal = longest >= runThresh;
-    const crossSignal = crossings <= crossThresh;
+    const runSignal = nUseful > 0 && longest > runMax;
+    const crossSignal = nUseful > 0 && crossings < crossMin;
 
     // Localized pattern — only the points forming the long runs
-    localizedArr = runSignal ? markLongRuns(y, cl, runThresh) : new Array(y.length).fill(false);
+    localizedArr = runSignal ? markLongRuns(y, cl, runMax + 1) : new Array(y.length).fill(false);
     signalArr = localizedArr.slice();
     if (crossSignal) {
       // Whole-series pattern — mark all useful points. Long-run marks are a
@@ -243,30 +249,37 @@ export function detectSignals(
     summary = {
       ...summary,
       longest_run: longest,
+      longest_run_max: runMax,
       n_crossings: crossings,
-      run_threshold: runThresh,
-      crossings_threshold: crossThresh,
-      run_signal: runSignal,
+      n_crossings_min: crossMin,
+      longest_run_signal: runSignal,
       crossings_signal: crossSignal,
+      runs_signal: runSignal || crossSignal,
     };
   } else if (method === 'ihi') {
-    const shiftArr = markLongRuns(y, cl, 8);
-    const trendArr = markTrends(y, 6);
-    signalArr = shiftArr.map((s, i) => s || trendArr[i]);
+    // Provost & Murray: on a run chart a shift of 6 and a trend of 5; on a Shewhart chart
+    // a shift of 8, a trend of 6, 2 of 3 beyond 2σ and 15 within 1σ. A repeated value is
+    // passed over in a trend. Twin of _ihi in rules.py.
+    const hasLimits = ucl.some(v => !isNaN(v));
+    const shiftArr = markLongRuns(y, cl, hasLimits ? 8 : 6);
+    const trendArr = markTrends(dropTies(y), hasLimits ? 6 : 5);
+    const zoneArr = hasLimits ? markZones(y, cl, ucl, 2, 3, 2) : new Array(y.length).fill(false);
+    const innerArr = hasLimits ? markStratification(y, cl, ucl, 15) : new Array(y.length).fill(false);
+    signalArr = shiftArr.map((s, i) => s || trendArr[i] || zoneArr[i] || innerArr[i]);
     localizedArr = signalArr.slice();
     summary = {
       ...summary,
-      shift_threshold: 8,
-      trend_threshold: 6,
       shift_signal: shiftArr.some(s => s),
       trend_signal: trendArr.some(s => s),
+      runs_signal: signalArr.some(s => s),
     };
   } else if (method === 'weco') {
+    // A point beyond the limits is the chart's own test (sigma_signal), not a runs rule.
     const r1 = y.map((v, i) => (!isNaN(ucl[i]) && v > ucl[i]) || (!isNaN(lcl[i]) && v < lcl[i]));
     const r2 = markZones(y, cl, ucl, 2, 3, 2);
     const r3 = markZones(y, cl, ucl, 4, 5, 1);
     const r4 = markLongRuns(y, cl, 8);
-    signalArr = r1.map((v, i) => v || r2[i] || r3[i] || r4[i]);
+    signalArr = r2.map((v, i) => v || r3[i] || r4[i]);
     localizedArr = signalArr.slice();
     summary.weco_rules_triggered = [
       r1.some(v => v) ? 1 : null,
@@ -283,7 +296,7 @@ export function detectSignals(
     const r6 = markZones(y, cl, ucl, 4, 5, 1);
     const r7 = markStratification(y, cl, ucl, 15);
     const r8 = markMixture(y, cl, ucl, 8);
-    signalArr = r1.map((v, i) => v || r2[i] || r3[i] || r4[i] || r5[i] || r6[i] || r7[i] || r8[i]);
+    signalArr = r2.map((v, i) => v || r3[i] || r4[i] || r5[i] || r6[i] || r7[i] || r8[i]);
     localizedArr = signalArr.slice();
     summary.nelson_rules_triggered = [
       r1.some(v => v) ? 1 : null,
@@ -298,4 +311,16 @@ export function detectSignals(
   }
 
   return { signals: signalArr, signalsLocalized: localizedArr, summary };
+}
+
+/** y with a repeated value blanked (NaN), so a trend passes over ties (Provost & Murray). */
+function dropTies(y: number[]): number[] {
+  const out = y.slice();
+  let last = NaN;
+  for (let i = 0; i < out.length; i++) {
+    if (isNaN(out[i])) continue;
+    if (out[i] === last) out[i] = NaN;
+    else last = out[i];
+  }
+  return out;
 }

@@ -67,7 +67,7 @@ engine lacked or hadn't proven. All three parity items landed 2026-07-08.
    contours (binomial for p, Poisson for u), and pp/up/oep funnels use his
    additive over-dispersion adjustment with exact Poisson–gamma and beta-binomial
    limits instead of Laney's σ_z or a multiplicative φ̂ (`FUNNEL_CHARTS` and
-   `funnelDispersion` in `spc-core.ts`, twins of `limits.py`). Time-ordered charts
+   `funnelDispersion` in `spc-core.ts`, twins of `core/contours.py` and `core/dispersion.py`). Time-ordered charts
    are unchanged. Methods and references are in `docs/methods.md`. Any UI work on
    funnels should surface `summary.dispersion_note` and `summary.limit_method`.
    **Python 0.6.0** plots funnels against their denominator, with smooth contours from
@@ -194,11 +194,11 @@ Worth keeping visible, deliberately out of scope for this roadmap:
 - Faceted (per-group subplot) charts in the task pane
 - **0.8 funnel engine changes, mirrored in TS:** the upper contour is drawn at the
   exact test's boundary (`upperBoundary` in `spc-core.ts`), and `poissonQuantileInterp`
-  uses the lgamma-free walk. Python-only so far: `funnel()` itself, `levels`/`fdr_levels`,
+  uses the lgamma-free walk. Python-only so far: `funnel()` itself, `limits`/`fdr_levels`,
   `within_dispersion` with the dispersion-shape diagnostic and the case-level row check,
   interpolated p-values for non-integer counts, binomial and beta-binomial tails,
   contours, intervals and detectability at a non-integer denominator
-  (`fractional_binomial_*` in `limits.py`, methods §4.13), and the Newton Poisson
+  (`fractional_binomial_*` in `core/contours.py`, methods §4.13), and the Newton Poisson
   inversion. Its values match TS bisection
   inside the fixtures' 1e-9 tolerance.
 - **TS engine parity for the 0.7 funnel signalling** (Python-only for now; see

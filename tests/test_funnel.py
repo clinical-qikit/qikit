@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from qikit import FunnelResult, funnel, qic
-from qikit.spc.api import _qic
+from conformance_helpers import engine_qic as _qic
 
 # Twelve physicians: observed deaths against expected, as in funnel_oe_physician_power.
 OBS = [8, 3, 9, 6, 15, 11, 20, 14, 33, 30, 52, 110]
@@ -90,7 +90,7 @@ class TestMapping:
         core = _qic(y=OBS, n=n, chart=chart, funnel=True, tau_method="spiegelhalter")
         assert r.data["upper_outlier"].tolist() == core.data["ucl"].tolist()
         assert r.data["p_value"].tolist() == core.data["p_value"].tolist()
-        assert math.isnan(r.summary["phi_debiased"])
+        assert r.summary["tau_method"] == "spiegelhalter"
 
     @pytest.mark.parametrize("worse,side", [(None, "both"), ("higher", "above"), ("lower", "below")])
     def test_worse_is_the_signal_side(self, worse, side):
@@ -165,7 +165,7 @@ class TestResult:
         assert ((d["signal"] == "alert") == ((d["q_value"] < 0.4) & (d["q_value"] >= 0.2))).all()
         assert s["expected_false_flags"] == {
             "outlier": round(0.2 * s["n_outlier"], 2),
-            "alert": round(0.4 * (s["n_outlier"] + s["n_alert"]), 2),
+            "outlier_or_alert": round(0.4 * (s["n_outlier"] + s["n_alert"]), 2),
         }
 
     def test_limits_parameter(self):
@@ -221,14 +221,14 @@ class TestInputs:
         r = funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon", facets="site")
         assert set(r.summary["by_facet"]) == {"A", "B"}
         assert r.summary["n_providers"] == 24
-        assert set(r.data["facet"]) == {"A", "B"}
+        assert set(r.data["site"]) == {"A", "B"}
 
     @pytest.mark.parametrize("kw,match", [
         (dict(measure="smr"), "measure must be one of"),
         (dict(worse="above"), "worse must be one of"),
         (dict(signal="exact"), "signal must be one of"),
         (dict(signal="fdr", fdr_levels=(0.1, 0.05)), "fdr_levels"),
-        (dict(limits=(0.95, 0.998)), "levels"),
+        (dict(limits=(0.95, 0.998)), "limits"),
         (dict(unit="nope"), "must name a column"),
         (dict(hover="y"), "hover="),
     ])
@@ -251,35 +251,32 @@ class TestQicIsTimeOrdered:
         with pytest.raises(ValueError, match="qikit.funnel"):
             qic(y=OBS, n=EXP, chart="oe")
 
-    @pytest.mark.parametrize("kw,replacement", [
-        ({"funnel": True}, "qikit.funnel(data, y=..., n=..., measure=...)"),
-        ({"signal_side": "above"}, "funnel(worse=...)"),
-        ({"signal_method": "fdr"}, "funnel(signal=...)"),
-        ({"limit_method": "exact"}, "always draws exact limits"),
-        ({"x_spacing": "n"}, "plots each provider at its volume"),
-        ({"x_log": True}, "funnel(x_log=True)"),
-        ({"levels": (0.998, 0.95)}, "funnel(limits=...)"),
-        ({"fdr_levels": (0.05, 0.1)}, "funnel(fdr_levels=...)"),
-        ({"within_dispersion": 2.0}, "funnel(within_dispersion=...)"),
+    @pytest.mark.parametrize("name", [
+        "funnel", "signal_side", "signal_method", "limit_method", "x_spacing", "x_log",
+        "levels", "fdr_levels", "within_dispersion",
     ])
-    def test_removed_arguments_name_their_replacement(self, kw, replacement):
-        """A 0.7 call is told where each funnel argument went, not just that it is gone."""
-        with pytest.raises(TypeError, match="qic\\(\\) no longer takes") as err:
-            qic(y=OBS, n=EXP, chart="u", **kw)
-        assert "qikit.funnel()" in str(err.value) and replacement in str(err.value)
+    def test_funnel_arguments_point_to_funnel(self, name):
+        """A pre-1.0 call is told where each funnel argument went, not just that it is gone."""
+        with pytest.raises(TypeError, match=f"qic\\(\\) does not take {name}=: it is an argument of funnel"):
+            qic(y=OBS, n=EXP, chart="u", **{name: 1})
 
     def test_every_removed_argument_is_named_together(self):
-        with pytest.raises(TypeError, match="'funnel', 'signal_side'"):
+        with pytest.raises(TypeError, match="funnel=.*signal_side="):
             qic(y=OBS, n=EXP, chart="u", funnel=True, signal_side="above")
+
+    @pytest.mark.parametrize("old,new", [("cl", "center="), ("point_labels", "label="),
+                                         ("hover_extra", "hover=")])
+    def test_renamed_arguments_name_the_new_one(self, old, new):
+        with pytest.raises(TypeError, match=f"{old}=: it is now {new}"):
+            qic(y=OBS, chart="i", **{old: 1})
+
+    def test_display_options_point_to_plot(self):
+        with pytest.raises(TypeError, match=r"title=: it is a display option, qic\(\.\.\.\)\.plot"):
+            qic(y=OBS, chart="i", title="x")
 
     def test_other_unknown_arguments_keep_pythons_error(self):
         with pytest.raises(TypeError, match="^qic\\(\\) got an unexpected keyword argument 'bogus'$"):
             qic(y=OBS, n=EXP, chart="u", bogus=1)
-
-    def test_time_ordered_charts_unchanged(self):
-        a = qic(y=OBS, n=EXP, chart="u")
-        b = _qic(y=OBS, n=EXP, chart="u")
-        assert a.data.equals(b.data)
 
 
 # ---------------------------------------------------------------------------
@@ -584,7 +581,7 @@ class TestDisplay:
         assert max(data.marker.opacity) == 0.85
 
     def test_label_alert_tier(self):
-        fig = _r(overdispersion=False, label_signals="both").plot()
+        fig = _r(overdispersion=False).plot(label_signals="both")
         assert fig is not None
 
 
@@ -648,7 +645,7 @@ def _sql_totals(stays, y="los", n="exp_los", unit="provider"):
 
 class TestDebiasedPhi:
     def test_phi_is_unbiased_under_the_null(self):
-        from qikit.spc import limits as _limits
+        from qikit.core import dispersion as _limits
         rng = np.random.default_rng(11)
         raw, deb = [], []
         for _ in range(40):
@@ -657,7 +654,8 @@ class TestDebiasedPhi:
             mask = np.ones(1000, bool)
             raw.append(_limits.funnel_dispersion(1.0, y, e, mask, "poisson",
                                                  method="spiegelhalter")[0])
-            deb.append(_limits.funnel_dispersion(1.0, y, e, mask, "poisson")[0])
+            deb.append(_limits.funnel_dispersion(1.0, y, e, mask, "poisson",
+                                                 method="winsorized")[0])
         assert np.mean(raw) == pytest.approx(0.679, abs=0.02)
         assert np.mean(deb) == pytest.approx(1.0, abs=0.05)
 
@@ -666,16 +664,16 @@ class TestDebiasedPhi:
         on, off = [], []
         for _ in range(20):
             o, e = _physicians(rng, tau=0.10)
-            on.append(funnel(y=o, n=e, measure="oe").summary["tau"])
-            off.append(funnel(y=o, n=e, measure="oe", tau_method="spiegelhalter").summary["tau"])
+            on.append(funnel(y=o, n=e, measure="oe", tau_method="winsorized").summary["tau"])
+            off.append(funnel(y=o, n=e, measure="oe").summary["tau"])
         assert np.mean(on) == pytest.approx(0.10, abs=0.02)
-        assert np.mean(off) < 0.03  # the published estimator misses it
+        assert np.mean(off) < 0.03  # the published estimator (the default) misses it
 
-    def test_summary_reports_both_estimates(self):
-        from qikit.spc.limits import winsor_consistency
-        s = _r().summary
-        assert s["tau_method"] == "winsorized"
-        assert s["phi_debiased"] == pytest.approx(s["phi_raw"] * winsor_consistency())
+    def test_published_is_the_default_and_winsorized_debiases_it(self):
+        from qikit.core.dispersion import winsor_consistency
+        published, debiased = _r().summary, _r(tau_method="winsorized").summary
+        assert published["tau_method"] == "spiegelhalter"
+        assert debiased["phi"] == pytest.approx(published["phi"] * winsor_consistency())
         assert winsor_consistency(0.10) == pytest.approx(1.4735, abs=1e-4)
 
     def test_rejects_an_unknown_method(self):
@@ -871,7 +869,7 @@ class TestFilteredFdr:
     def test_filter_touches_only_the_fdr_step(self):
         o, e = _physicians(np.random.default_rng(61), k=400, tau=0.2, lo=0.5, hi=40)
         full = funnel(y=o, n=e, measure="oe", signal="fdr", worse="higher")
-        cut = funnel(y=o, n=e, measure="oe", signal="fdr", worse="higher", test_min_expected=5)
+        cut = funnel(y=o, n=e, measure="oe", signal="fdr", worse="higher", fdr_min_denominator=5)
         low = cut.data["denominator"] < 5
         assert low.any()
         assert cut.data.loc[low, "q_value"].isna().all()
@@ -881,7 +879,7 @@ class TestFilteredFdr:
         assert cut.summary["center"] == full.summary["center"]
         assert cut.summary["tau"] == full.summary["tau"]
         assert cut.summary["n_filtered"] == int(low.sum())
-        assert any("test_min_expected" in note for note in cut.summary["notes"])
+        assert any("fdr_min_denominator" in note for note in cut.summary["notes"])
         # Fewer tests in the step: the kept providers' q-values can only fall.
         kept = ~low
         assert (cut.data.loc[kept, "q_value"] <= full.data.loc[kept, "q_value"] + 1e-15).all()
@@ -889,20 +887,20 @@ class TestFilteredFdr:
     def test_limits_mode_is_unchanged(self):
         o, e = _physicians(np.random.default_rng(62), k=200, tau=0.2, lo=0.5, hi=40)
         a = funnel(y=o, n=e, measure="oe")
-        b = funnel(y=o, n=e, measure="oe", test_min_expected=5)
+        b = funnel(y=o, n=e, measure="oe", fdr_min_denominator=5)
         assert a.data["signal"].tolist() == b.data["signal"].tolist()
 
     @pytest.mark.parametrize("bad", [-1, float("nan"), "5", True])
     def test_rejects_bad_values(self, bad):
-        with pytest.raises(ValueError, match="test_min_expected"):
-            _r(test_min_expected=bad)
+        with pytest.raises(ValueError, match="fdr_min_denominator"):
+            _r(fdr_min_denominator=bad)
 
 
 class TestSpeed:
     def test_a_thousand_provider_adjusted_funnel_is_fast(self):
         import time
 
-        from qikit.spc import dist
+        from qikit.core import dist
         rng = np.random.default_rng(1)
         e = rng.uniform(30, 2000, 1000)
         o = rng.poisson(e * rng.gamma(50, 1 / 50, 1000))
@@ -921,7 +919,7 @@ class TestSpeed:
 
 class TestTauMethods:
     def test_ml_matches_a_brute_force_maximum(self):
-        from qikit.spc.limits import _mixture_loglik, tau2_ml
+        from qikit.core.dispersion import _mixture_loglik, tau2_ml
         rng = np.random.default_rng(71)
         for family in ("poisson", "binomial"):
             if family == "poisson":
@@ -938,7 +936,7 @@ class TestTauMethods:
             assert lo < math.sqrt(t2) < hi
 
     def test_ml_is_zero_under_the_null_at_small_k_more_often_than_not(self):
-        from qikit.spc.limits import tau2_ml
+        from qikit.core.dispersion import tau2_ml
         rng = np.random.default_rng(72)
         zeros = 0
         for _ in range(60):
@@ -948,7 +946,7 @@ class TestTauMethods:
         assert zeros > 30
 
     def test_ml_interval_covers_the_truth(self):
-        from qikit.spc.limits import tau2_ml
+        from qikit.core.dispersion import tau2_ml
         rng = np.random.default_rng(73)
         hits = 0
         for _ in range(100):
@@ -1053,7 +1051,7 @@ class TestProbWorse:
         np.testing.assert_array_equal(a["prob_worse"], b["prob_worse"])
 
     def test_incomplete_gamma_and_beta_identities(self):
-        from qikit.spc import dist
+        from qikit.core import dist
         for k in (1, 4, 37, 400):
             for x in (0.5, 0.8 * k, 1.3 * k + 2):
                 lower, upper = dist.gamma_tails(float(k), x)

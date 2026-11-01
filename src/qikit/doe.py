@@ -90,9 +90,12 @@ class ExperimentResult:
 
     def plot(self, chart: str = "effects", **kwargs: Any) -> Any:
         """Render as a Plotly Figure."""
-        from qikit.render.doe_plots import plot_experiment
+        from .results import _require_plotly
+
+        _require_plotly()
+        from .plot.doe import plot_experiment
         opts = {**self._plot_opts, **kwargs}
-        return plot_experiment(self, chart_type=chart, **opts)
+        return plot_experiment(self, chart_type=chart, **opts)  # type: ignore[arg-type]
 
 
     def to_dict(self) -> dict[str, Any]:
@@ -209,7 +212,7 @@ def design(
             run_order[start:end] = rng.permutation(run_order[start:end])
 
     # Assemble DataFrame
-    df_dict = {"RunOrder": run_order}
+    df_dict: dict[str, Any] = {"RunOrder": run_order}
     for i, name in enumerate(factors):
         df_dict[name] = matrix[:, i]
     df_dict["Response"] = np.nan
@@ -220,7 +223,7 @@ def design(
         factors=tuple(factors),
         lows=tuple(lows),
         highs=tuple(highs),
-        design_type=design_type,
+        design_type=design_type,  # type: ignore[arg-type]  # checked above
         matrix=df,
         n_factors=k,
         n_runs=n_runs,
@@ -361,7 +364,7 @@ def _compute_effects(matrix: np.ndarray, response: np.ndarray,
                 "_combo": combo,
             })
             
-    ss_model = sum(t["ss"] for t in terms)
+    ss_model = float(np.sum([t["ss"] for t in terms]))
     r_squared = ss_model / ss_total if ss_total > 0 else 0.0
     
     return terms, r_squared, ss_total

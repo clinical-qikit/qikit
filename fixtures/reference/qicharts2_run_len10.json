@@ -1,0 +1,32 @@
+{
+  "source": "qicharts2",
+  "versions": {
+    "qicharts2": "0.7.4"
+  },
+  "description": "Run chart, n = 10, opening run of round(log2 n) + 3 points.",
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "y": [3.538, 2.919, 2.447, 4.64, 2.46, 2.875, -1.171, -0.314, -0.157, 0.394],
+    "chart": "run"
+  },
+  "expected": {
+    "y": [3.538, 2.919, 2.447, 4.64, 2.46, 2.875, -1.171, -0.314, -0.157, 0.394],
+    "cl": [2.4535, 2.4535, 2.4535, 2.4535, 2.4535, 2.4535, 2.4535, 2.4535, 2.4535, 2.4535],
+    "ucl": [null, null, null, null, null, null, null, null, null, null],
+    "lcl": [null, null, null, null, null, null, null, null, null, null],
+    "ucl_95": [null, null, null, null, null, null, null, null, null, null],
+    "lcl_95": [null, null, null, null, null, null, null, null, null, null],
+    "sigma_signal": [false, false, false, false, false, false, false, false, false, false],
+    "part": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    "runs": {
+      "1": {
+        "n_useful": 10,
+        "longest_run": 4,
+        "longest_run_max": 6,
+        "n_crossings": 3,
+        "n_crossings_min": 2,
+        "runs_signal": false
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "source": "qicharts2",
+  "versions": {
+    "qicharts2": "0.7.4"
+  },
+  "description": "Run chart, n = 16, opening run of round(log2 n) + 3 points.",
+  "input": {
+    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "y": [3.757, 2.541, 3.343, 2.052, 2.899, 2.058, 3.399, 0.302, -1.254, -0.82, -0.748, -1.527, 0.761, -0.224, -1.487, 0.591],
+    "chart": "run"
+  },
+  "expected": {
+    "y": [3.757, 2.541, 3.343, 2.052, 2.899, 2.058, 3.399, 0.302, -1.254, -0.82, -0.748, -1.527, 0.761, -0.224, -1.487, 0.591],
+    "cl": [0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676, 0.676],
+    "ucl": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+    "lcl": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+    "ucl_95": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+    "lcl_95": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+    "sigma_signal": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
+    "part": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    "runs": {
+      "1": {
+        "n_useful": 16,
+        "longest_run": 7,
+        "longest_run_max": 7,
+        "n_crossings": 3,
+        "n_crossings_min": 4,
+        "runs_signal": true
+      }
+    }
+  }
+}

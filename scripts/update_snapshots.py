@@ -19,10 +19,9 @@ import json
 import math
 import pathlib
 import sys
-import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tests"))
-from conformance_helpers import DISPATCH, extract  # noqa: E402
+from conformance_helpers import extract, fixture_paths, run_fixture  # noqa: E402
 
 # Four orders of magnitude below the tightest fixture check tolerance, and three
 # above the platform noise it is there to absorb.
@@ -89,7 +88,7 @@ args = parser.parse_args()
 
 failures = []
 stale = []
-paths = sorted(pathlib.Path("fixtures").rglob("*.json"))
+paths = fixture_paths()
 
 if not paths:
     print("No fixtures found.")
@@ -98,28 +97,7 @@ if not paths:
 for path in paths:
     if not args.check:
         print(f"Processing {path}...")
-    fix = json.loads(path.read_text())
-    fn = DISPATCH[fix["function"]]
-    
-    inputs = fix["input"].copy()
-    if "data" in inputs and isinstance(inputs["data"], dict):
-        inputs["data"] = pd.DataFrame(inputs["data"])
-    
-    if "clOverride" in inputs:
-        inputs["cl"] = inputs.pop("clOverride")
-
-    if "limitMethod" in inputs:
-        inputs["limit_method"] = inputs.pop("limitMethod")
-    if "tauMethod" in inputs:
-        inputs["tau_method"] = inputs.pop("tauMethod")
-
-    # Strip TS-only keys before calling Python qic — it re-derives subgroup sizes
-    # and the sigma estimate from the grouping column.
-    inputs.pop("subgroupN", None)
-    inputs.pop("sBar", None)
-    inputs.pop("sigmaHat", None)
-        
-    result = fn(**inputs)
+    fix, result = run_fixture(path)
 
     # Gate: this file's check must pass before its snapshot is updated. Scoped
     # per-file so one bad fixture doesn't silently skip every fixture after it.

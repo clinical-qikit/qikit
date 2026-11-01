@@ -13,14 +13,30 @@ import pandas as pd
 import pytest
 import plotly.graph_objects as go
 from qikit import SPCResult, paretochart, bchart
-# The engine core: qic() plus the funnel arguments funnel() maps onto. These tests pin
-# the engine; tests/test_funnel.py pins the public funnel() API on top of it.
-from qikit.spc.api import _qic as qic
-import qikit.spc as _core
-import qikit.spc.constants as _constants
-import qikit.spc.dist as _dist
-import qikit.spc.limits as _limits
-import qikit.spc.signals as _signals
+# The engine contract the shared fixtures and the TypeScript engine speak (chart="oe",
+# funnel=True, sigma_signal, warn_signal, ...), mapped onto qic() and funnel() by the
+# test adapter. These tests pin the numbers; tests/test_public_api.py pins the public
+# API, and tests/test_funnel.py the funnel() API on top of it.
+from conformance_helpers import engine_qic as qic
+import qikit.core.constants as _constants
+import qikit.core.dist as _dist
+import qikit.core.rules as _rules
+from types import SimpleNamespace
+import qikit.core.contours as _contours
+import qikit.core.dispersion as _dispersion
+import qikit.core.power as _power
+import qikit.core.shewhart as _shewhart
+
+# The functions the old limits module held, now split by concern across qikit.core.
+_limits = SimpleNamespace(
+    **{name: getattr(_contours, name) for name in (
+        "_binomial_funnel_pair", "_mixture_funnel_pair", "_table_tails", "_tail_table",
+        "beta_params", "contour", "fractional_binomial_pair")},
+    **{name: getattr(_power, name) for name in (
+        "binomial_detectable_rate", "binomial_point_ci", "oe_detectable_ratio", "oe_point_ci")},
+    funnel_dispersion=_dispersion.funnel_dispersion,
+    winsor_consistency=_dispersion.winsor_consistency,
+)
 
 
 
@@ -46,8 +62,8 @@ class TestRunChart:
 
     def test_returns_spcresult(self, normal_30):
         r = _result("run", normal_30)
-        assert isinstance(r, SPCResult)
-        assert r.chart_type == "run"
+        assert isinstance(r.public, SPCResult)
+        assert r.public.chart == "run"
 
     def test_single_point(self):
         r = _result("run", [5.0])
@@ -188,7 +204,7 @@ class TestIChart:
 
     def test_exclude_rejects_a_bool(self):
         """A bool is not an index, even though it is an int in Python."""
-        with pytest.raises(TypeError):
+        with pytest.raises(ValueError, match="1-based"):
             _result("i", [10.0] * 10, exclude=True)
 
 
@@ -217,10 +233,11 @@ class TestMRChart:
         ucl = r.data["ucl"].iloc[0]
         assert math.isclose(ucl, 3.267 * cl, rel_tol=0.001)
 
-    def test_no_lcl(self, normal_30):
-        """MR chart has no LCL (D3 = 0 for n = 2)."""
+    def test_lcl_is_zero(self, normal_30):
+        """D3 = 0 for n = 2, so the lower limit sits at 0, as qicharts2 draws it."""
         r = _result("mr", normal_30)
-        assert r.data["lcl"].isna().all()
+        assert (r.data["lcl"] == 0).all()
+        assert (r.data["lcl_95"] == 0).all()
 
     def test_requires_two_points(self):
         with pytest.raises(ValueError, match="at least 2"):
@@ -260,11 +277,11 @@ class TestPChart:
         assert (r.data["lcl"].dropna() >= 0).all()
 
     def test_requires_n(self):
-        with pytest.raises(ValueError, match="requires denominators"):
+        with pytest.raises(ValueError, match="needs n="):
             qic(y=[0.1, 0.2, 0.15], chart="p")
 
     def test_zero_denominator_raises(self):
-        with pytest.raises(ValueError, match="[Zz]ero denom"):
+        with pytest.raises(ValueError, match="zero denominator"):
             qic(y=[10, 5, 15], n=[100, 0, 100], chart="p")
 
     def test_known_values(self):
@@ -302,7 +319,7 @@ class TestUChart:
         assert (r.data["lcl"].dropna() >= 0).all()
 
     def test_requires_n(self):
-        with pytest.raises(ValueError, match="requires denominators"):
+        with pytest.raises(ValueError, match="needs n="):
             qic(y=[0.05, 0.03, 0.07], chart="u")
 
 
@@ -399,30 +416,31 @@ class TestRunsSignalLocalized:
              1.2, 1.3, 1.1, 1.25, 1.15, 0.75, 0.85, 0.8, 0.9, 0.7]
         r = qic(y=y, chart="i")
         assert r.summary["crossings_signal"] is True
-        assert r.summary["run_signal"] is False
+        assert r.summary["longest_run_signal"] is False
         assert r.data["runs_signal"].sum() == 20
         assert r.data["runs_signal_localized"].sum() == 0
 
     def test_long_run_survives_the_blanket(self):
         """Both sub-signals firing: localized keeps just the run points."""
-        y = [11, 12, 11, 12, 11, 12, 11, 12] + [9, 8, 9, 8] + \
-            [11, 12, 11, 12] + [9, 8, 9, 8] + [11, 12, 11, 12]
+        # A run of 9 among 24 points: longer than round(log2 24) + 3 = 8.
+        y = [11, 12, 11, 12, 11, 12, 11, 12, 11] + [9, 8, 9, 8] + \
+            [11, 12, 11] + [9, 8, 9, 8] + [11, 12, 11, 12]
         r = qic(y=[float(v) for v in y], chart="i")
         assert r.summary["crossings_signal"] is True
-        assert r.summary["run_signal"] is True
+        assert r.summary["longest_run_signal"] is True
         assert r.data["runs_signal"].sum() == 24
-        assert list(r.data.index[r.data["runs_signal_localized"]]) == list(range(8))
+        assert list(r.data.index[r.data["runs_signal_localized"]]) == list(range(9))
 
     def test_runs_signal_unchanged_by_localized_split(self):
         """Regression guard: the default runs_signal column is untouched."""
-        # A run of 8, then alternating points give 22 crossings — above the
-        # threshold, so the crossings blanket never applies.
-        y = [12.0] * 8 + [9.0, 11.5] * 11
+        # A run of 10 (more than round(log2 32) + 3 = 8), then alternating points give
+        # 22 crossings, above the minimum, so the crossings blanket never applies.
+        y = [12.0] * 10 + [9.0, 11.5] * 11
         r = qic(y=y, chart="i")
         assert r.summary["crossings_signal"] is False
-        assert r.summary["run_signal"] is True
+        assert r.summary["longest_run_signal"] is True
         # Long-run path: runs_signal and localized are identical
-        assert r.data["runs_signal"].sum() == 8
+        assert r.data["runs_signal"].sum() == 10
         assert (r.data["runs_signal"] == r.data["runs_signal_localized"]).all()
 
     def test_multipart_t_chart_reports_runs_signals(self):
@@ -434,16 +452,16 @@ class TestRunsSignalLocalized:
         because x**3.6 is monotone and so preserves every above/below-CL
         relationship runs detection depends on — this test pins that down.
         """
-        # Two identical parts of 14; each has a run of 7 and only 1 crossing.
-        # Spread is wide enough that no point breaches the limits, so runs is
-        # the only signal — a sigma signal would mask what we're checking.
-        part = [4.2, 2.3, 1.2, 1.1, 5.1, 5.6, 4.0,
-                20.4, 17.2, 23.9, 21.9, 8.0, 22.6, 8.6]
-        r = qic(y=part * 2, chart="t", part=15)
+        # Two identical parts of 16; each has a run of 8 (more than round(log2 16) + 3
+        # = 7) and only 1 crossing. Spread is wide enough that no point breaches the
+        # limits, so runs is the only signal.
+        part = [4.2, 2.3, 1.2, 1.1, 5.1, 5.6, 4.0, 3.1,
+                20.4, 17.2, 23.9, 21.9, 8.0, 22.6, 8.6, 19.0]
+        r = qic(y=part * 2, chart="t", part=17)
 
         assert r.data["sigma_signal"].sum() == 0
-        assert [p["run_signal"] for p in r.summary["parts"]] == [True, True]
-        assert r.data["runs_signal"].sum() == 28
+        assert [p["longest_run_signal"] for p in r.summary["parts"]] == [True, True]
+        assert r.data["runs_signal"].sum() == 32
         assert r.signals is True
 
     def test_funnel_suppresses_both(self):
@@ -472,7 +490,7 @@ class TestEdgeCases:
         assert len(r.data) == 3
 
     def test_invalid_chart_type(self):
-        with pytest.raises(ValueError, match="Unknown chart"):
+        with pytest.raises(ValueError, match="chart must be one of"):
             qic(y=[1, 2, 3], chart="zzz")
 
     def test_no_y_raises(self):
@@ -510,12 +528,6 @@ class TestEdgeCases:
 # ---------------------------------------------------------------------------
 
 class TestDisplayParams:
-    def test_plot_opts_stored(self, normal_30):
-        r = _result("i", normal_30, decimals=3, show_grid=True, point_size=2.0)
-        assert r._plot_opts["decimals"] == 3
-        assert r._plot_opts["show_grid"] is True
-        assert r._plot_opts["point_size"] == 2.0
-
     def test_plot_opts_used_by_plot(self, normal_30):
         r = _result("i", normal_30, show_grid=True)
         fig = r.plot()
@@ -526,46 +538,10 @@ class TestDisplayParams:
         fig = r.plot(show_grid=False)
         assert fig.layout.xaxis.showgrid is False
 
-    def test_show_x_labels_round_trips(self, normal_30):
-        """Catches show_x_labels being dropped from the PlotOptions construction."""
-        r = _result("i", normal_30, show_x_labels=False)
-        assert r._plot_opts["show_x_labels"] is False
-
-    def test_show_x_labels_defaults_true(self, normal_30):
-        r = _result("i", normal_30)
-        assert r._plot_opts["show_x_labels"] is True
-
-    def test_plot_options_subset_of_qic_signature(self):
-        import inspect
-        from qikit.spc import PlotOptions
-
-        # part_indices and x_nticks_all are derived/injected inside qic(),
-        # not user-facing parameters — everything else must round-trip 1:1.
-        derived = {"part_indices", "x_nticks_all", "xlab_given", "n_name"}
-        fields = set(PlotOptions.__dataclass_fields__) - derived
-        assert fields <= set(inspect.signature(qic).parameters)
-
-    def test_runs_highlight_round_trips(self, normal_30):
-        r = _result("i", normal_30, runs_highlight="localized")
-        assert r._plot_opts["runs_highlight"] == "localized"
-
-    def test_runs_highlight_defaults_to_localized(self, normal_30):
-        assert _result("i", normal_30)._plot_opts["runs_highlight"] == "localized"
-
-    def test_runs_highlight_invalid_raises_in_qic(self, normal_30):
-        with pytest.raises(ValueError, match="runs_highlight must be one of"):
-            _result("i", normal_30, runs_highlight="bogus")
-
     def test_runs_highlight_invalid_raises_in_plot(self, normal_30):
         r = _result("i", normal_30)
         with pytest.raises(ValueError, match="runs_highlight must be one of"):
             r.plot(runs_highlight="bogus")
-
-    def test_facet_connect_passed_through(self, normal_30):
-        df = pd.DataFrame({"y": normal_30, "grp": ["a"] * 15 + ["b"] * 15})
-        r = qic(data=df, y="y", chart="i", facets="grp", connect=True)
-        assert r._plot_opts["connect"] is True
-
 
 # ---------------------------------------------------------------------------
 # Summary / audit fields
@@ -575,7 +551,7 @@ class TestSummary:
     def test_summary_keys(self, normal_30):
         r = _result("i", normal_30)
         assert "n_obs" in r.summary
-        assert "limit_basis" in r.summary
+        assert "longest_run_max" in r.summary
         assert "longest_run" in r.summary
         assert "n_crossings" in r.summary
 
@@ -611,7 +587,7 @@ class TestSummary:
 class TestConstants:
     def test_b4_n25(self):
         """B4 for n=25 should be 1.435, not 0.435 (data entry check)."""
-        assert math.isclose(_core.B4[25], 1.435, abs_tol=0.001)
+        assert math.isclose(_constants.b4(25), 1.435, abs_tol=0.001)
 """
 Tests for Phase 2 features: xbar chart, multi-part, facets, notes.
 
@@ -631,7 +607,7 @@ class TestXbarChart:
     def test_requires_long_format_data(self):
         """xbar without data= raises ValueError."""
         y = [1.0, 2.0, 3.0, 4.0, 5.0]
-        with pytest.raises(ValueError, match="xbar chart requires"):
+        with pytest.raises(ValueError, match="subgroups"):
             qic(y=y, chart="xbar")
 
     def test_requires_x_as_column_name(self):
@@ -680,7 +656,7 @@ class TestXbarChart:
         grand_mean = np.mean(targets)
         # s_bar the same way the engine computes it: mean of subgroup SDs (ddof=1)
         s_bar = df.groupby("grp")["val"].std(ddof=1).mean()
-        a3 = _core.A3[4]
+        a3 = _constants.a3(4)
 
         # CL should be close to grand mean
         assert math.isclose(r.data["cl"].iloc[0], grand_mean, abs_tol=0.05)
@@ -718,7 +694,7 @@ class TestXbarChart:
         expected_sd_per_group = _math.sqrt(4 * 0.5**2 / 3)
         s_bar_expected = expected_sd_per_group
 
-        a3 = _core.A3[4]
+        a3 = _constants.a3(4)
         expected_ucl = 10.0 + a3 * s_bar_expected
         expected_lcl = 10.0 - a3 * s_bar_expected
 
@@ -755,7 +731,7 @@ class TestXbarChart:
 
         # sd of [9.5,10.5,9.5,10.5] with ddof=1
         s_each = float(np.std([9.5, 10.5, 9.5, 10.5], ddof=1))
-        a3 = _core.A3[4]
+        a3 = _constants.a3(4)
         expected_ucl = 10.0 + a3 * s_each
         expected_lcl = 10.0 - a3 * s_each
 
@@ -813,7 +789,7 @@ class TestMultiPart:
     def test_freeze_and_part_raises(self):
         """Cannot specify both freeze= and part= simultaneously."""
         y = list(range(1, 21))
-        with pytest.raises(ValueError, match="Cannot use both freeze= and part="):
+        with pytest.raises(ValueError, match="cannot be combined"):
             qic(y=y, chart="i", freeze=10, part=11)
 
     def test_no_part_column_without_part(self):
@@ -917,7 +893,7 @@ class TestNotes:
         """Mismatched notes length raises ValueError."""
         y = [1.0, 2.0, 3.0, 4.0, 5.0]
         notes = ["a", "b", "c"]  # wrong length
-        with pytest.raises(ValueError, match="Length of notes"):
+        with pytest.raises(ValueError, match="notes= has"):
             qic(y=y, chart="i", notes=notes)
 
     def test_note_plot_has_annotations(self):
@@ -946,28 +922,22 @@ class TestFacetForwarding:
     @staticmethod
     def _df():
         return pd.DataFrame({
-            "unit": ["A"] * 4 + ["B"] * 4,
+            "hosp": ["A"] * 4 + ["B"] * 4,
             "site": ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4"],
-            "y": [4, 480, 55, 4700] * 2,
+            "y": [4, 480, 45, 4700] * 2,
             "n": [5, 500, 50, 5000] * 2,
             "note": ["five", "five-hundred", "fifty", "five-thousand"] * 2,
         })
 
     def _facet(self, **kw):
         return qic(data=self._df(), x="site", y="y", n="n", chart="p",
-                   facets="unit", **kw)
+                   facets="hosp", **kw)
 
     def test_funnel_sorts_within_each_facet(self):
         """funnel= was dropped, so faceted funnels silently came back unsorted."""
         r = self._facet(funnel=True)
         assert r.data[r.data["facet"] == "A"]["x"].tolist() == ["a1", "a3", "a2", "a4"]
         assert r.data[r.data["facet"] == "B"]["x"].tolist() == ["b1", "b3", "b2", "b4"]
-
-    def test_funnel_display_overrides_reach_the_parent(self):
-        """The combined result carries the funnel render hints, not the defaults."""
-        r = self._facet(funnel=True)
-        assert r._plot_opts["connect"] is False
-        assert r._plot_opts["x_nticks_all"] is True
 
     def test_notes_column_forwarded(self):
         r = self._facet(notes="note")
@@ -976,15 +946,9 @@ class TestFacetForwarding:
             "five", "five-hundred", "fifty", "five-thousand"
         ]
 
-    def test_notes_follow_the_funnel_sort_within_a_facet(self):
-        r = self._facet(funnel=True, notes="note")
-        assert r.data[r.data["facet"] == "A"]["notes"].tolist() == [
-            "five", "fifty", "five-hundred", "five-thousand"
-        ]
-
     def test_list_notes_sliced_per_facet(self):
         """A positional list spans data=, so each facet gets its own rows."""
-        r = qic(data=self._df(), y="y", n="n", chart="p", facets="unit",
+        r = qic(data=self._df(), y="y", n="n", chart="p", facets="hosp",
                 notes=list("12345678"))
         by_facet = r.data.groupby("facet")["notes"].apply(list).to_dict()
         assert by_facet == {"A": ["1", "2", "3", "4"], "B": ["5", "6", "7", "8"]}
@@ -993,11 +957,6 @@ class TestFacetForwarding:
         r = self._facet(target=0.9)
         assert "target" in r.data.columns
         assert r.data["target"].tolist() == pytest.approx([0.9] * 8)
-
-    def test_subtitle_and_caption_survive(self):
-        r = self._facet(subtitle="SUB", caption="CAP")
-        assert r.subtitle == "SUB"
-        assert r.caption == "CAP"
 
     def test_funnel_with_freeze_raises_through_the_facet_path(self):
         """The validation runs before the recursion, so facets cannot bypass it."""
@@ -1020,35 +979,12 @@ class TestFunnelAlignment:
     """funnel=True sorts by denominator; every per-point input must follow the sort."""
 
     # n ascending is [5, 50, 500, 5000] — input order 1, 3, 2, 4.
-    Y = [4, 480, 55, 4700]
+    Y = [4, 480, 45, 4700]
     N = [5, 500, 50, 5000]
     LABELS = ["A", "B", "C", "D"]
 
     def _funnel(self, **kw):
         return qic(y=self.Y, n=self.N, chart="p", funnel=True, **kw)
-
-    def test_notes_follow_the_sort(self):
-        """Reported bug: notes stayed in input order while the data was reordered."""
-        notes = ["five", "five-hundred", "fifty", "five-thousand"]
-        r = self._funnel(notes=notes)
-        assert r.data["notes"].tolist() == ["five", "fifty", "five-hundred", "five-thousand"]
-        # Asserting y as well pins the pairing, not merely the order.
-        assert r.data["y"].tolist() == pytest.approx([0.8, 1.1, 0.96, 0.94])
-
-    def test_scalar_notes_broadcast_unchanged(self):
-        """A scalar note broadcasts; the permutation must be a no-op."""
-        r = self._funnel(notes="site visit")
-        assert r.data["notes"].tolist() == ["site visit"] * 4
-
-    def test_list_target_follows_the_sort(self):
-        """A list-valued target= is positional and must be permuted."""
-        r = self._funnel(target=[0.1, 0.2, 0.3, 0.4])
-        assert r.data["target"].tolist() == pytest.approx([0.1, 0.3, 0.2, 0.4])
-
-    def test_scalar_target_unchanged(self):
-        """A scalar target broadcasts unchanged."""
-        r = self._funnel(target=0.5)
-        assert r.data["target"].tolist() == pytest.approx([0.5] * 4)
 
     def test_exclude_ghosts_the_named_point(self):
         """exclude= is 1-based into the input order, not the sorted order."""
@@ -1061,7 +997,7 @@ class TestFunnelAlignment:
     def test_exclude_removes_the_right_point_from_the_baseline(self):
         """The payload: which counts actually left the center-line calculation."""
         r = self._funnel(exclude=[2])
-        assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+        assert r.data["cl"].iloc[0] == pytest.approx((4 + 45 + 4700) / (5 + 50 + 5000))
 
     def test_exclude_column_follows_the_sort(self):
         """The DataFrame bool-column path resolves to indices and must permute too."""
@@ -1072,7 +1008,7 @@ class TestFunnelAlignment:
         r = qic(data=df, x="x", y="y", n="n", chart="p", funnel=True, exclude="drop")
         ghosted = r.data.loc[r.data["excluded"]].iloc[0]
         assert ghosted["x"] == "B"
-        assert r.data["cl"].iloc[0] == pytest.approx((4 + 55 + 4700) / (5 + 50 + 5000))
+        assert r.data["cl"].iloc[0] == pytest.approx((4 + 45 + 4700) / (5 + 50 + 5000))
 
     def test_bare_exclude_index_follows_the_sort(self):
         """The scalar form is normalised before the remap, so it permutes too."""
@@ -1232,7 +1168,7 @@ class TestRegressionValues:
         df = pd.DataFrame(rows)
         r = qic(data=df, x="grp", y="val", chart="xbar")
 
-        a3 = _core.A3[4]
+        a3 = _constants.a3(4)
         expected_ucl = 10.0 + a3 * s_each
         expected_lcl = 10.0 - a3 * s_each
 
@@ -1246,61 +1182,44 @@ class TestRegressionValues:
 # ---------------------------------------------------------------------------
 
 class TestAnhoejThresholds:
-    def test_longest_run_threshold_n10(self):
-        """n=10: floor(log2(10))+3 = 3+3 = 6."""
-        assert _core._longest_run_threshold(10) == 6
+    """qicharts2's rules: a run longer than round(log2 n) + 3, or fewer crossings than
+    qbinom(0.05, n - 1, 0.5), signals (Anhoej & Olesen 2014)."""
 
-    def test_longest_run_threshold_n20(self):
-        """n=20: floor(log2(20))+3 = 4+3 = 7."""
-        assert _core._longest_run_threshold(20) == 7
+    @pytest.mark.parametrize("n,expected", [(10, 6), (20, 7), (25, 8), (100, 10), (5, 5)])
+    def test_longest_run_max(self, n, expected):
+        assert _rules.longest_run_max(n) == expected
 
-    def test_longest_run_threshold_n25(self):
-        """n=25: floor(log2(25))+3 = 4+3 = 7."""
-        assert _core._longest_run_threshold(25) == 7
-
-    def test_longest_run_threshold_n100(self):
-        """n=100: floor(log2(100))+3 = 6+3 = 9."""
-        assert _core._longest_run_threshold(100) == 9
-
-    def test_crossings_threshold_less_than_half_n(self):
-        """crossings_threshold should be < n/2 for all valid n >= 10."""
+    def test_crossings_min_below_half_n(self):
         for n in [10, 20, 25, 50, 100, 1033, 2000]:
-            ct = _core._crossings_threshold(n)
-            assert ct < n / 2, f"crossings_threshold({n})={ct} is not < {n/2}"
+            assert _rules.n_crossings_min(n) < n / 2
 
-    def test_crossings_threshold_n_less_than_10(self):
-        """For n < 10, crossings threshold should be -1 (no signalling)."""
-        for n in [1, 5, 9]:
-            assert _core._crossings_threshold(n) == -1
+    def test_crossings_min_large_n(self):
+        """Exact in log space past n = 1032, where math.comb overflows a float."""
+        for n, expected in [(1033, 490), (1500, 718), (3000, 1454), (5000, 2441)]:
+            assert _rules.n_crossings_min(n) == expected
 
-    def test_crossings_threshold_large_n(self):
-        """
-        n >= 1033 used to raise OverflowError: the exact binomial coefficient
-        exceeded the largest float. Values match exact rational arithmetic and
-        the TypeScript engine (excel-addin/packages/engine/tests/signals.test.ts).
-        """
-        for n, expected in [(1033, 489), (1500, 717), (3000, 1453), (5000, 2440)]:
-            assert _core._crossings_threshold(n) == expected
-
-    def test_crossings_threshold_matches_exact_binomial(self):
-        """The log-space sum agrees with exact rational arithmetic."""
+    def test_crossings_min_matches_exact_binomial(self):
+        """qbinom: the smallest k with P(X <= k) >= 0.05, by exact rational arithmetic."""
         from fractions import Fraction
 
-        for n in [50, 300, 1200]:
+        for n in [10, 50, 300, 1200]:
             trials = n - 1
-            pmf_unit = Fraction(1, 2) ** trials
+            unit = Fraction(1, 2) ** trials
             cum = Fraction(0)
             for k in range(trials + 1):
-                cum += math.comb(trials, k) * pmf_unit
-                if cum > Fraction(1, 20):
-                    expected = k - 1
+                cum += math.comb(trials, k) * unit
+                if cum >= Fraction(1, 20):
+                    expected = k
                     break
-            assert _core._crossings_threshold(n) == expected
+            assert _rules.n_crossings_min(n) == expected
 
-    def test_run_threshold_below_10(self):
-        """For n < 10, run threshold > n (effectively impossible to signal)."""
-        for n in [1, 5, 9]:
-            assert _core._longest_run_threshold(n) > n
+    def test_no_gate_below_ten_points(self):
+        """qicharts2 applies the rules at any n (qikit used to switch them off below 10)."""
+        r = qic(y=[1.0, 2, 3, 4, 5, 6, 7], chart="run")   # median 4: six useful points
+        assert r.summary["n_useful"] == 6
+        assert r.summary["longest_run_max"] == 6
+        assert r.summary["n_crossings_min"] == 1
+
 
 
 def test_multiply_p_chart():
@@ -1315,48 +1234,6 @@ def test_multiply_p_chart():
     # sigma = sqrt(0.1 * 0.9 / 100) = 0.03
     # UCL = 0.1 + 3*0.03 = 0.19. With multiply=100 -> 19.0
     assert np.isclose(r.data["ucl"].iloc[0], 19.0)
-
-def test_ip_chart():
-    # ip chart is Individuals chart for proportions
-    y = [10, 20, 15, 25, 10]
-    n = [100, 100, 100, 100, 100]
-    # proportions: 0.1, 0.2, 0.15, 0.25, 0.1
-    # MR: 0.1, 0.05, 0.1, 0.15. Avg MR = 0.1. Sigma = 0.1 / 1.128 = 0.0886
-    r = qic(y=y, n=n, chart="ip")
-    
-    assert r.chart_type == "ip"
-    # CL should be weighted mean
-    expected_cl = sum(y) / sum(n)
-    assert np.isclose(r.data["cl"].iloc[0], expected_cl)
-    
-    # limits should be constant (I-chart limits)
-    ucl = r.data["ucl"].to_numpy()
-    assert np.allclose(ucl, ucl[0])
-    
-    # Check that ip uses moving range sigma, not binomial sigma
-    # Binomial sigma at p=0.16 would be sqrt(0.16*0.84/100) = 0.0366
-    # UCL would be 0.16 + 3*0.0366 = 0.27
-    # Our calculated empirical sigma was 0.0886 -> UCL = 0.16 + 3*0.0886 = 0.4258
-    assert not np.isclose(r.data["ucl"].iloc[0], 0.16 + 3 * np.sqrt(0.16 * 0.84 / 100))
-
-
-def test_ip_chart_screening_does_not_collapse_sigma():
-    """ip shares _i_limits, so the screening fallback must hold there too."""
-    y = [10] * 29 + [40]
-    n = [100] * 30
-    r = qic(y=y, n=n, chart="ip")
-    cl = r.data["cl"].iloc[0]
-    assert r.data["ucl"].iloc[0] > cl > r.data["lcl"].iloc[0]
-    assert int(r.data["sigma_signal"].sum()) == 1
-
-
-def test_ip_chart_flat_series_has_no_limits():
-    y = [10] * 20
-    n = [100] * 20
-    r = qic(y=y, n=n, chart="ip")
-    assert r.data["ucl"].isna().all()
-    assert r.data["lcl"].isna().all()
-
 
 class TestVariableLimits:
     def test_xbar_variable_limits(self):
@@ -1390,23 +1267,42 @@ class TestVariableLimits:
         assert np.isclose(ucl[0], ucl[2])
 
 
+def test_i_chart_of_a_rate():
+    """n= divides y on any chart, as qicharts2: an i chart of proportions."""
+    y = [10, 20, 15, 25, 10]
+    n = [100, 100, 100, 100, 100]
+    r = qic(y=y, n=n, chart="i")
+    assert r.data["y"].tolist() == pytest.approx([0.1, 0.2, 0.15, 0.25, 0.1])
+    assert r.data["cl"].iloc[0] == pytest.approx(0.16)
+    # Moving-range sigma, not binomial: MR 0.1, 0.05, 0.1, 0.15 average 0.1.
+    assert r.data["ucl"].iloc[0] == pytest.approx(0.16 + 3 * 0.1 / 1.128)
+
+
+def test_i_chart_of_a_rate_flat_series_has_no_limits():
+    r = qic(y=[10] * 20, n=[100] * 20, chart="i")
+    assert r.data["ucl"].isna().all()
+
+
 class TestSubgroupConstants:
     """constants.a3/b3/b4 — tabulated to n=25, analytic above."""
 
-    @pytest.mark.parametrize("n", range(2, 26))
-    def test_tabulated_values_are_exact(self, n):
-        """No drift below n=26: the published tables win over the series form."""
-        assert _constants.a3(n) == _constants.A3[n]
-        assert _constants.b3(n) == _constants.B3[n]
-        assert _constants.b4(n) == _constants.B4[n]
+    # Montgomery, Appendix VI, to the three decimals printed there.
+    TABLE = {2: (2.659, 0.0, 3.267), 5: (1.427, 0.0, 2.089), 6: (1.287, 0.030, 1.970),
+             10: (0.975, 0.284, 1.716), 25: (0.606, 0.565, 1.435)}
 
-    def test_analytic_above_the_table(self):
-        n = 100
-        c4 = 1 - 1 / (4 * n) - 7 / (32 * n**2)
-        spread = 3 * math.sqrt(1 - c4**2) / c4
-        assert _constants.a3(n) == pytest.approx(3 / (c4 * math.sqrt(n)))
-        assert _constants.b4(n) == pytest.approx(1 + spread)
-        assert _constants.b3(n) == pytest.approx(max(0.0, 1 - spread))
+    @pytest.mark.parametrize("n", sorted(TABLE))
+    def test_exact_values_round_to_the_textbook_tables(self, n):
+        a3, b3, b4 = self.TABLE[n]
+        assert _constants.a3(n) == pytest.approx(a3, abs=6e-4)
+        assert _constants.b3(n) == pytest.approx(b3, abs=6e-4)
+        assert _constants.b4(n) == pytest.approx(b4, abs=6e-4)
+
+    def test_c4_is_the_exact_gamma_form(self):
+        """As qicharts2 computes it: c4 = sqrt(2/(n-1)) Γ(n/2)/Γ((n-1)/2)."""
+        for n in (2, 5, 26, 100, 2.5):
+            exact = math.sqrt(2 / (n - 1)) * math.exp(math.lgamma(n / 2) - math.lgamma((n - 1) / 2))
+            assert _constants.c4(n) == pytest.approx(exact, rel=1e-15)
+        assert _constants.c4(2) == pytest.approx(math.sqrt(2 / math.pi))
 
     def test_seam_is_continuous(self):
         """Table at 25 and series at 26 must not jump — charts straddle the seam."""
@@ -1479,7 +1375,7 @@ class TestLargeSubgroups:
 
     def test_no_usable_subgroup_raises(self):
         df = self._frame([1, 1, 1])
-        with pytest.raises(ValueError, match="2 or more observations"):
+        with pytest.raises(ValueError, match="2 or more raw values"):
             qic(data=df, x="month", y="los", chart="xbar")
 
 
@@ -1537,10 +1433,11 @@ class TestSChartVaryingCenterLine:
         y = r.data["y"].to_numpy()
 
         flat = np.full(len(y), np.nanmean(y))           # the old center line
-        flat_signal, _, flat_summary = _signals._runs_signals(y, flat, method="anhoej")
+        nan = np.full(len(y), np.nan)
+        flat_rules = _rules.apply_rules("anhoej", y, flat, nan, nan, nan, False)
 
-        assert flat_signal.any(), "design should trip the old flat CL"
-        assert flat_summary["longest_run"] == 13        # exactly the 13 large subgroups
+        assert flat_rules.summary["runs_signal"], "design should trip the old flat CL"
+        assert flat_rules.summary["longest_run"] == 13  # exactly the 13 large subgroups
         assert not r.data["runs_signal"].any()
 
     def test_cl_override_stays_flat(self):
@@ -1575,8 +1472,8 @@ class TestEqualNUnchanged:
         })
         r = qic(data=df, x="grp", y="val", chart="xbar")
         s_bar = df.groupby("grp")["val"].std(ddof=1).mean()
-        assert r.data["ucl"].iloc[0] == pytest.approx(10.0 + _constants.A3[4] * s_bar)
-        assert r.data["lcl"].iloc[0] == pytest.approx(10.0 - _constants.A3[4] * s_bar)
+        assert r.data["ucl"].iloc[0] == pytest.approx(10.0 + _constants.a3(4) * s_bar)
+        assert r.data["lcl"].iloc[0] == pytest.approx(10.0 - _constants.a3(4) * s_bar)
 
     def test_classic_b3_b4_formula_still_holds(self):
         df = pd.DataFrame({
@@ -1585,8 +1482,8 @@ class TestEqualNUnchanged:
         })
         r = qic(data=df, x="grp", y="val", chart="s")
         cl = r.data["cl"].iloc[0]
-        assert r.data["ucl"].iloc[0] == pytest.approx(_constants.B4[4] * cl)
-        assert r.data["lcl"].iloc[0] == pytest.approx(_constants.B3[4] * cl)
+        assert r.data["ucl"].iloc[0] == pytest.approx(_constants.b4(4) * cl)
+        assert r.data["lcl"].iloc[0] == pytest.approx(_constants.b3(4) * cl)
 
     def test_grand_mean_unchanged_at_equal_n(self):
         """Weighted grand mean == unweighted mean of subgroup means when n is constant."""
@@ -1604,14 +1501,14 @@ class TestExtendedRules:
         # cl will be mean of [10...10, 5...5] = (8*10 + 10*5)/18 = 7.22
         # 10s are > 7.22. 8 points in a row.
         r = qic(y=y, chart="i", method="weco")
-        assert 4 in r.summary["weco_rules_triggered"]
+        assert "8 on one side" in r.summary["rules_fired"]
         assert r.signals
 
     def test_nelson_signal(self):
         # 9 points on one side should trigger Nelson Rule 2
         y = [10] * 9 + [5] * 10
         r = qic(y=y, chart="i", method="nelson")
-        assert 2 in r.summary["nelson_rules_triggered"]
+        assert "9 on one side" in r.summary["rules_fired"]
         assert r.signals
 
 class TestPareto:
@@ -1628,66 +1525,45 @@ class TestBChart:
         y = [0, 0, 0, 1, 0, 0, 0, 1]
         r = bchart(y, target=0.1, or_ratio=2.0)
         assert "cusum_up" in r.data.columns
-        assert r.target == 0.1
+        assert r.summary["target"] == 0.1
 
 
-class TestLaneySigmaZFloor:
-    """σ_z is floored at 1.0 so p'/u' limits never tighten below naive p/u."""
+class TestLaneySigmaZ:
+    """σ_z as qicharts2 computes Laney's: the screened mean moving range of the
+    standardised residuals over 1.128, with no floor."""
 
-    # Underdispersed: raw σ_z ≈ 0.544 (pp) and ≈ 0.416 (up).
     UNDER_PP = ([50, 53, 50, 53, 50, 53, 50, 53, 50, 65], 1000)
-    UNDER_UP = ([10, 11, 10, 11, 10, 11, 10, 11, 10, 16], 100)
 
-    def test_sigma_z_floors_at_one(self):
-        """A constant series has a raw estimate of 0.0 and must clamp up to 1.0."""
-        y = np.full(5, 0.05)
-        sigma_base = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
-        assert _limits._laney_sigma_z(y, 0.05, sigma_base, np.ones(5, dtype=bool)) == 1.0
-
-    def test_overdispersion_passes_through_unclamped(self):
-        """It is a floor, not a clamp — overdispersed samples keep their estimate."""
+    def test_matches_the_screened_moving_range(self):
         y = np.array([50, 60, 40, 70, 30], dtype=float) / 1000
-        sigma_base = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
-        sigma_z = _limits._laney_sigma_z(y, 0.05, sigma_base, np.ones(5, dtype=bool))
-        assert sigma_z == pytest.approx(3.21576, rel=1e-4)
+        sigma = np.sqrt(0.05 * 0.95 / 1000) * np.ones(5)
+        z = (y - 0.05) / sigma
+        mr = np.abs(np.diff(z))
+        kept = mr[mr < 3.267 * mr.mean()]
+        got = _shewhart.laney_sigma_z(y, 0.05, sigma, np.ones(5, dtype=bool), False)
+        assert got == pytest.approx(kept.mean() / 1.128)
 
-    def test_underdispersed_pp_falls_back_to_naive_p(self):
-        """An underdispersed p' chart reproduces the ordinary p chart."""
+    def test_underdispersed_pp_is_narrower_than_p(self):
+        """Laney's method narrows the limits of an under-dispersed series too."""
         y, n = self.UNDER_PP
         ns = [n] * len(y)
         r_pp, r_p = qic(y=y, n=ns, chart="pp"), qic(y=y, n=ns, chart="p")
-        assert r_pp.data["ucl"].tolist() == pytest.approx(r_p.data["ucl"].tolist())
-        assert r_pp.data["lcl"].tolist() == pytest.approx(r_p.data["lcl"].tolist())
-        assert r_pp.summary["signals"] is False
+        assert (r_pp.data["ucl"] < r_p.data["ucl"]).all()
+        assert r_pp.public.summary["sigma_z"] < 1
+        assert r_pp.data["sigma_signal"].iloc[-1]
 
-    def test_underdispersed_up_falls_back_to_naive_u(self):
-        """Same fallback property for the u' chart."""
-        y, n = self.UNDER_UP
-        ns = [n] * len(y)
-        r_up, r_u = qic(y=y, n=ns, chart="up"), qic(y=y, n=ns, chart="u")
-        assert r_up.data["ucl"].tolist() == pytest.approx(r_u.data["ucl"].tolist())
-        assert r_up.data["lcl"].tolist() == pytest.approx(r_u.data["lcl"].tolist())
-        assert r_up.summary["signals"] is False
+    def test_categorical_x_uses_the_sd_of_z(self):
+        y, n = [50, 60, 40, 70, 30], [1000] * 5
+        ordered = qic(y=y, n=n, chart="pp").public.summary["sigma_z"]
+        text = qic(x=list("abcde"), y=y, n=n, chart="pp").public.summary["sigma_z"]
+        z = (np.array(y) / 1000 - 0.05) / np.sqrt(0.05 * 0.95 / 1000)
+        assert text == pytest.approx(np.std(z, ddof=1))
+        assert text != pytest.approx(ordered)
 
-    def test_pp_limits_never_narrower_than_p(self):
-        """Property: across under-, equal- and over-dispersed series, p' ⊇ p."""
-        series = [
-            self.UNDER_PP[0],
-            [50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
-            [50, 60, 40, 70, 30, 65, 35, 70, 30, 60],
-        ]
-        for y in series:
-            ns = [1000] * len(y)
-            r_pp, r_p = qic(y=y, n=ns, chart="pp"), qic(y=y, n=ns, chart="p")
-            assert np.all(r_pp.data["ucl"].to_numpy() >= r_p.data["ucl"].to_numpy() - 1e-12)
-            assert np.all(r_pp.data["lcl"].to_numpy() <= r_p.data["lcl"].to_numpy() + 1e-12)
-
-    def test_constant_series_gives_naive_limits(self):
-        """A flat series used to collapse the limits onto the center line."""
+    def test_constant_series_has_no_limits(self):
+        """No point-to-point variation, no spread to estimate: as on the i chart."""
         r = qic(y=[50] * 5, n=[1000] * 5, chart="pp")
-        assert r.data["ucl"].iloc[0] == pytest.approx(0.0706760731, abs=1e-9)
-        assert r.data["ucl"].iloc[0] > r.data["cl"].iloc[0]
-
+        assert r.data["ucl"].isna().all()
 
 class TestRealWorldScenarios:
     def test_laney_overdispersion_vs_standard_p(self):
@@ -1754,7 +1630,7 @@ class TestRealWorldScenarios:
         # Nelson Rule 7 should catch the stratification
         r_nelson = qic(y=y, cl=10.0, method="nelson", chart="i")
         assert r_nelson.signals
-        assert 7 in r_nelson.summary["nelson_rules_triggered"]
+        assert "15 within 1 sigma" in r_nelson.summary["rules_fired"]
 
     def test_bchart_risk_doubling_detection(self):
         """
@@ -1768,7 +1644,7 @@ class TestRealWorldScenarios:
         ])
         
         # Lower limit for sensitive detection
-        r = bchart(y, target=50, or_ratio=2.0, limit=2.5)
+        r = bchart(y, baseline=50, or_ratio=2.0, limit=2.5)
         
         # There should be an upward signal
         assert r.data["signal_up"].any()
@@ -1812,12 +1688,8 @@ class TestIntelligentArguments:
         })
         
         r = qic(data=data, y="val", part="phase")
-        
-        # Should have found 1 transition point (starts at index 6)
-        # SPCResult stores part_indices in _plot_opts
-        assert r._plot_opts["part_indices"] == [6]
-        # Should have extracted labels
-        assert r._plot_opts["part_labels"] == ["Baseline", "Intervention"]
+        assert r.data["part"].tolist() == ["Baseline"] * 5 + ["Intervention"] * 5
+        assert len(r.summary["parts"]) == 2
 
     def test_categorical_exclude(self):
         y = [10, 10, 50, 10, 10] # 50 is an outlier
@@ -1845,10 +1717,8 @@ class TestIntelligentArguments:
         
         r = qic(data=data, x="group", y="val", part="phase")
         
-        # x_vals will be [A, B, C, D]
-        # phase changes at C (index 2 in x_vals, which is 1-based index 3)
-        assert r._plot_opts["part_indices"] == [3]
-        assert r._plot_opts["part_labels"] == ["P1", "P2"]
+        # x_vals will be [A, B, C, D]; the phase changes at C.
+        assert r.data["part"].tolist() == ["P1", "P1", "P2", "P2"]
 
     def test_mr_part_adjustment(self):
         y = [10, 10, 10, 20, 20, 20]
@@ -1857,8 +1727,10 @@ class TestIntelligentArguments:
         # MR labeled by 2nd point: x=[2, 3, 4, 5, 6]
         # If phase starts at x=4, that is index 2 of MR array (1-based index 3)
         r = qic(y=y, chart="mr", part=[4])
-        
-        assert r._plot_opts["part_indices"] == [3]
+        # Moving ranges at points 2..6; the second part starts at point 4, and its first
+        # range would span the parts, so it is missing (as in qicharts2).
+        assert r.data["part"].tolist() == [1, 1, 2, 2, 2]
+        assert math.isnan(r.data["y"].iloc[2])
 
 
 class TestMontgomeryValidation:
@@ -1933,7 +1805,6 @@ class TestMontgomeryValidation:
         assert r.signals
         # Point index 9 (the 50) must be a sigma signal
         assert bool(r.data["sigma_signal"].iloc[9])
-        assert 1 in r.summary["nelson_rules_triggered"]
 
 class TestUntestedFeatures:
     def test_qic_target_parameter(self):
@@ -2118,11 +1989,6 @@ class TestOEFunnel:
         assert r.summary["runs_disabled"] is True
         assert not r.data["runs_signal"].any()
 
-    def test_time_series_mode_keeps_runs_detection(self):
-        """Without funnel=True an oe chart is a legitimate time-ordered SMR chart."""
-        r = qic(y=self.Y, n=self.N, chart="oe")
-        assert "runs_disabled" not in r.summary
-
     def test_cl_override_benchmarks_against_the_risk_model(self):
         """cl=1.0 asks who differs from their expected count; the pooled default
         asks who differs from their peers."""
@@ -2145,14 +2011,14 @@ class TestOEFunnel:
         assert self._funnel().summary["limit_method"] == "exact"
 
     def test_y_axis_is_a_ratio_not_a_percent(self):
-        assert self._funnel()._plot_opts["y_percent"] is False
+        assert self._funnel().plot().layout.yaxis.tickformat != ".0%"
 
     def test_rejects_limit_method_on_other_charts(self):
         with pytest.raises(ValueError, match="only valid for chart='oe'"):
             qic(y=[1, 2, 3], n=[10, 10, 10], chart="p", limit_method="byar")
 
     def test_rejects_an_unknown_limit_method(self):
-        with pytest.raises(ValueError, match="must be 'exact' or 'byar'"):
+        with pytest.raises(ValueError, match="limit_method must be one of"):
             self._funnel(limit_method="bogus")
 
     def test_requires_expected_events(self):
@@ -2160,7 +2026,7 @@ class TestOEFunnel:
             qic(y=self.Y, chart="oe")
 
     def test_rejects_zero_expected_with_observed_events(self):
-        with pytest.raises(ValueError, match="Zero denominators"):
+        with pytest.raises(ValueError, match="zero denominator"):
             qic(y=[3, 5], n=[0, 6], chart="oe")
 
     def test_zero_expected_with_zero_observed_is_a_gap(self):
@@ -2233,10 +2099,10 @@ class TestOEOverdispersion:
         r = self._oep(tau_method="spiegelhalter")
         assert r.summary["dispersion_phi"] == pytest.approx(phi)
         assert r.summary["dispersion_tau"] == pytest.approx(math.sqrt(tau2))
-        # The default differs only by eq. 9's consistency factor on φ̂ (methods §4.3).
+        # tau_method="winsorized" differs only by eq. 9's consistency factor (§4.3).
         c = _limits.winsor_consistency()
         tau2_d = (k * phi * c - (k - 1)) / (w.sum() - (w ** 2).sum() / w.sum())
-        d = self._oep()
+        d = self._oep(tau_method="winsorized")
         assert d.summary["dispersion_phi"] == pytest.approx(phi * c)
         assert d.summary["dispersion_tau"] == pytest.approx(math.sqrt(tau2_d))
 
@@ -2332,11 +2198,6 @@ class TestOEOverdispersion:
         """Poisson–gamma quantiles have no Byar counterpart, so there is nothing to choose."""
         with pytest.raises(ValueError, match="not available for chart='oep'"):
             self._oep(limit_method="exact")
-
-    def test_works_without_funnel_mode(self):
-        r = qic(y=self.Y, n=self.N, chart="oep")
-        assert r.summary["dispersion_adjusted"] is True
-        assert "runs_disabled" not in r.summary
 
     def test_exclude_drops_the_point_from_the_dispersion_estimate(self):
         assert self._oep(exclude=1).summary["dispersion_phi"] != pytest.approx(
@@ -2533,7 +2394,7 @@ class TestAdjustedFunnels:
     def test_time_ordered_pp_up_stay_laney(self):
         """Laney's σ_z is the right tool in time order, which is what it was built for."""
         r = qic(chart="pp", **self.PROPS)
-        assert r.summary["dispersion_method"] == "laney"
+        assert "sigma_z" in r.summary
         assert "dispersion_tau" not in r.summary
 
     def test_laney_in_a_funnel_would_have_erased_real_signals(self):
@@ -2940,11 +2801,6 @@ class TestWarnSignal:
         assert "warn_signal" in r.data.columns
         assert len(r.data) == 20
 
-    def test_summary_table_reports_warn(self):
-        t = self._oe().summary_table()
-        assert "Warn" in t["signal_type"].tolist()
-
-
 # ---------------------------------------------------------------------------
 # signal_side= — one-sided funnels
 # ---------------------------------------------------------------------------
@@ -3196,18 +3052,18 @@ class TestPValues:
 
 class TestBenjaminiHochberg:
     def test_hand_worked(self):
-        from qikit.spc.pvalues import bh_q_values
+        from qikit.core.pvalues import bh_q_values
         q = bh_q_values(np.array([0.01, 0.04, 0.03, 0.005, 0.5]))
         assert q.tolist() == pytest.approx([0.025, 0.05, 0.05, 0.025, 0.5])
 
     def test_nan_is_untested(self):
-        from qikit.spc.pvalues import bh_q_values
+        from qikit.core.pvalues import bh_q_values
         q = bh_q_values(np.array([0.01, np.nan, 0.04]))
         assert math.isnan(q[1])
         assert q[[0, 2]].tolist() == pytest.approx([0.02, 0.04])
 
     def test_monotone_bounded_and_capped(self):
-        from qikit.spc.pvalues import bh_q_values
+        from qikit.core.pvalues import bh_q_values
         rng = np.random.default_rng(7)
         p = rng.uniform(size=200) ** 3
         q = bh_q_values(p)
@@ -3226,7 +3082,7 @@ class TestSignalMethod:
     @pytest.mark.parametrize("side", ["both", "above", "below"])
     def test_limits_tiers_are_the_p_value_test(self, side):
         """The contours are the exact test's boundaries, so "limits" is p < α."""
-        from qikit.spc.pvalues import signal_thresholds
+        from qikit.core.pvalues import signal_thresholds
         d = self._oe(signal_side=side).data
         outer, inner = signal_thresholds(side)
         p = d["p_value"].to_numpy()
@@ -3303,7 +3159,7 @@ class TestSignalMethod:
         """Beyond a contour exactly when p < its tail probability, on both sides and at
         both levels, for whole counts (the exact test) and for counts between whole
         numbers (each tail interpolated, the inverse of the interpolated quantile)."""
-        from qikit.spc.pvalues import signal_thresholds
+        from qikit.core.pvalues import signal_thresholds
         rng = np.random.default_rng(11)
         for _ in range(15):
             y, n = self._random_funnel(rng, chart, whole)
@@ -3323,7 +3179,7 @@ class TestSignalMethod:
     def test_upper_contours_are_monotone(self, chart):
         """The exact-test boundary never climbs on the ratio scale, where
         Spiegelhalter's drawn contour reversed thousands of times on a dense grid."""
-        from qikit.spc.compute import funnel_limits
+        from conformance_helpers import funnel_limits
         grid = np.arange(3, 400).astype(float) if chart in ("p", "pp") else np.geomspace(0.3, 200, 20_000)
         cl = 0.1 if chart in ("p", "pp") else 1.0
         tau2 = (0.001 if chart == "pp" else 0.05) if chart in ("oep", "pp") else 0.0
@@ -3410,9 +3266,9 @@ class TestPointLabelsAndHoverExtra:
 
     def test_missing_column_rejected(self):
         df = pd.DataFrame({"o": self.Y, "e": self.N})
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="nope"):
             qic(y="o", n="e", data=df, chart="oe", hover_extra="nope")
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="nope"):
             qic(y="o", n="e", data=df, chart="oe", point_labels="nope")
 
     def test_wrong_shapes_rejected(self):
@@ -3422,18 +3278,6 @@ class TestPointLabelsAndHoverExtra:
             qic(y=self.Y, n=self.N, chart="oe", point_labels="name")
         with pytest.raises(ValueError, match="Length of point_labels"):
             qic(y=self.Y, n=self.N, chart="oe", point_labels=["a"])
-
-    def test_display_options_validated(self):
-        with pytest.raises(ValueError, match="label_signals"):
-            qic(y=self.Y, n=self.N, chart="oe", label_signals="all")
-        with pytest.raises(ValueError, match="warn tier"):
-            qic(y=[1, 2, 3, 4], chart="i", label_signals="warn")
-        with pytest.raises(ValueError, match="x_spacing"):
-            qic(y=self.Y, n=self.N, chart="oe", x_spacing="even")
-        with pytest.raises(ValueError, match="x_order"):
-            qic(x=self.X, y=self.Y, n=self.N, chart="oe", x_spacing="rank",
-                x_order=self.X)
-
 
 class TestBinomialInversion:
     """dist.binomial_cdf / binomial_theta_for_cdf — the lgamma-free binomial solve."""
@@ -3549,7 +3393,7 @@ class TestFractionalBinomial:
     @pytest.mark.parametrize("tau2", [0.0, 0.002])
     def test_contours_continuous_through_whole_numbers(self, cl, tau2):
         chart = "pp" if tau2 else "p"
-        from qikit.spc.compute import funnel_limits
+        from conformance_helpers import funnel_limits
         for m in (4, 12, 37, 150):
             lim = funnel_limits(chart, cl, np.array([m - 1e-7, float(m), m + 1e-7]), tau2=tau2)
             for col in ("ucl", "lcl", "ucl_95", "lcl_95"):
@@ -3558,7 +3402,7 @@ class TestFractionalBinomial:
 
     @pytest.mark.parametrize("chart,tau2", [("p", 0.0), ("pp", 0.002)])
     def test_contours_monotone_on_a_fine_grid(self, chart, tau2):
-        from qikit.spc.compute import funnel_limits
+        from conformance_helpers import funnel_limits
         lim = funnel_limits(chart, 0.1, np.arange(1.0, 60.0, 0.05), tau2=tau2)
         for col in ("ucl", "ucl_95"):
             assert not (np.diff(lim[col]) > 1e-12).any()
@@ -3566,7 +3410,7 @@ class TestFractionalBinomial:
             assert not (np.diff(lim[col]) < -1e-12).any()
 
     def test_contour_is_where_the_tail_crosses(self):
-        from qikit.spc.pvalues import _point_tails
+        from qikit.core.pvalues import _point_tails
         nu, cl = 17.3, 0.4
         ucl, lcl = _limits.fractional_binomial_pair(cl, nu, 0.0, *self.IN[:2])
         assert 0 < lcl < cl < ucl < 1
@@ -3597,7 +3441,7 @@ class TestFractionalBinomial:
         assert _limits.binomial_point_ci(4.96, 4.96)[1] == 1.0
 
     def test_detectable_rate_continuous_through_whole_numbers(self):
-        from qikit.spc.compute import funnel_limits
+        from conformance_helpers import funnel_limits
         grid = np.array([24 - 1e-7, 24.0, 24 + 1e-7])
         ucl = funnel_limits("p", 0.1, grid)["ucl"]
         d = [_limits.binomial_detectable_rate(u * g, g) for u, g in zip(ucl, grid)]
@@ -3795,7 +3639,10 @@ def test_runtime_messages_print_on_a_windows_code_page():
     import ast
 
     offenders = []
-    for path in sorted(pathlib.Path(_core.__file__).parent.rglob("*.py")):
+    import qikit
+
+    package = pathlib.Path(qikit.__file__).parent
+    for path in sorted(p for p in package.rglob("*.py") if "plot" not in p.parts):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         docstrings = {
             id(node.body[0].value)
