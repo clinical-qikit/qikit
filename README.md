@@ -1,67 +1,103 @@
 # qikit
 
-**SPC charts, funnel plots and quality improvement tools for healthcare, in Python.**
+**SPC charts and funnel plots for healthcare quality, in Python.**
 
-Two functions: `qic()` for a process over time, `funnel()` for providers compared
-with each other. One result object each, and one `.plot()` call.
+Two questions, two functions, one vocabulary:
+
+- **`qic()`**: is one measure changing over time? Control charts and run charts, with
+  qicharts2's rules or NHS England's Making Data Count rules.
+- **`funnel()`**: which providers differ from their peers? Spiegelhalter funnel plots
+  with exact limits, over-dispersion, p- and q-values, and power.
+
+Both return a result whose `.data` is a table ready to write back to a database, whose
+`.summary` says what was found, and whose `.plot()` draws a Plotly figure.
 
 ## Install
 
 ```bash
-pip install clinical-qikit
+pip install clinical-qikit            # tables only: numpy and pandas
+pip install "clinical-qikit[plot]"    # adds plotly for .plot()
 ```
+
+The core needs only numpy and pandas, so a Snowpark stored procedure or UDTF can compute
+limits without plotly. `import qikit` never loads plotly; `.plot()` raises an
+`ImportError` naming the extra when it is missing.
 
 ## Quickstart
 
 ```python
 from qikit import qic, funnel
 
-result = qic(y=values, chart="i")           # a process over time
-result.plot()                               # returns a Plotly figure
+r = qic(df, x="month", y="deaths", n="admissions", chart="p")
+r.data          # one row per month: cl, ucl, lcl, signal, runs_signal
+r.summary       # which rules fired, and how the limits were set
+r.plot()        # a Plotly figure
 
-r = funnel(df, y="deaths", n="expected", measure="oe", unit="hospital")
-print(r)                                    # providers compared with each other
+f = funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon", worse="higher")
+print(f)        # what was compared, what flagged, what to know
+f.data[f.data.signal != "none"]
 ```
 
-`qic()` mirrors R's [qicharts2](https://github.com/anhoej/qicharts2), the package most
-healthcare QI practitioners already know — same chart types, same run-chart signal
-detection, same mental model, now in Python.
+## One vocabulary
 
-## Chart types
+The two functions answer different questions, so they stay separate, but every shared
+idea has one name.
 
-`qic()` draws time-ordered SPC charts, chosen with `chart=`:
+| Idea | Argument or column | In `qic()` | In `funnel()` |
+|---|---|---|---|
+| Data | `data=`, then column names | `x=`, `y=`, `n=` | `y=`, `n=`, `unit=` |
+| A fixed centre line | `center=` | yes | yes (`1.0` on O/E) |
+| Which direction is bad | `worse="higher"`/`"lower"` | NHS improving/concerning | one-sided flags |
+| Points left out of the model | `exclude=` | yes | yes |
+| One chart per group | `facets=` (a column or list) | yes | yes |
+| Display name, tooltip | `label=`, `hover=` | yes | yes |
+| Scale y | `multiply=` | yes | yes |
+| Flag column | `signal`: `"outlier"`, `"alert"`, `"none"` | outlier beyond 3σ | both tiers |
+| Pattern column | `runs_signal` | yes | |
+| Display | `.plot(title=, styles=, ...)` | yes | yes |
 
-| `chart=` | Chart | Use for |
+Arguments removed or renamed in 1.0 raise a `TypeError` naming the replacement, so an
+old call fails loudly rather than drawing something different. See
+[CHANGELOG.md](CHANGELOG.md).
+
+## Over time: `qic()`
+
+| You have, per period | `chart=` | `y=`, `n=` |
 |---|---|---|
-| `run` | Run chart | Any sequential data, median center line |
-| `i` | Individuals (I) chart | Continuous data, one observation per subgroup |
-| `mr` | Moving range | Variation between consecutive observations |
-| `xbar` | X-bar chart | Continuous data with subgroups (paired with `s`) |
-| `s` | S chart | Subgroup standard deviation |
-| `t` | Time-between-events chart | Time or count between rare events |
-| `p` | P chart | Proportion (percent) defective, unequal subgroup sizes |
-| `pp` | P′ chart | Proportions with overdispersion (Laney) |
-| `c` | C chart | Count of defects, constant opportunity |
-| `u` | U chart | Rate of defects, unequal opportunity; also a monthly O/E series, with `y=observed, n=expected` |
-| `up` | U′ chart | Rates with overdispersion (Laney) |
-| `g` | G chart | Number of opportunities between rare events |
+| Any measure, few assumptions (start here) | `"run"` | y |
+| One continuous value (LOS, wait time, O/E) | `"i"` | y |
+| Events out of cases (H&P in 24 h, mortality) | `"p"` | events, cases |
+| The same, n in the thousands (over-dispersed) | `"pp"` | events, cases (Laney) |
+| Events over exposure (infections per line-day) | `"u"` | events, exposure |
+| The same, exposure in the thousands | `"up"` | events, exposure (Laney) |
+| An O/E ratio over time | `"u"` | observed, expected |
+| Counts with constant opportunity | `"c"` | count |
+| Several raw values per period | `"xbar"`, `"s"` | raw values, x = period |
+| Cases or days between rare events | `"g"`, `"t"` | cases or days between |
+| The moving range of an i chart | `"mr"` | y |
 
-Comparing providers with each other, rather than tracking one over time, is a funnel
-plot: use `funnel()`, below. `qic()` no longer takes the 0.7 funnel arguments (`funnel=`,
-`signal_side=`, `signal_method=` and the rest). Passing one raises a `TypeError` that
-names its replacement.
+Rows that share an `x` are aggregated into one subgroup. Numeric and date x are sorted.
+`x_period="month"` buckets dates.
 
-## Comparing providers: `funnel()`
+**Rules (`method=`):**
 
-```python
-from qikit import funnel
+- **`"anhoej"`** (default): qicharts2's run rules. A run on one side of the centre line
+  longer than round(log₂ n) + 3, or fewer crossings than the 5th percentile of
+  Binomial(n − 1, ½).
+- **`"nhs"`**: NHS England's Making Data Count, for XmR boards. A point beyond the
+  limits, 7 on one side, 7 rising or falling, or 2 of 3 near a limit. With `worse=`,
+  each point is classed improving, concerning or common cause; with `target=`, the
+  summary gives the assurance verdict (pass, fail or variable).
+- **`"ihi"`**: Provost and Murray. **`"weco"`**, **`"nelson"`**: the classic zone rules.
 
-r = funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon",
-           label="surgeon_name", worse="higher")
-print(r)                                  # what was compared, what flagged, what to know
-r.data[r.data.signal != "none"]           # one row per provider, with signal and p/q values
-r.plot()
-```
+**Baseline and phases.** `freeze=k` sets the limits from points 1..k and judges later
+points against them. `part=` splits the chart into phases, each with its own centre
+line, limits and rules. `exclude=` drops points from the limits and the rules.
+
+`qic()` reproduces qicharts2 to 1e-6 on its own data. Where it departs, and why, is in
+[docs/qic-methods.md](docs/qic-methods.md).
+
+## Across providers: `funnel()`
 
 Each provider is plotted at its own volume, against Spiegelhalter's exact 99.8% and 95%
 probability contours (*Statistics in Medicine* 2005;24:1185-1202). Every method,
@@ -79,13 +115,15 @@ including where qikit departs from the paper.
 | The same, summed per provider in SQL so the stays never leave the warehouse | one row per provider with `cases=` (k) and `sum_sq=` (`SUM(POWER(obs, 2) / exp)`), and `within_dispersion="estimate"` |
 | Stays whose variability differs by DRG or service line | `within_dispersion="<column>"`: one case-mix-weighted φᵢ per provider, from SQL |
 | Leaders will ask "is this flag one patient?" | case-level rows (automatic), or `max_case_y=`/`max_case_n=` from SQL: see `p_value_drop1`, `fragility` |
-| **Survey items**, scored per item (HCAHPS composites such as Communication with Doctors) | one row per survey (`y` = items "Always", `n` = items answered), `measure="proportion"`, `within_dispersion="estimate"` |
+| **Survey items**, scored per item (HCAHPS composites) | one row per survey (`y` = items "Always", `n` = items answered), `measure="proportion"`, `within_dispersion="estimate"` |
 | A measure where only one direction is bad | `worse="higher"` (mortality) or `worse="lower"` (top-box) |
 | Hundreds of providers, and few false alarms matter more than the drawn lines | `signal="fdr"` |
-| Many very-low-volume providers diluting the FDR step | `test_min_expected=` (a volume floor for the FDR step only) |
+| Many very-low-volume providers diluting the FDR step | `fdr_min_denominator=` (a volume floor for the FDR step only) |
 | To rank flagged providers for action | sort by `eb_excess`, not `raw_excess` |
-| To reproduce a published funnel exactly (FunnelPlotR, CQC) | `tau_method="spiegelhalter"` |
+| To reproduce a CQC or NHS SHMI funnel | `tau_method="cqc"` or `"shmi"` |
+| Flags acted on one by one, where the stated chance-flag rate must hold | `tau_method="winsorized"` |
 | The spread between providers known from earlier periods, or fewer than 30 providers | `tau=<value>` (fixed in advance) |
+| "Does this flag depend on the model?" | `funnel_sensitivity(...)` |
 | "Is this provider probably worse than average?" (the CMS question) | read `prob_worse`; `signal` answers "unusual among peers?" |
 | A benchmark against the risk model itself, not the peer average | `center=1.0` |
 
@@ -100,20 +138,20 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 | `unit`, `label` | The provider and its display name |
 | `y` | The plotted value: O/E, proportion or rate |
 | `numerator`, `denominator` | The summed `y=` and `n=` (observed and expected, events and cases) |
-| `cl` | The center line: pooled ΣO/ΣE (or Σevents/Σn) unless `center=` is given |
+| `cl` | The centre line: pooled ΣO/ΣE (or Σevents/Σn) unless `center=` is given |
 | `lower_outlier`, `upper_outlier` | The 99.8% contour at this provider's volume |
 | `lower_alert`, `upper_alert` | The 95% contour |
 | `p_value` | Exact p-value against the model the contours are drawn from; one-sided toward `worse=`, doubled when two-sided |
 | `q_value` | Its Benjamini–Hochberg adjustment across the chart's providers |
 | `signal` | `"outlier"`, `"alert"` or `"none"`. The tiers never overlap |
-| `direction` | `"higher"` or `"lower"` than the center line |
+| `direction` | `"higher"` or `"lower"` than the centre line |
 | `min_detectable` | The smallest true value this provider could have flagged with 80% power |
 | `ci_lower`, `ci_upper` | Exact 95% interval for the provider's own value |
 | `excluded` | Left out with `exclude=` (drawn faded, not tested) |
 | `raw_excess` | (observed − cl × denominator), signed so positive is worse: excess days or events |
-| `reliability` | τ²/(τ² + V₀), 0–1: how much of the provider's difference is signal. 0 everywhere when τ̂ = 0 |
+| `reliability` | How much of the provider's difference is signal, 0–1. 0 everywhere when τ̂ = 0 |
 | `eb_rate`, `eb_excess` | The shrunk (empirical Bayes) value and its excess: the exact posterior mean of the chart's own model. Rank flagged providers on `eb_excess` |
-| `prob_worse` | Posterior probability that the true value is worse than the center line (CMS-style "worse than average"); NaN when τ̂ = 0 |
+| `prob_worse` | Posterior probability that the true value is worse than the centre line (CMS-style "worse than average"); NaN when τ̂ = 0 |
 | `p_value_drop1` | The p-value with the provider's single most extreme case removed (needs case rows or `max_case_y=`/`max_case_n=`); descriptive, no q-value |
 | `flag_survives_drop1` | For flagged providers: still flagged without that case? |
 | `fragility` | Case rows: the fewest worst cases whose removal clears the flag (1 = one case carries it) |
@@ -122,12 +160,12 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 `r.summary` holds the model and how to read the counts:
 
 - `n_outlier`, `n_alert`, and `expected_false_flags`.
-- `tau`: the estimated spread of true values between providers.
-- `count_model`, `within_dispersion`, `dispersion_shape` and `underpowered`.
-- `tau_method`, `tau_source` ("estimated" or "pre-specified"), `tau_estimated` (this
-  period's estimate, even when `tau=` is fixed), `tau_ci` (`tau_method="ml"`).
-- `phi_raw`, `phi_debiased`: the over-dispersion estimate before and after its
-  consistency factor; `n_filtered`, `n_fragile`.
+- `tau`: the estimated spread of true values between providers; `tau_method`,
+  `tau_scale`, `tau_source` ("estimated" or "pre-specified"), `tau_estimated`, and
+  `tau_ci` under `tau_method="ml"`.
+- `phi`: the over-dispersion ratio as the chosen method defines it.
+- `count_model`, `limit_method`, `within_dispersion`, `dispersion_shape`, `underpowered`,
+  `n_filtered`, `n_fragile`.
 - `notes`: sentences ready to show a reader.
 
 On a faceted funnel the same keys are under `by_facet`.
@@ -162,17 +200,32 @@ the combined tier ([methods §4.11](docs/methods.md)).
 
 No risk model captures everything, so providers differ by more than chance allows. With
 `overdispersion=True` (the default) each provider is judged against that spread as
-well as chance. qikit uses Spiegelhalter's additive random-effects model. By default τ is
-estimated by his winsorized method with the consistency factor of his eq. 9
-(`tau_method="winsorized"`); without it (`"spiegelhalter"`, as published) the estimate is
-0 for a real spread of 0.10 across 1,000 physicians, and average providers flag about
-twice as often as stated ([methods §4.3](docs/methods.md)). `tau_method="ml"` is the
-random-effects literature's maximum likelihood (with an interval for τ, but not robust:
-one gross outlier among 30 providers inflates it), and `tau=` fixes τ in advance from
-earlier periods
-([methods §4.16](docs/methods.md)). The smallest providers' limits barely move. The busiest level
-off at about the center ± z·τ instead of closing onto the line. When τ̂ is 0, which is
-common at physician scale, the chart is identical to `overdispersion=False`.
+well as chance, using Spiegelhalter's additive random-effects model. The smallest
+providers' limits barely move. The busiest level off at about the centre ± z·τ instead
+of closing onto the line. When τ̂ is 0, which is common at physician scale, the chart is
+identical to `overdispersion=False`.
+
+How τ is estimated (`tau_method=`, [methods §4.16](docs/methods.md)):
+
+| `tau_method=` | What it is | Use when |
+|---|---|---|
+| `"spiegelhalter"` (default) | 10%-winsorized method of moments, as published | Screening. The most sensitive robust option, and uncorrected like the NHS and CQC estimators |
+| `"winsorized"` | The same with the consistency factor of his eq. 9 | Flags acted on one by one, where the 0.1% and 2.5% chance rates must hold |
+| `"ml"` | Maximum likelihood, with an interval `tau_ci` | Data already cleaned of outliers; not robust |
+| `"cqc"`, `"shmi"` | CQC (√ or arcsine scale) and NHS SHMI (log scale), as FunnelPlotR computes them | Reproducing those indicators ([methods §4.17](docs/methods.md)) |
+| `tau=<value>` | Fixed in advance from earlier periods | Fewer than 30 providers, or a stable benchmark |
+
+The published estimator understates a small real spread, so average providers flag
+somewhat more often than the stated rate. That is the right error for a screen whose
+flags are reviewed. `funnel_sensitivity()` runs each option and marks the providers
+whose tier depends on the choice:
+
+```python
+from qikit import funnel_sensitivity
+
+s = funnel_sensitivity(df, y="deaths", n="expected", measure="oe", unit="surgeon")
+s[~s.consistent]      # flagged under one model and not another: a judgement call
+```
 
 Treat a non-zero τ̂ as a finding about the system: unmeasured case mix, data
 differences, or real variation in practice.
@@ -271,19 +324,16 @@ r.plot(
 
 - **Defaults for a projector:** contours at 3.5:1 contrast, the 95% line dashed, points
   at 0.85 opacity, and the legend on. Outliers are red circles and alerts amber
-  diamonds, so the tier never depends on colour alone. The colour pair passes a
-  colour-vision-deficiency check.
+  diamonds, so the tier never depends on colour alone.
 - **Axes and caption:** the y axis is fitted to the providers and the narrow end of the
-  funnel, not its low-volume flare. Axis titles come from your column names. An unset
-  caption states the flag rule.
-- **`styles=`** restyles by role. The roles are `data` (color, opacity, name), `sigma`,
-  `warn`, `cl`, `ucl`, `lcl`, `ucl_95` and `lcl_95`, the groups `limits` and
-  `limits_95`, `end_labels`, and `font`. A list of dicts is merged in order, so a house
-  style is one constant, with no global state to reset between Streamlit reruns.
+  funnel, not its low-volume flare. An unset caption states the flag rule.
+- **`styles=`** restyles by role: `data`, `outlier`, `alert`, `runs`, `improving`,
+  `concerning`, `neutral`, `cl`, `ucl`, `lcl`, `ucl_95`, `lcl_95`, `target`, the groups
+  `limits` and `limits_95`, `end_labels` and `font`. A list of dicts is merged in order,
+  so a house style is one constant.
 - **`r.limits(n=None)`** returns the contours at any denominators, for drawing
   elsewhere.
-- **Unknown names raise.** `r.plot(...)` overrides any display argument of `funnel()`,
-  and an unknown name raises `TypeError`.
+- **Unknown names raise.** An unknown `.plot()` option raises `TypeError`.
 
 ### Options at a glance
 
@@ -291,54 +341,61 @@ r.plot(
 |---|---|---|
 | `measure` | required | `"oe"`, `"proportion"` or `"rate"` |
 | `unit`, `label`, `hover` | `None` | Provider id, display name, extra tooltip columns |
-| `facets` | `None` | One funnel per value: own center line, τ, FDR step |
+| `facets` | `None` | One funnel per value (a column or list): own centre line, τ, FDR step |
 | `exclude` | `None` | A boolean column, or a list of unit ids, left out of the model |
-| `center` | pooled | A fixed center line, e.g. `1.0` on O/E |
+| `center` | pooled | A fixed centre line, e.g. `1.0` on O/E |
 | `overdispersion` | `True` | Judge against the spread between providers (τ) |
-| `within_dispersion` | `1.0` | Clustered counts or survey items: a number, `"estimate"` from case-level rows (stays, surveys) or SQL totals, or a column of per-provider φᵢ |
-| `tau_method` | `"winsorized"` | How τ is estimated: `"winsorized"` (debiased, robust), `"spiegelhalter"` (as published), `"ml"` (maximum likelihood, with `tau_ci`) |
-| `tau` | `None` | A τ fixed in advance (a number, or one per facet), instead of estimating it |
-| `cases`, `sum_sq` | `None` | Per-provider SQL totals (k and Σy²/n) so `"estimate"` needs no case rows |
+| `within_dispersion` | `1.0` | Clustered counts or survey items: a number, `"estimate"`, or a column of per-provider φᵢ |
+| `tau_method` | `"spiegelhalter"` | `"spiegelhalter"`, `"winsorized"`, `"ml"`, `"cqc"`, `"shmi"` |
+| `tau` | `None` | A τ fixed in advance (a number, or one per facet) |
+| `cases`, `sum_sq` | `None` | Per-provider SQL totals so `"estimate"` needs no case rows |
 | `max_case_y`, `max_case_n` | `None` | Per-provider SQL worst case, for `p_value_drop1` |
-| `test_min_expected` | `None` | Volume floor for the FDR step only (independent filtering) |
+| `fdr_min_denominator` | `None` | Volume floor for the FDR step only (independent filtering) |
 | `worse` | `None` | `"higher"` or `"lower"`: flag one side, one-sided p-values |
 | `signal` | `"limits"` | `"limits"` (exact test, drawn) or `"fdr"` (q-values) |
 | `limits` | `(0.998, 0.95)` | Outer and inner contour coverage |
 | `fdr_levels` | `(0.05, 0.10)` | Outlier and alert false discovery rates under `signal="fdr"` |
 | `multiply` | `1` | Scale y, e.g. `1000` for a rate per 1,000 |
-| `label_signals` | `None` | `"outlier"`, `"alert"` or `"both"` |
-| `styles`, `x_log`, `x_range`, `y_range`, `show_legend`, `width`, `height`, `title`, `xlab`, `ylab`, `caption` | | Display |
 
-Beyond `qic()` and `funnel()`, the package also provides:
+## In Snowflake
 
-- **`paretochart(x, data=...)`** — Pareto chart of categorical frequencies.
-- **`bchart(...)`** — Bernoulli CUSUM chart for early detection of shifts in binary
-  (pass/fail) data.
-- **`design(factors, ...)`** / **`analyze(design_obj, response, ...)`** — full-factorial
-  design of experiments (DOE) and effect analysis.
+`qic(...).data` and `funnel(...).data` are the tables a pipeline writes back. With
+`facets=` a list of columns, one call covers every measure and service line, and the
+facet columns stay in the output, so the result joins back to the source table.
+[docs/snowflake.md](docs/snowflake.md) has a stored procedure and a UDTF that add limits
+to a pre-aggregated metrics table, packaging steps, and Streamlit in Snowflake notes.
+
+## Also included
+
+- **`paretochart(x, data=...)`**: Pareto chart of categorical frequencies.
+- **`bchart(x, ...)`**: Bernoulli CUSUM for early detection of a shift in pass/fail data.
+- **`design(factors, ...)`** / **`analyze(design_obj, response, ...)`**: full-factorial
+  design of experiments and effect analysis.
 
 ## For AI agents
 
-`funnel()`'s docstring is written as the agent-facing reference: it starts with a
-decision table and documents every column of the result. Run `help(qikit.funnel)`. For
-Snowflake Cortex Code, or any agent that loads skills,
-[`skills/provider-funnels/SKILL.md`](skills/provider-funnels/SKILL.md) gives the
-provider-comparison workflow, including the length-of-stay case. Copy it into your
-agent's skills folder.
+- **[AGENTS.md](src/qikit/AGENTS.md)** ships inside the package. It maps each module,
+  says which function answers which question, and lists the conventions an agent must
+  not break. [llms.txt](llms.txt) is the same map at the repository root.
+- **Docstrings are the reference.** `help(qikit.qic)` and `help(qikit.funnel)` open with
+  a decision table and document every result column.
+- **Skills** for Snowflake Cortex Code or any agent that loads them:
+  [`skills/spc-monitoring/SKILL.md`](skills/spc-monitoring/SKILL.md) and
+  [`skills/provider-funnels/SKILL.md`](skills/provider-funnels/SKILL.md).
+- **Errors name the fix,** and removed arguments name their replacement.
 
 ## Excel add-in
 
-A Microsoft Excel task-pane add-in built on the same charting engine (ported to
-TypeScript) lives in [`excel-addin/`](excel-addin/) — see its
-[README](excel-addin/README.md) for dev-harness and sideload instructions, and
-[docs/excel-addin-roadmap.md](docs/excel-addin-roadmap.md) for the roadmap.
+A Microsoft Excel task-pane add-in built on the same engine, ported to TypeScript, lives
+in [`excel-addin/`](excel-addin/). See its [README](excel-addin/README.md) and
+[docs/excel-addin-roadmap.md](docs/excel-addin-roadmap.md).
 
 ## Web app
 
 `app.py` is a Streamlit front end over the same engine:
 
 ```bash
-pip install -e .[app]
+pip install -e ".[app]"
 streamlit run app.py
 ```
 
@@ -346,19 +403,29 @@ streamlit run app.py
 
 ```bash
 uv sync --extra dev
-uv run ruff check .        # lint (CI-enforced)
-uv run pytest tests/       # 176 tests incl. cross-language fixture conformance
+uv run ruff check .
+uv run mypy
+uv run pytest tests/
 ```
 
-The Python engine is authoritative; the TypeScript port in
-`excel-addin/packages/engine` conforms to it via the shared JSON fixtures in
-[`fixtures/`](fixtures/). After intentional engine changes, regenerate the
-fixture snapshots with `uv run python scripts/update_snapshots.py`.
+The Python engine is authoritative. The TypeScript port in `excel-addin/packages/engine`
+conforms to it through the shared JSON fixtures in [`fixtures/spc`](fixtures/spc). After
+an intentional engine change, regenerate the snapshots with
+`uv run python scripts/update_snapshots.py`. `fixtures/reference` holds output from R's
+qicharts2, FunnelPlotR and NHSRplotthedots, regenerated by
+`scripts/make_reference_fixtures.R`; `tests/test_reference.py` checks qikit against it
+to 1e-6, with each accepted departure listed and explained.
 
 ## References
 
 1. Montgomery DC. *Introduction to Statistical Quality Control*, 8th ed. Wiley, 2019.
 2. Provost LP, Murray SK. *The Health Care Data Guide*, 2nd ed. Jossey-Bass, 2022.
+3. Anhøj J, Olesen AV. Run charts revisited: a simulation study of run chart rules for
+   detection of non-random variation in health care processes. *PLoS ONE*
+   2014;9(11):e113825.
+4. Spiegelhalter DJ. Funnel plots for comparing institutional performance. *Statistics
+   in Medicine* 2005;24(8):1185–1202.
+5. NHS England. *Making Data Count*. Strengthening your decisions, 2019.
 
 ## License
 

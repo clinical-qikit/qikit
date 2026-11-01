@@ -1,38 +1,32 @@
 """
-qikit — SPC charts and quality improvement tools for healthcare.
+qikit — statistical process control and funnel plots for healthcare quality.
 
-One function. One result object. One .plot() call.
+Two questions, two functions, one vocabulary:
 
-    from qikit import qic
-    result = qic(y=values, chart="i")
-    result.plot()
+    from qikit import qic, funnel
 
-References
-----------
-1. Montgomery DC. Introduction to Statistical Quality Control, 8th ed. Wiley, 2019.
-2. Provost LP, Murray SK. The Health Care Data Guide, 2nd ed. Jossey-Bass, 2022.
+    qic(df, x="month", y="deaths", n="admissions", chart="p")     # one measure over time
+    funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon")  # providers compared
+
+Each returns a result whose .data is a table (ready to write back to a database),
+whose .summary says what was found, and whose .plot() draws a Plotly figure. Start with
+help(qikit.qic) or help(qikit.funnel): each opens with a table of which settings fit
+which data. AGENTS.md (shipped with the package) maps the modules; docs/methods.md and
+docs/qic-methods.md record every method and each departure from its source.
+
+Also: funnel_sensitivity() (does a flag depend on the model?), paretochart(),
+bchart() (Bernoulli CUSUM), and design() / analyze() for designed experiments.
 """
 
-from .spc import (
-    qic, 
-    funnel,
-    FunnelResult,
-    paretochart, 
-    bchart, 
-    SPCResult, 
-    ParetoResult, 
-    BChartResult
-)
-from .doe import (
-    design, 
-    analyze, 
-    ExperimentDesign, 
-    ExperimentResult
-)
+from .doe import ExperimentDesign, ExperimentResult, analyze, design
+from .extras import bchart, paretochart
+from .funnel import funnel, funnel_sensitivity
+from .results import BChartResult, FunnelResult, ParetoResult, SPCResult
+from .spc import qic
 
-__version__ = "0.10.0"
+__version__ = "1.0.0"
 __all__ = [
-    "qic", "funnel", "FunnelResult", "paretochart", "bchart", "SPCResult", "ParetoResult", "BChartResult",
-    "design", "analyze", "ExperimentDesign", "ExperimentResult",
-    "__version__"
+    "qic", "funnel", "funnel_sensitivity", "SPCResult", "FunnelResult",
+    "paretochart", "bchart", "ParetoResult", "BChartResult",
+    "design", "analyze", "ExperimentDesign", "ExperimentResult", "__version__",
 ]

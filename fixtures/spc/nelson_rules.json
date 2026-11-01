@@ -34,26 +34,24 @@
     "chart_type": "i",
     "method": "nelson",
     "signals": true,
-    "title": "",
-    "subtitle": null,
-    "caption": null,
-    "ylab": "Value",
-    "xlab": "Subgroup",
     "summary": {
+      "chart": "i",
+      "method": "nelson",
       "n_obs": 19,
       "n_baseline": 19,
       "signals": true,
-      "limit_basis": "all",
+      "n_outlier": 19,
+      "runs_signal": true,
+      "rules_fired": [
+        "9 on one side",
+        "2 of 3 beyond 2 sigma",
+        "4 of 5 beyond 1 sigma",
+        "8 outside 1 sigma"
+      ],
       "freeze": null,
       "excluded": [],
-      "n_useful": 19,
-      "nelson_rules_triggered": [
-        1,
-        2,
-        5,
-        6,
-        8
-      ]
+      "shift_signal": false,
+      "trend_signal": false
     },
     "data": [
       {

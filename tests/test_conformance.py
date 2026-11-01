@@ -1,38 +1,20 @@
-import json
 import math
-import pathlib
+
 import pytest
-import pandas as pd
 
-from conformance_helpers import DISPATCH, extract
+from conformance_helpers import extract, fixture_paths, run_fixture
 
-FIXTURES = sorted(pathlib.Path("fixtures").rglob("*.json"))
+FIXTURES = fixture_paths()
+
+
+def test_fixtures_are_found():
+    # A cwd-relative glob once collected nothing from another directory and passed.
+    assert len(FIXTURES) > 50
+
 
 @pytest.mark.parametrize("path", FIXTURES, ids=lambda p: p.stem)
 def test_fixture(path):
-    fix = json.loads(path.read_text())
-    fn = DISPATCH[fix["function"]]
-    
-    inputs = fix["input"].copy()
-    if "data" in inputs and isinstance(inputs["data"], dict):
-        inputs["data"] = pd.DataFrame(inputs["data"])
-    
-    if "clOverride" in inputs:
-        inputs["cl"] = inputs.pop("clOverride")
-
-    if "limitMethod" in inputs:
-        inputs["limit_method"] = inputs.pop("limitMethod")
-    if "tauMethod" in inputs:
-        inputs["tau_method"] = inputs.pop("tauMethod")
-    
-    # Strip TS-only keys before calling Python qic — it re-derives subgroup sizes
-    # and the sigma estimate from the grouping column.
-    inputs.pop("subgroupN", None)
-    inputs.pop("sBar", None)
-    inputs.pop("sigmaHat", None)
-        
-    result = fn(**inputs)
-
+    fix, result = run_fixture(path)
     for key, spec in fix["check"].items():
         actual = extract(result, key)
         if isinstance(spec, list):  # [value, tolerance]

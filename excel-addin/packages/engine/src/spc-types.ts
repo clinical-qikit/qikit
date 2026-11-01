@@ -52,9 +52,9 @@ export interface SPCInput {
    *  interpolation; "byar" is the closed-form Wilson-Hilferty approximation, which
    *  drifts below expected counts of ~20 — exactly where per-provider volumes live. */
   limitMethod?: LimitMethod;
-  /** τ estimator for funnels: "winsorized" (default) multiplies the 10%-winsorized
-   *  φ̂ by its Gaussian consistency factor 1.4735 [Spiegelhalter 2005, eq. 9];
-   *  "spiegelhalter" leaves it out, as published. docs/methods.md §4.3, §4.16. */
+  /** τ estimator for funnels: "spiegelhalter" (default) is the 10%-winsorized φ̂ as
+   *  published [Spiegelhalter 2005]; "winsorized" multiplies it by its Gaussian
+   *  consistency factor 1.4735 (eq. 9). docs/methods.md §4.3, §4.16. */
   tauMethod?: TauMethod;
   /** Point connectivity: true = lines+markers, false = markers only.
    *  Undefined = renderer infers from the x-axis. Funnel mode forces false. */
@@ -80,13 +80,16 @@ export interface ChartSpec {
   center: (yBase: number[], nBase?: number[]) => number;
   /**
    * Returns [ucl, lcl] — or [ucl, lcl, cl] for a chart whose center line varies per
-   * point (S chart with unequal subgroup sizes, CL = c4(nᵢ)·σ̂). The optional third
-   * element overrides the scalar `center` above; an explicit clOverride still wins.
+   * point (S chart with unequal subgroup sizes, CL = c4(nᵢ)·σ̂), or [ucl, lcl, cl, ucl95,
+   * lcl95] for a chart whose limits are not centred on its line (g: limits about the
+   * mean, the median drawn). The third element overrides the scalar `center` above.
    */
   limits: (cl: number, y: number[], n: number[] | undefined,
            mask: boolean[], subgroupN?: number, sBar?: number,
            sigmaHat?: number, limitMethod?: LimitMethod,
-           tau2?: number, diag?: LimitDiag) => [number[], number[]] | [number[], number[], number[]];
+           tau2?: number, diag?: LimitDiag, clOverride?: number) =>
+    [number[], number[]] | [number[], number[], number[]]
+    | [number[], number[], number[], number[], number[]];
   /**
    * The 95% band, for charts whose inner band is a genuine probability contour
    * rather than two thirds of the outer one — see the oe chart. Undefined means the
@@ -100,6 +103,8 @@ export interface ChartSpec {
   needsN: boolean;
   isAttribute: boolean;
   floorLcl: boolean;
+  /** An upper bound on the limits (1 on a proportion chart), as qicharts2 caps them. */
+  capUcl?: number;
   /** Count model of a funnel; when set, compute() estimates and reports over-dispersion. */
   family?: DispersionFamily;
   /** Whether the limits take the estimated τ² (pp/up funnels, oep). */

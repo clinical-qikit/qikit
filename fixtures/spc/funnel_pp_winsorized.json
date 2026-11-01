@@ -1,6 +1,6 @@
 {
   "id": "funnel_pp_winsorized",
-  "reference": "The default tau_method='winsorized' on the data of funnel_pp_additive: the same 10% winsorized phi-hat multiplied by the Gaussian consistency factor 1.473503694638025 of Spiegelhalter 2005 eq. 9 before the tau^2 = 0 gate (docs/methods.md \u00a74.3), so phi-hat = 15.993883 against the published 10.854321 and tau-hat = 0.121662 against 0.098772. Limits are the same exact mixture quantiles at that tau. funnel_pp_additive pins tau_method='spiegelhalter' and checks the published numbers.",
+  "reference": "tau_method='winsorized' on the data of funnel_pp_additive: the same 10% winsorized phi-hat multiplied by the Gaussian consistency factor 1.473503694638025 of Spiegelhalter 2005 eq. 9 before the tau^2 = 0 gate (docs/methods.md \u00a74.3), so phi-hat = 15.993883 against the published 10.854321 and tau-hat = 0.121662 against 0.098772. Limits are the same exact mixture quantiles at that tau. funnel_pp_additive pins tau_method='spiegelhalter' and checks the published numbers.",
   "function": "qic",
   "input": {
     "y": [
@@ -32,7 +32,8 @@
       600
     ],
     "chart": "pp",
-    "funnel": true
+    "funnel": true,
+    "tauMethod": "winsorized"
   },
   "check": {
     "cl": [
@@ -65,38 +66,18 @@
     "chart_type": "pp",
     "method": "anhoej",
     "signals": false,
-    "title": "",
-    "subtitle": null,
-    "caption": null,
-    "ylab": "Value",
-    "xlab": "Sample size",
     "summary": {
       "n_obs": 12,
-      "n_baseline": 12,
       "signals": false,
-      "limit_basis": "all",
-      "freeze": null,
-      "excluded": [],
-      "n_useful": 12,
-      "longest_run": 2,
-      "n_crossings": 10,
-      "run_threshold": 6,
-      "crossings_threshold": 2,
-      "run_signal": false,
-      "crossings_signal": false,
+      "n_warn": 0,
       "limit_method": "exact",
-      "dispersion_phi": 15.993882507585493,
-      "dispersion_phi_raw": 10.854321279129527,
-      "dispersion_debiased": true,
-      "dispersion_tau": 0.12166161414715908,
-      "overdispersed": true,
-      "dispersion_method": "additive",
-      "dispersion_adjusted": true,
       "count_model": "beta_binomial",
       "p_value_method": "exact",
+      "n_tested": 12,
+      "dispersion_phi": 15.993882507585493,
+      "dispersion_tau": 0.12166161414715908,
+      "overdispersed": true,
       "runs_disabled": true,
-      "note": "runs signals suppressed (funnel mode)",
-      "n_warn": 0,
       "signal_side": "both",
       "signal_method": "limits",
       "levels": [
@@ -107,10 +88,13 @@
         0.05,
         0.1
       ],
-      "n_tested": 12,
-      "min_detectable_ratio_median": 3.2964644598448913,
+      "excluded": [],
+      "dispersion_method": "additive",
+      "dispersion_adjusted": true,
       "n_underpowered": 12,
       "underpowered": true,
+      "n_filtered": 0,
+      "min_detectable_ratio_median": 3.2964644598448913,
       "power_note": "12 of 12 points have too few cases to detect even a doubling of the center-line proportion (smallest detectable proportion, median: 3.3\u00d7 the center line). Absence of a signal is not evidence of acceptable performance; aggregate more time periods or compare at a higher level before drawing conclusions."
     },
     "data": [

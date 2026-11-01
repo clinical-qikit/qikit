@@ -25,7 +25,7 @@ This folder contains public domain healthcare datasets ideal for demonstrating S
 * **Source:** Synthetic Data (modeled after Vizient-style risk-adjusted mortality reporting)
 * **Description:** 24 surgeons × 3 years (2023–2025), with observed deaths and model-derived
   expected deaths per surgeon-year. Built for the **risk-adjusted O/E funnel**
-  (`chart="oe"`) and specifically to demonstrate why physician-level comparison needs
+  (`funnel(measure="oe")`) and specifically to demonstrate why physician-level comparison needs
   aggregation: **no surgeon flags in any single year** — all three annual funnels report
   `summary["underpowered"] == True` — but summing the three years makes the chart
   well-powered and surfaces three real signals, including one high performer flagging
@@ -34,17 +34,17 @@ This folder contains public domain healthcare datasets ideal for demonstrating S
 
 ```python
 import pandas as pd
-from qikit import qic
+from qikit import funnel
 
 df = pd.read_csv("data/examples/physician_mortality_oe.csv")
 
 # One year: nothing flags, and the summary says why.
-y2025 = df[df.year == 2025]
-qic(x="physician", y="observed_deaths", n="expected_deaths", data=y2025,
-    chart="oe", funnel=True).summary["power_note"]
+r = funnel(df[df.year == 2025], y="observed_deaths", n="expected_deaths",
+           measure="oe", unit="physician")
+r.summary["underpowered"], r.summary["notes"]
 
-# Three years pooled: the chart now has the resolution to find them.
-agg = df.groupby("physician", as_index=False)[["observed_deaths", "expected_deaths"]].sum()
-qic(x="physician", y="observed_deaths", n="expected_deaths", data=agg,
-    chart="oe", funnel=True).plot()
+# Three years pooled (rows per physician are summed): the chart can now find them.
+r = funnel(df, y="observed_deaths", n="expected_deaths", measure="oe", unit="physician")
+r.data[r.data.signal != "none"]
+r.plot()
 ```

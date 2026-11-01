@@ -184,19 +184,23 @@ dependencies = [
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "plotly" },
 ]
 
 [package.optional-dependencies]
 app = [
     { name = "openpyxl" },
+    { name = "plotly" },
     { name = "streamlit" },
 ]
 dev = [
     { name = "mypy" },
+    { name = "plotly" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+]
+plot = [
+    { name = "plotly" },
 ]
 
 [package.metadata]
@@ -205,13 +209,15 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24" },
     { name = "openpyxl", marker = "extra == 'app'", specifier = ">=3.1.0" },
     { name = "pandas", specifier = ">=2.0" },
-    { name = "plotly", specifier = ">=5.15" },
+    { name = "plotly", marker = "extra == 'app'", specifier = ">=5.15" },
+    { name = "plotly", marker = "extra == 'dev'", specifier = ">=5.15" },
+    { name = "plotly", marker = "extra == 'plot'", specifier = ">=5.15" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "streamlit", marker = "extra == 'app'", specifier = ">=1.30.0" },
 ]
-provides-extras = ["app", "dev"]
+provides-extras = ["app", "dev", "plot"]
 
 [[package]]
 name = "colorama"

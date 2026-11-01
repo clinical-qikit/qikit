@@ -1,6 +1,6 @@
 {
   "id": "run_chart_signal",
-  "reference": "Anhoej 2014 \u2014 run chart with signal",
+  "reference": "Anhoej 2014: a run of 10 on one side of the median among 20 points is longer than round(log2 20) + 3 = 7, a signal.",
   "function": "qic",
   "input": {
     "y": [
@@ -33,32 +33,30 @@
       0.01
     ],
     "longest_run": 10,
-    "run_threshold": 7,
-    "signals": true
+    "signals": true,
+    "longest_run_max": 7
   },
   "snapshot": {
     "chart_type": "run",
     "method": "anhoej",
     "signals": true,
-    "title": "",
-    "subtitle": null,
-    "caption": null,
-    "ylab": "Value",
-    "xlab": "Subgroup",
     "summary": {
+      "chart": "run",
+      "method": "anhoej",
       "n_obs": 20,
       "n_baseline": 20,
       "signals": true,
-      "limit_basis": "all",
-      "freeze": null,
-      "excluded": [],
+      "n_outlier": 0,
       "n_useful": 20,
       "longest_run": 10,
+      "longest_run_max": 7,
       "n_crossings": 1,
-      "run_threshold": 7,
-      "crossings_threshold": 5,
-      "run_signal": true,
-      "crossings_signal": true
+      "n_crossings_min": 6,
+      "longest_run_signal": true,
+      "crossings_signal": true,
+      "runs_signal": true,
+      "freeze": null,
+      "excluded": []
     },
     "data": [
       {

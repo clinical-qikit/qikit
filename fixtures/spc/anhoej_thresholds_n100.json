@@ -1,6 +1,6 @@
 {
   "id": "anhoej_thresholds_n100",
-  "reference": "Anhoej 2014 \u2014 run threshold formula for n=100",
+  "reference": "Anhoej & Olesen 2014, as qicharts2 computes it: for n = 100 useful points a run longer than round(log2 100) + 3 = 10 signals.",
   "function": "qic",
   "input": {
     "y": [
@@ -108,32 +108,30 @@
     "chart": "run"
   },
   "check": {
-    "run_threshold": 9,
+    "longest_run_max": 10,
     "n_useful": 100
   },
   "snapshot": {
     "chart_type": "run",
     "method": "anhoej",
     "signals": false,
-    "title": "",
-    "subtitle": null,
-    "caption": null,
-    "ylab": "Value",
-    "xlab": "Subgroup",
     "summary": {
+      "chart": "run",
+      "method": "anhoej",
       "n_obs": 100,
       "n_baseline": 100,
       "signals": false,
-      "limit_basis": "all",
-      "freeze": null,
-      "excluded": [],
+      "n_outlier": 0,
       "n_useful": 100,
       "longest_run": 1,
+      "longest_run_max": 10,
       "n_crossings": 99,
-      "run_threshold": 9,
-      "crossings_threshold": 40,
-      "run_signal": false,
-      "crossings_signal": false
+      "n_crossings_min": 41,
+      "longest_run_signal": false,
+      "crossings_signal": false,
+      "runs_signal": false,
+      "freeze": null,
+      "excluded": []
     },
     "data": [
       {

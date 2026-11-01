@@ -57,11 +57,13 @@ describe('funnelDispersion', () => {
     expect(r.summary.dispersion_tau).toBeCloseTo(0.335455, 6);
   });
 
-  test('the default multiplies the winsorized φ̂ by the eq. 9 consistency factor', () => {
+  test('the default is the published estimator; winsorized multiplies by eq. 9', () => {
     const y = [23, 8, 34, 19, 59, 31, 72, 38, 104, 64, 120, 88];
     const n = [12, 18, 25, 30, 38, 45, 55, 64, 72, 85, 96, 110];
     const r = compute({ y, n, chart: 'oep', funnel: true });
-    expect(r.summary.dispersion_phi).toBeCloseTo(6.261737027903767 * WINSOR_CONSISTENCY, 9);
+    expect(r.summary.dispersion_phi).toBeCloseTo(6.261737027903767, 9);
+    const w = compute({ y, n, chart: 'oep', funnel: true, tauMethod: 'winsorized' });
+    expect(w.summary.dispersion_phi).toBeCloseTo(6.261737027903767 * WINSOR_CONSISTENCY, 9);
     expect(() => compute({ y, n, chart: 'oep', funnel: true, tauMethod: 'ml' as any }))
       .toThrow(/tauMethod must be/);
   });

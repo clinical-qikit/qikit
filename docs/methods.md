@@ -2,13 +2,13 @@
 
 This is qikit's record of how its funnel plots are computed, which published method each
 step follows, and where it deliberately departs from that method and why. The numbered
-references at the end are the ones cited, as `[n]`, in the engine's docstrings
-(`src/qikit/spc/limits.py`, `dist.py`, `compute.py`, `api.py`) and in the TypeScript
-twin (`excel-addin/packages/engine/src/stats.ts`, `spc-core.ts`).
+references at the end are the ones cited, as `[n]`, in the docstrings of
+`src/qikit/funnel.py` and the core modules it calls (`core/contours.py`,
+`core/dispersion.py`, `core/pvalues.py`, `core/power.py`, `core/dist.py`), and in the
+TypeScript twin (`excel-addin/packages/engine/src/stats.ts`, `spc-core.ts`).
 
-Time-ordered control charts (run, I, p, u, Laney p′/u′, and the rest) follow Provost &
-Murray and Montgomery as before and are not covered here, except where a chart code
-behaves differently in a funnel.
+Time-ordered control charts (`qic()`: run, I, p, u, Laney p′/u′ and the rest) are
+recorded in [qic-methods.md](qic-methods.md), with their conformance to qicharts2.
 
 ## 1. Which charts are funnels
 
@@ -62,11 +62,12 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 |---|---|---|
 | Contours | p = 0.001/0.999 and 0.025/0.975 (§2) | Same, on every funnel |
 | Unadjusted limits | Exact binomial (A.1.1) and Poisson (A.2.1), interpolated as (r_p − α) | **Differs above the line**: lower contour (r_p − α) as published; upper contour (r_p − α + 1), the exact test's boundary (§4.1). u follows A.2.3 (N in place of E) |
-| Target θ₀ | External, or pooled from the data and treated as known | Same: `cl=`, or pooled Σy/Σn (Σ O / Σ E) |
+| Target θ₀ | External, or pooled from the data and treated as known | Same: `center=`, or pooled Σy/Σn (Σ O / Σ E) |
 | Residuals for over-dispersion | Pearson z on the natural scale (eq. 4) | Same |
 | Robustness | 10% winsorized φ̂ (eqs. 6, 8) | Same |
-| Winsorizing debiasing factor w(q) | Derived (eq. 9), not adopted in his example | **Differs**: applied by default in both engines (`tau_method="winsorized"`); `tau_method="spiegelhalter"` reproduces the example, and the published-value fixtures pin it (§4.3) |
-| Between-provider variance τ² | Method of moments on winsorized residuals (eq. 10) | Same by default; also maximum likelihood (`tau_method="ml"`) or a τ fixed in advance (`tau=`) (§4.16) |
+| Winsorizing debiasing factor w(q) | Derived (eq. 9), not adopted in his example | Same by default (`tau_method="spiegelhalter"`); `tau_method="winsorized"` applies it (§4.3) |
+| Between-provider variance τ² | Method of moments on winsorized residuals (eq. 10) | Same by default; also maximum likelihood (`"ml"`), CQC and SHMI (`"cqc"`, `"shmi"`), or a τ fixed in advance (`tau=`) (§4.16, §4.17) |
+| A centre line fixed in advance | Not distinguished | Published methods unchanged; `"winsorized"` counts K degrees of freedom rather than K − 1, since no mean was estimated (§4.3) |
 | Multiplicative model | φ̂, applied if φ̂ > 1 + 2√(2/I) | Not used (§4.4) |
 | Additive model | τ̂² by method of moments (eq. 10), 0 if φ̂ < (I−1)/I | Same |
 | Adjusted limits | θ₀ ± z√(V + τ²), normal (eq. 11) | **Differs**: same variance, exact mixture quantiles (§4.5) |
@@ -80,7 +81,8 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 | Per-point power and intervals | Not part of the method | Extension on every funnel (§4.8) |
 | Shrunk estimates and reliability | Not part of the method | Extension: `reliability`, `eb_rate`, `eb_excess`, the exact posterior mean of the chart's own mixture model (§4.14) |
 | Single-case robustness | Not part of the method | Extension: `p_value_drop1`, `flag_survives_drop1`, `fragility` (§4.15) |
-| Volume floor for the FDR step | Not covered | Extension: `test_min_expected=`, independent filtering (§4.11) |
+| Volume floor for the FDR step | Not covered | Extension: `fdr_min_denominator=`, independent filtering (§4.11) |
+| Transformed-scale over-dispersion (CQC √, NHS SHMI log) | §5 notes the √ scale | `tau_method="cqc"`/`"shmi"`, as FunnelPlotR computes them; limits drawn on that scale and mapped back (§4.17) |
 
 ## 4. Design choices
 
@@ -148,39 +150,41 @@ funnel or about n = 20 on a proportion, or spread the axis with `x_log=True`.
 ### 4.2 Center line
 
 The default is the pooled rate (Σy/Σn, or ΣO/ΣE), which judges providers against their
-peers and, for O/E, absorbs overall miscalibration of the risk model. `cl=1.0` judges O/E
+peers and, for O/E, absorbs overall miscalibration of the risk model. `center=1.0` judges O/E
 against the risk model itself. The pooled line includes each provider. On a small cohort,
 one extreme provider drags the line toward itself, leaves every other provider to one
 side, and inflates τ̂ even though its own residual is winsorized. This is the circularity
 [1, §5] attributes to Marshall et al. The test suite pins a case where it hides the
 provider entirely (`test_a_lone_outlier_still_leaks_in_through_the_pooled_center_line`).
-Anchoring with `cl=` removes the effect. Pavlou et al. [9] suggest a pre-specified τ as
+Anchoring with `center=` removes the effect. Pavlou et al. [9] suggest a pre-specified τ as
 another remedy (§6).
 
-### 4.3 The over-dispersion estimator, debiased
+### 4.3 The over-dispersion estimator: published by default, debiased on request
 
-`funnel_dispersion()` implements [1, §5], with one change of default:
+`overdispersion()` in `core/dispersion.py` implements [1, §5]:
 
 1. Pearson residuals zᵢ = (yᵢ − θ₀)/√V₀ᵢ, with V₀ᵢ = θ₀/nᵢ for counts and θ₀(1 − θ₀)/nᵢ
    for proportions (eq. 4).
-2. Winsorize at the 10th and 90th percentiles; φ̂ = c(0.10)·mean(z_W²) (eqs. 6, 8, 9).
+2. Winsorize at the 10th and 90th percentiles; φ̂ = mean(z_W²) (eqs. 6, 8).
 3. τ̂² = (Kφ̂ − (K − 1)) / (Σwᵢ − Σwᵢ²/Σwᵢ), wᵢ = 1/V₀ᵢ (eq. 10, the DerSimonian–Laird
    form [3]), and τ̂² = 0 when φ̂ < (K − 1)/K.
+
+That is the default, `tau_method="spiegelhalter"`, exactly as published. CQC and NHS
+SHMI run the same uncorrected method of moments on a transformed scale instead; `"cqc"`
+and `"shmi"` reproduce those, as FunnelPlotR [13] does (§4.17).
 
 **The consistency factor.** Winsorizing a standard normal at its p and 1 − p quantiles
 z = Φ⁻¹(1 − p) leaves E[Z_W²] = (1 − 2p) − 2z·φ(z) + 2p·z², which is 0.6787 at p = 0.10.
 Spiegelhalter derives the correction c(p) = 1/E[Z_W²] = 1.4735 (eq. 9), but reports that
-it gave "somewhat wide limits" and does not adopt it in his example. FunnelPlotR [13] and
-the CQC/SHMI implementations follow the example. qikit did too through 0.9. From 0.10,
-both engines apply it by default (`tau_method="winsorized"`), because the omission costs
-most exactly where qikit is used: hundreds or thousands of physicians at low volume.
-No published healthcare application or evaluation of the factor was found (§4.16), so
-this default rests on eq. 9 itself and on the simulations below and in §5.
+it gave "somewhat wide limits" and does not adopt it in his example.
+`tau_method="winsorized"` applies it: φ̂ = c(0.10)·mean(z_W²).
 
-**Why the default changed.** Without c, φ̂ averages 0.68 under pure chance. The τ² = 0
-gate then needs a true over-dispersion of about 1.47 before it moves at all, and every
-spread below that is ignored. At physician scale that is most real spread. 200 replicates
-of K = 1,000 providers, E ~ U(2, 60), Poisson counts with true relative spread τ:
+**Which to use, and why the published one is the default.** Without the factor, φ̂
+averages 0.68 under pure chance, so the τ² = 0 gate needs a true over-dispersion of
+about 1.47 before it moves. Small real spreads between providers are then ignored, the
+adjusted limits stay at their unadjusted width, and more providers flag. The table
+below (200 replicates of K = 1,000 providers, E ~ U(2, 60), Poisson counts with true
+relative spread τ) shows the size of the effect:
 
 | true τ | φ̂ published | τ̂ published | τ̂ debiased | τ̂ plain DL (no winsorizing) |
 |---|---|---|---|---|
@@ -190,30 +194,39 @@ of K = 1,000 providers, E ~ U(2, 60), Poisson counts with true relative spread �
 | 0.30 | 2.387 | 0.212 | 0.285 | 0.300 |
 | 0.10, plus 2% gross outliers (O/E 2.5) | 0.942 | 0.004 | **0.113** | 0.230 |
 
-- **The published estimator under-adjusts.** With every provider differing only by a
-  true τ = 0.2, 4.5% of average providers have a one-sided p below 0.025 (nominal 2.5%):
-  about twice the chance flags the chart reports. Under `signal="fdr"` an understated τ
-  makes every p-value too small, which inflates false discoveries in the same way. For
-  physician profiling a false flag has a real cost, and the profiling literature counts
-  misclassification as a primary harm [24, 25].
-- **Debiasing keeps the robustness.** Plain DerSimonian–Laird recovers τ without outliers
-  but doubles it when 2% of providers are gross outliers, so the providers being screened
-  for widen their own limits. The debiased winsorized estimator stays within 0.02 of the
-  truth in both cases. Among the alternatives (Paule–Mandel, REML [34]), none is robust
-  to outliers in this way without winsorizing, so qikit keeps Spiegelhalter's estimator
-  and fixes its bias.
-- **Spiegelhalter's caution came from a small example.** With a dozen providers φ̂ is
-  imprecise, and an upward error in τ̂ widens every limit. At K in the hundreds φ̂ is
-  precise and the bias dominates the error.
+The two estimators answer the screening question differently:
 
-**Reproducing published funnels.** `tau_method="spiegelhalter"` gives the published
-estimator bit for bit; the shared Python/TypeScript fixtures that check Spiegelhalter's
-numbers pin it, and `funnel_oep_winsorized`, `funnel_pp_winsorized` and
-`funnel_up_winsorized` check the default in both engines. `summary["phi_raw"]` is
-mean(z_W²) and `summary["phi_debiased"]` is c·mean(z_W²) (NaN under
-`tau_method="spiegelhalter"`). On the bundled example (`data/examples/physician_mortality_oe.csv`,
-three years pooled) τ̂ moves from 0 to 0.113, and the same three physicians are
-outliers.
+- **The published estimator is the more sensitive screen.** It flags more providers
+  whose difference is the ordinary spread between peers (§5: 0.54% of in-distribution
+  providers beyond the 99.8% line at K = 150, τ = 0.3, against a nominal 0.1%), and it
+  finds a planted outlier more often (70% against 38% there). qikit 0.10 made the
+  debiased estimator the default; in production use at physician scale it was not
+  sensitive enough for screening, so 1.0 restores the published one. It is also uncorrected, as the CQC, NHS and
+  FunnelPlotR estimators are, so its flag rates are comparable with theirs.
+- **The debiased estimator holds the stated chance-flag rate.** Use
+  `tau_method="winsorized"` when flags are acted on individually and the 0.1% and 2.5%
+  in `expected_false_flags` must mean what they say, as on a large funnel feeding
+  credentialing. It stays robust to the outliers being screened for: plain
+  DerSimonian–Laird doubles τ̂ when 2% of providers are gross outliers, the winsorized
+  estimators do not.
+
+`funnel_sensitivity()` runs a funnel under each τ option and marks the providers whose
+tier depends on the choice; a flag that does is a judgement to make explicitly.
+
+**A centre line fixed in advance.** Equation 10 counts K − 1 degrees of freedom because
+θ₀ is estimated from the same providers. With `center=` given (O/E against 1.0, say) no
+mean is estimated, and the method-of-moments estimate is τ̂² = K(φ̂ − 1)/Σwᵢ, 0 when
+φ̂ ≤ 1. `"winsorized"` uses that form; the published methods keep theirs, since
+reproducing a published funnel is their purpose. Note also that a fixed centre absorbs
+any overall gap between the cohort and the benchmark into τ̂ (§4.2).
+
+**Reproducing published funnels.** The default gives the published estimator bit for
+bit; the shared Python/TypeScript fixtures that check Spiegelhalter's numbers pin it,
+and `funnel_oep_winsorized`, `funnel_pp_winsorized` and `funnel_up_winsorized` check
+`"winsorized"` in both engines. `summary["phi"]` is the dispersion ratio as the chosen
+method defines it (c·mean(z_W²) under `"winsorized"`). On the bundled example
+(`data/examples/physician_mortality_oe.csv`, three years pooled) τ̂ is 0 under the
+default and 0.113 debiased, and the same three physicians are outliers either way.
 
 **Pearson rather than square-root residuals.** qikit 0.4's `oep` used the square-root
 scale, 2(√O − √(θ₀E)), as the CQC variant does, on the grounds that Pearson residuals
@@ -301,15 +314,15 @@ Laney's σ_z is the mean moving range of consecutive standardized residuals [6].
 statistic depends on order and is defined for time series [11]. In a funnel the order is
 the sort by volume. On the bundled 3-year surgeon data, the published test finds no
 over-dispersion, yet the 0.4 `up` funnel widened its limits 1.87× and hid all three real
-signals. In 0.5, `pp`/`up` use the additive method inside a funnel and Laney outside one.
-`summary["dispersion_method"]` says which.
+signals. Since 0.5 a funnel uses the additive method, and Laney's `pp`/`up` remain only
+as time-ordered charts in `qic()`.
 
 ### 4.7 Warn tier and multiplicity
 
-The 99.8% contour marks outliers and the 95% contour alerts (`signal`; the engine's
-`sigma_signal` and `warn_signal`). The tiers never overlap, and alerts stay out of the
-engine's `signals` flag, because at one chance alert in forty per side a large funnel
-would always report one. About 0.1% of average providers land beyond each 99.8% line,
+The 99.8% contour marks outliers and the 95% contour alerts (the `signal` column:
+`"outlier"`, `"alert"` or `"none"`). The tiers never overlap, and alerts are counted in
+`n_alert`, apart from `n_outlier`, because at one chance alert in forty per side a large
+funnel would always report one. About 0.1% of average providers land beyond each 99.8% line,
 roughly one in a 1,000-provider one-sided funnel, and 2.5% beyond each 95% line, about
 24 there. `summary["expected_false_flags"]` reports those numbers for the chart, so an
 alert count is read against them. [1, §6] recommends formal FDR control [12] carried out
@@ -355,8 +368,12 @@ quantization below.
 differs between platforms, so it is quantized to 1e-9. The binomial solve is lgamma-free. Its CDF is built from the
 term ratio outward from the mode, using the same walk as the binomial limits (§4.5), and
 normalized by its own total, so (1 − θ)ⁿ, which underflows at hospital volumes, is never
-formed. It uses only + − × ÷, so the bisection takes the same path on every platform and
-in both engines, and needs no quantizing.
+formed. The walk uses only + − × ÷. The θ solve takes safeguarded Newton steps on the log
+of the smaller tail from a Wilson-score start, about five CDF evaluations instead of
+fifty, and stops once a step is below 1e-13 of θ. A proportion funnel of 5,000 providers
+fell from 10 s to about 1 s. The TypeScript engine still bisects; the two agree to about
+1e-13 relative. Contours, which must sit exactly on the test, keep their own bisection
+and are bit-identical across engines.
 
 **The summary.** Every chart reports `underpowered`, `n_underpowered` and, when
 underpowered, a quotable `power_note`. Ghosted (`exclude=`) points are left out: they
@@ -395,7 +412,7 @@ center line, so the low-volume flare does not set the scale.
 **The contours.** `FunnelResult.limits()` evaluates the limits on about 200
 geometric steps between the smallest and largest denominator, merged with every point's
 own n. It calls the same limit functions on the same path as the per-point limits
-(`compute.funnel_limits`), with the unrounded τ², so each curve passes exactly through
+(`core.contours.funnel_contours`), with the unrounded τ², so each curve passes exactly through
 the limit that decided that point's `signal`. A drawn point can
 therefore never sit inside the curve while being flagged, or outside it while not
 being flagged. A test pins this bit-for-bit on every funnel fixture. Between grid
@@ -416,8 +433,7 @@ placed on that scale.
 
 Many indicators matter in one direction only; excess mortality is the usual example.
 `funnel(worse="higher")` flags only points beyond the upper contours, and
-`worse="lower"` only those beyond the lower ones (the engine's `signal_side="above"` and
-`"below"`). `worse=None`, the default, is the two-sided chart of [1]. The filter applies
+`worse="lower"` only those beyond the lower ones. `worse=None`, the default, is the two-sided chart of [1]. The filter applies
 to both tiers, and through them to the point colours, the legend ("Worse than
 expected: …"), the counts and `label_signals=`. `summary["worse"]` records it.
 
@@ -541,7 +557,7 @@ discovery rate Q exactly when q < Q. Each chart, and each facet, is adjusted on 
   `"limits"` is the test itself. Under `"fdr"` what a point needs depends on every other
   point.
 
-**Filtering before the FDR step.** `test_min_expected=t` leaves out of the
+**Filtering before the FDR step.** `fdr_min_denominator=t` leaves out of the
 Benjamini–Hochberg step every provider whose denominator, as the model sees it (n/φ
 under `within_dispersion`), is below t. Those providers keep their `p_value` but get no
 `q_value`, so they cannot flag under `signal="fdr"`, and they do not count in its K.
@@ -586,8 +602,14 @@ The ratio is unchanged, so only the denominator the model sees moves. The limits
 (Pearson z with variance θ₀φ/E), p-values (interpolated for the non-integer effective
 counts, §4.11), detectability and intervals all follow from it. The echoed numerator and
 denominator stay in the caller's units. Effective counts are large at length-of-stay
-volumes. For φ < 1 (a binary-outcome O/E, where Σp(1 − p) < E) they would be small and
-fractional, so qikit does not recommend it there.
+volumes.
+
+**φ below 1.** A binary-outcome O/E (deaths, readmissions) from case rows has
+variance Σp(1 − p) < Σp = E, so `"estimate"` returns φ̂ ≈ 1 − p̄ there. qikit keeps the
+estimate, which narrows the limits by the binomial variance the Poisson model leaves
+out (about 8% at a 15% event rate, negligible for mortality), and adds a note saying
+so; `within_dispersion=1` keeps the Poisson model. The effective counts are then
+fractional, so the test is interpolated (§4.11).
 
 **Estimating φ.** `within_dispersion="estimate"` takes stay-level rows (several per
 unit) and computes
@@ -887,13 +909,14 @@ drawn exactly. The literature differs on where τ comes from, and qikit offers e
 
 | Option | τ from | Estimator | Strengths | Weaknesses | Used by |
 |---|---|---|---|---|---|
-| `tau_method="winsorized"` (default) | This period | Method of moments on 10%-winsorized Pearson residuals × c(0.10), then DerSimonian–Laird [1, eqs. 6–10] | Robust to the outliers being screened for; close to unbiased from K ≈ 50; one formula both engines share | Overstates τ slightly at small K with no real spread | qikit (§4.3) |
-| `tau_method="spiegelhalter"` | This period | The same without c(0.10) | Reproduces published funnels exactly | Understates τ (often 0 for a real spread) and so over-flags | Spiegelhalter [1], FunnelPlotR [13], NHS/CQC |
+| `tau_method="spiegelhalter"` (default) | This period | Method of moments on 10%-winsorized Pearson residuals, then DerSimonian–Laird [1, eqs. 6–10] | Reproduces published funnels exactly; robust to the outliers being screened for; the more sensitive screen | Understates τ (often 0 for a real spread), so average providers flag more than the stated rate | Spiegelhalter [1], FunnelPlotR [13], NHS/CQC |
+| `tau_method="winsorized"` | This period | The same × c(0.10) [1, eq. 9] | Close to unbiased from K ≈ 50, so chance flags run at the stated rate; equally robust | Less sensitive; overstates τ slightly at small K with no real spread | qikit (§4.3) |
 | `tau_method="ml"` | This period | Maximum likelihood of the chart's own mixture model, θ₀ fixed; reports a 95% profile-likelihood interval (`tau_ci`) | Uses every count; on clean data returns exactly 0 under the null more often than not; quantifies its own uncertainty | Not robust: a single gross outlier among 30 providers inflates τ̂ and hides itself | Random-effects models: Pavlou [9], CMS's hierarchical models [23] |
+| `tau_method="cqc"`, `"shmi"` | This period | Residuals on the √ (arcsine) or log scale, winsorized or truncated (§4.17) | Reproduce CQC and NHS SHMI funnels | Normal limits on the transformed scale, not exact | CQC, NHS SHMI, FunnelPlotR [13] |
 | `tau=` (fixed) | Earlier periods, set in advance | Whatever produced it (typically the default on several prior years, reviewed) | Cannot be inflated by this period's outliers; no small-K bias; holds every period to the same yardstick | Needs clean, representative history; goes stale if coding, the risk model or attribution change | Discussed by Pavlou [9]; regulatory practice |
 
 **Evidence.** 150 replicates, E ~ U(3, 30), Poisson–gamma provider effects. The
-"fixed" τ was estimated by the default on an independent earlier period with twice the
+"fixed" τ was estimated by the winsorized estimator on an independent earlier period with twice the
 volume and no outliers, which is the best case for that option:
 
 | Scenario | Winsorized | ML | Fixed in advance |
@@ -907,32 +930,35 @@ volume and no outliers, which is the best case for that option:
 
 The last two rows are from the §5 runs, which plant one outlier in every replicate.
 
-- **On clean data the default and ML agree,** and ML is better behaved at small K.
+- **On clean data the winsorized estimator and ML agree,** and ML is better behaved at small K.
 - **ML's advantage does not survive a single outlier.** With one gross outlier among 30
   providers and no real spread, ML's median τ̂ is 0.216, and that outlier's detection
   falls from 90% to 67%. With 3% outliers at K = 150, ML overstates τ by two-thirds.
-- **The default, protected by winsorizing, overstates by a sixth or less.**
+- **The winsorized estimator overstates by a sixth or less.**
 - **A fixed τ never sees the outliers, so it does not overstate at all.**
 
 Since a screening chart cannot assume its data are free of the outliers it looks for,
 ML is for data already cleaned, or for comparison with random-effects analyses.
 
-**Why the default is `"winsorized"`.** A general-purpose default has to work for a user
-who does nothing:
+**Why the default is `"spiegelhalter"`.** A general-purpose default has to work for a
+user who does nothing:
 
 - It needs no history, which rules out a fixed τ as the default.
 - It must not let the providers being screened for widen their own limits. Funnels exist
   to find outliers, and ML's failure there is the worst failure a screening chart can
-  have.
-- It must be right at the scale funnels are usually drawn at. At K in the hundreds the
-  debiased estimator is close to unbiased (§4.3, §5).
+  have. Both winsorized estimators pass.
+- Between the two, the published one errs toward flagging, which is the right error for
+  a screen whose flags are reviewed, and like the CQC, NHS and FunnelPlotR
+  estimators it is uncorrected (§4.3). To reproduce their funnels exactly, use `"cqc"`
+  or `"shmi"` (§4.17). Where the stated chance-flag rate matters more than
+  sensitivity, choose `"winsorized"`, and compare the two with `funnel_sensitivity()`.
 
-Its one weakness, small K, is flagged by a note below K = 30 that recommends a fixed
-`tau=` or `"ml"`.
+Below K = 30 a note recommends a fixed `tau=`.
 
 **Using a fixed τ well.**
 
-1. Estimate τ on several earlier periods with the default, per measure and per facet.
+1. Estimate τ on several earlier periods (`"winsorized"` is the less biased choice), per
+   measure and per facet.
 2. Review those periods' flags and confirm τ is stable from year to year.
 3. Fix τ for the reporting period, and record the value and its source.
 
@@ -966,16 +992,58 @@ improvement targeting, and say which question was asked.
 evaluates the winsorization consistency factor. Funnel guidelines [8], applied studies,
 FunnelPlotR [13] and the NHS indicators use the uncorrected estimate, and one applied
 paper states that it averages 1 under the null, which winsorizing makes untrue. The
-default rests on eq. 9 and qikit's own simulations, not on external validation, so a
-report that compares qikit with a published funnel should use
-`tau_method="spiegelhalter"`. The random-effects literature [9, 23, 35] prefers
+default rests on eq. 9 and qikit's own simulations, not on external validation, so it is an
+option, not the default. A report that compares qikit with a published funnel uses the
+default, or `"cqc"`/`"shmi"` for a CQC or SHMI funnel (§4.17). The random-effects literature [9, 23, 35] prefers
 likelihood estimation or a pre-specified τ. qikit offers both, with the robustness
 caveat above.
+
+### 4.17 CQC and SHMI: over-dispersion on a transformed scale
+
+The Care Quality Commission [36] and the NHS Summary Hospital-level Mortality Indicator
+[37] measure over-dispersion on a scale where the null variance does not depend on the
+centre, and draw normal limits there. FunnelPlotR [13] implements both
+(`sr_method = "CQC"` and `"SHMI"`). `tau_method="cqc"` and `"shmi"` follow its source:
+
+| | `"cqc"` | `"shmi"` |
+|---|---|---|
+| Scale T | √ for ratios and rates; arcsine √ for proportions | log, for ratios and rates only |
+| SD under the null, sᵢ | 1/(2√nᵢ) | 1/√(θ₀nᵢ) |
+| Robustness | z winsorized at its 10th and 90th percentiles | providers in the lowest and highest tenths of ranked z dropped (rank groups ⌊rank·10/(K + 1)⌋, keep 1–8) |
+| φ̂, τ̂² | mean(z²); DerSimonian–Laird on wᵢ = 1/sᵢ², 0 when Kφ̂ < K − 1 | same |
+| Limits | T⁻¹(T(θ₀) ± z·√(sᵢ² + τ̂²)) | same |
+
+`summary["tau_scale"]` records the scale and `summary["limit_method"]` says
+`"transformed_normal"`. P-values come from the same normal model on the same scale, so a
+point beyond the line still has p below the line's level. With τ̂² = 0 both methods draw
+the exact unadjusted contours, the same as every other method, since the transformed
+normal would only approximate them. The shrinkage columns use τ̂² carried back to the y
+scale by the delta method (4θ₀τ² for √, 4θ₀(1 − θ₀)τ² for arcsine, θ₀²τ² for log).
+
+**Checked against FunnelPlotR.** `tests/test_reference.py` compares φ̂, τ̂² and the
+limits with FunnelPlotR on its `medpar` data (standardised ratios under both methods,
+length of stay, and a proportion) to 1e-6. Two departures are deliberate:
+
+- **FunnelPlotR draws CQC ratio limits on the √ scale.** It returns 1 ± z·√(s² + τ²)
+  without squaring back, so its adjusted CQC limits for a ratio are about half as wide as
+  the method intends. qikit squares them back. φ̂ and τ̂² agree exactly; only the limits
+  are skipped in the reference test.
+- **Arcsine limits past 100%.** Where the upper arcsine contour passes π/2, sin² folds
+  back below 1 in FunnelPlotR. qikit caps the limit at 1, the largest proportion
+  possible. The reference test masks those points.
+
+**A provider with no events** has z = −∞ on the log scale. When truncation keeps it,
+FunnelPlotR returns φ̂ = ∞; qikit leaves it out of φ̂.
+
+**When to use them.** To reproduce a CQC or SHMI funnel, or to report on the same basis
+as those indicators. For a physician screen the default is preferred: its limits are
+exact rather than normal on a transformed scale, which matters at the small expected
+counts most physicians have. `funnel_sensitivity()` shows which flags change.
 
 ## 5. Evidence from simulation
 
 The engine was run on simulated cohorts. To reproduce every table below, run
-`uv run python scripts/simulate_funnel_dispersion.py` (qikit 0.10). All rates use the
+`uv run python scripts/simulate_funnel_dispersion.py` (estimates unchanged in 1.0). All rates use the
 contours as drawn: the upper contour sits at the exact test's boundary (§4.1).
 
 **Between-provider spread.** 300 replicates per row. Volumes are E ~ U(3, 30) for
@@ -985,11 +1053,11 @@ n = 120). On proportions τ̂ is on the absolute scale, so the true value is 0.1
 at τ = 0.15, 0.036 at τ = 0.3). "In-distribution" is the share of non-outlier providers
 flagged above the 99.8% limit (nominal 0.1%). "Outlier" is how often the planted outlier
 is detected. Each adjusted chart was run with all three estimators on the same draws:
-`"spiegelhalter"` (published), `"winsorized"` (the default) and `"ml"` (§4.16).
+`"spiegelhalter"` (published, the default), `"winsorized"` and `"ml"` (§4.16).
 
 Flag rates (in-distribution / outlier):
 
-| Family | K | τ | Unadjusted | Spiegelhalter | Winsorized (default) | ML |
+| Family | K | τ | Unadjusted | Spiegelhalter (default) | Winsorized | ML |
 |---|---|---|---|---|---|---|
 | Counts | 30 | 0 | 0.02% / 90% | 0.02% / 90% | 0.01% / 83% | 0.00% / 67% |
 | Counts | 30 | 0.15 | 0.20% / 90% | 0.09% / 85% | 0.03% / 71% | 0.00% / 47% |
@@ -1003,7 +1071,7 @@ Flag rates (in-distribution / outlier):
 
 τ̂, median (IQR):
 
-| Family | K | τ (true) | Spiegelhalter | Winsorized (default) | ML |
+| Family | K | τ (true) | Spiegelhalter (default) | Winsorized | ML |
 |---|---|---|---|---|---|
 | Counts | 30 | 0 | 0 (0–0) | 0.084 (0–0.147) | 0.216 (0.172–0.264) |
 | Counts | 30 | 0.15 | 0.014 (0–0.127) | 0.175 (0.108–0.231) | 0.258 (0.204–0.298) |
@@ -1015,31 +1083,31 @@ Flag rates (in-distribution / outlier):
 | Proportions | 150 | 0.15 (0.018) | 0 (0–0.003) | 0.019 (0.015–0.022) | 0.022 (0.020–0.025) |
 | Proportions | 150 | 0.3 (0.036) | 0.023 (0.020–0.026) | 0.035 (0.032–0.038) | 0.038 (0.035–0.040) |
 
-- **The winsorized default is the accurate one at physician-group scale.** At K = 150
+- **The winsorized estimator is the accurate one at physician-group scale.** At K = 150
   its median is 0.152 and 0.291 for a true 0.15 and 0.3 (proportions: 0.019 and 0.035
   against 0.018 and 0.036). The published τ̂ is 0 and 0.196 (0 and 0.023): a real spread
   of 0.15 goes undetected in most replicates.
-- **Accurate τ̂ is what makes the chart calibrated.** At K = 150, τ = 0.3, the default
-  flags 0.11% of in-distribution providers against a nominal 0.1%. The published chart
+- **Accurate τ̂ is what makes the chart calibrated.** At K = 150, τ = 0.3, the winsorized
+  estimator flags 0.11% of in-distribution providers against a nominal 0.1%. The published chart
   flags 0.54%, five times nominal, and every one of those is a provider whose only
   difference is the ordinary spread between peers.
 - **ML is pulled up by the single planted outlier in every replicate.** Its τ̂ exceeds
   the truth in every row: 0.216 when the true τ is 0 at K = 30, and 0.095 at K = 150.
   Its limits are therefore the widest, and it finds the planted outlier least often
-  (67% at K = 30, τ = 0, against 83% for the default). On outlier-free data ML matches
-  the default and is better at small K (§4.16). This table is the case a screening chart
+  (67% at K = 30, τ = 0, against 83% for the winsorized estimator). On outlier-free data ML matches
+  it and is better at small K (§4.16). This table is the case a screening chart
   must survive.
 - **The planted outlier is caught less often as τ̂ rises, and that is partly correct.**
-  Its detection falls from 70% (published) to 38% (default) at K = 150, τ = 0.3. The
+  Its detection falls from 70% (published) to 38% (winsorized) at K = 150, τ = 0.3. The
   published chart caught it more often because it under-estimated τ and drew limits too
   narrow for the real spread, the same narrowness that produced the excess false flags.
   A provider at O/E 2.5 with 15 expected events is less unusual among peers who truly
   vary by 30% than the published chart claimed. That trade is inherent to asking
   "unusual among peers?" rather than "different from target?" (§2, §4.16). For the
   second question, use `center=1.0` with `overdispersion=False`, or read `prob_worse`.
-- **At small K with no real spread, the default errs upward.** With K = 30, τ = 0, the
-  published τ̂ is 0 (and its limits are then identical to the unadjusted ones). The
-  default's median is 0.084, the familiar positive bias of a variance estimate truncated
+- **At small K with no real spread, the winsorized estimator errs upward.** With K = 30, τ = 0, the
+  published τ̂ is 0 (and its limits are then identical to the unadjusted ones). Its
+  median is 0.084, the familiar positive bias of a variance estimate truncated
   at 0 when it is noisy. It costs the planted outlier 90% → 83%, while the false-flag
   rate stays below nominal. By K = 150 the effect is small (median 0.025, detection
   91% → 90%). With a few dozen providers, prefer a pre-specified τ (§4.16).
@@ -1050,8 +1118,8 @@ Flag rates (in-distribution / outlier):
 **Clustered counts: length of stay.** 20 replicates of K = 500 providers. Each provider
 has a lognormal number of stays (median 60), each stay's days are gamma with mean 5 and
 variance-to-mean φ, and there is no true provider effect, so every flag is false.
-`funnel(measure="oe", worse="higher")` is run with its default additive τ², once with the
-debiased default and once with `tau_method="spiegelhalter"` on the same draws:
+`funnel(measure="oe", worse="higher")` is run with its default additive τ², once with
+`tau_method="winsorized"` and once with the default `"spiegelhalter"` on the same draws:
 
 | φ | `within_dispersion` | Outlier, debiased | Alert, debiased | Outlier, published | Alert, published | φ̂ median |
 |---|---|---|---|---|---|---|
@@ -1101,7 +1169,7 @@ The arms are:
 - **Rounded deflation:** y and n divided by φ̂ and rounded, the downstream workaround.
 - **`"estimate"`:** survey rows.
 
-Each arm was run with the debiased default and with `tau_method="spiegelhalter"` on the same
+Each arm was run with `tau_method="winsorized"` and with the default `"spiegelhalter"` on the same
 draws. Cells give debiased / published.
 
 | Scenario | Arm | Outlier | Alert | Planted caught | `signal="fdr"` flags (false) |
@@ -1157,10 +1225,11 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 - **Small cohorts.** τ̂ is imprecise below about 30 providers (IQR 0.17–0.27 when
   τ = 0.3, K = 30), and the pooled center line can be pulled by one extreme provider
   (§4.2).
-- **Debiasing at small K.** The consistency factor (§4.3) assumes residuals near normal,
-  and with few providers and no real spread the default overstates τ slightly (median
-  0.06–0.08 at K = 30, τ = 0). A note says so below K = 30. A pre-specified `tau=` is
-  the remedy there (§4.16). `tau_method="ml"` is better only on clean data.
+- **Debiasing at small K.** The consistency factor of `tau_method="winsorized"` (§4.3)
+  assumes residuals near normal. With few providers and no real spread it overstates τ
+  slightly (median 0.06–0.08 at K = 30, τ = 0). A note says so below K = 30. A
+  pre-specified `tau=` is the remedy there (§4.16). `tau_method="ml"` is better only on
+  clean data.
 - **Maximum likelihood is not robust.** `tau_method="ml"` has no winsorizing. One gross
   outlier among 30 providers takes its median τ̂ from 0 to 0.22, and 3% outliers at
   K = 150 inflate it by two-thirds (§4.16, §5).
@@ -1169,8 +1238,10 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 - **Binary outcomes on an O/E chart.** Observed counts that are sums of yes/no outcomes
   have variance Σp(1 − p) < Σp = E. Poisson limits are therefore slightly too wide for
   common outcomes: about 8% at a 15% event rate, negligible for mortality.
-  `within_dispersion` below 1 would correct it, but at small counts its fractional
-  effective counts make the test interpolated rather than exact (§4.12). It is left at 1.
+  `within_dispersion="estimate"` from case rows finds φ̂ ≈ 1 − θ̄ and corrects it; the
+  summary labels this as the binomial-variance correction rather than flooring it at 1
+  (§4.12). At small counts its fractional effective counts make the test interpolated
+  rather than exact. With a scalar `within_dispersion` the default stays 1.
 - **Within-provider clustering.** One φ per chart (or facet), or one φᵢ per provider
   from a column the caller computes (§4.12). qikit does not yet estimate case-mix φ_g
   from stay rows itself.
@@ -1181,9 +1252,11 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 - **Item-level rows hide the clustering.** qikit cannot tell items from cases when every
   row is one yes/no. It refuses `"estimate"` on such rows and documents the unit to
   pass (§4.13).
+- **Very large expected counts.** Above λ = 10⁵ the contours and p-values switch to
+  Byar's approximation, and `summary["limit_method"]` says `"byar"`. No physician-level
+  measure comes near this.
 - **Planned:** a robust likelihood estimate of τ (heavy-tailed random effects, or
-  detect-then-refit [35]), the volume test, binomial variance for
-  binary-outcome O/E when case counts are known, `strata=` (per-DRG φ_g from stay rows,
+  detect-then-refit [35]), the volume test, `strata=` (per-DRG φ_g from stay rows,
   shrunk toward the pool [19], combined to φᵢ), and a discrete false discovery rate step
   for bounded tails [31, 32].
 - **Evaluated and declined** (so they are not proposed again without new evidence):
@@ -1193,7 +1266,7 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
     screen drops gross low-volume outliers.
   - A winsorized or median center line. At K in the hundreds no provider moves ΣO/ΣE.
     The median of ratios is not volume-weighted and is skewed at small E. A center
-    other than ΣO/ΣE breaks Σ excess = 0. `cl=1.0` is already the robust anchor (§4.2).
+    other than ΣO/ΣE breaks Σ excess = 0. `center=1.0` is already the robust anchor (§4.2).
   - Monotone "smoothed" display contours. No sawtooth was found on the drawn grid in any
     family or volume range. The proposed running minimum on upper limits would draw lines
     *inside* the exact test, showing unflagged points beyond a line. If ever needed, the
@@ -1293,3 +1366,8 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 35. Ohlssen DI, Sharples LD, Spiegelhalter DJ. A hierarchical modelling framework for
     identifying unusual performance in health care providers. *Journal of the Royal
     Statistical Society, Series A* 2007;170(4):865–890.
+36. Spiegelhalter D, Sherlaw-Johnson C, Bardsley M, et al. Statistical methods for
+    healthcare regulation: rating, screening and surveillance. *Journal of the Royal
+    Statistical Society, Series A* 2012;175(1):1–47. (The CQC methods.)
+37. NHS England (formerly NHS Digital). Summary Hospital-level Mortality Indicator
+    (SHMI): indicator specification and methodology, current edition.

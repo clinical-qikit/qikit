@@ -1,6 +1,6 @@
 {
   "id": "anhoej_thresholds_n20",
-  "reference": "Anhoej 2014 \u2014 run threshold formula for n=20",
+  "reference": "Anhoej & Olesen 2014, as qicharts2 computes it: for n = 20 useful points a run longer than round(log2 20) + 3 = 7 signals, and fewer crossings than qbinom(0.05, 19, 0.5) = 6 signals.",
   "function": "qic",
   "input": {
     "y": [
@@ -28,32 +28,30 @@
     "chart": "run"
   },
   "check": {
-    "run_threshold": 7,
-    "crossings_threshold": 5
+    "longest_run_max": 7,
+    "n_crossings_min": 6
   },
   "snapshot": {
     "chart_type": "run",
     "method": "anhoej",
     "signals": true,
-    "title": "",
-    "subtitle": null,
-    "caption": null,
-    "ylab": "Value",
-    "xlab": "Subgroup",
     "summary": {
+      "chart": "run",
+      "method": "anhoej",
       "n_obs": 20,
       "n_baseline": 20,
       "signals": true,
-      "limit_basis": "all",
-      "freeze": null,
-      "excluded": [],
+      "n_outlier": 0,
       "n_useful": 20,
       "longest_run": 5,
+      "longest_run_max": 7,
       "n_crossings": 3,
-      "run_threshold": 7,
-      "crossings_threshold": 5,
-      "run_signal": false,
-      "crossings_signal": true
+      "n_crossings_min": 6,
+      "longest_run_signal": false,
+      "crossings_signal": true,
+      "runs_signal": true,
+      "freeze": null,
+      "excluded": []
     },
     "data": [
       {

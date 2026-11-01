@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
-from qikit.spc import qic
-from qikit.spc import funnel as qikit_funnel
-from qikit.doe import design, analyze, ExperimentDesign
+from qikit import design, analyze, qic
+from qikit import funnel as qikit_funnel
+from qikit.doe import ExperimentDesign
 from typing import List, Optional
 
 # The chart codes a funnel can be drawn from, and the funnel() measure each one means.
@@ -77,8 +77,10 @@ with tab_spc:
             col_notes = st.selectbox("Notes (Annotations)", cols, index=0, key="spc_notes")
             
             st.header("3. Chart Configuration")
-            chart_type = st.selectbox("Chart Type", ["run", "i", "ip", "mr", "xbar", "s", "t", "p", "pp", "c", "u", "up", "g", "oe", "oep"], key="spc_type")
-            method = st.selectbox("Signal Method", ["anhoej", "ihi", "weco", "nelson"], key="spc_method")
+            chart_type = st.selectbox("Chart Type", ["run", "i", "mr", "xbar", "s", "t", "p", "pp", "c", "u", "up", "g", "oe", "oep"], key="spc_type")
+            # nhs, weco and nelson read the sigma zones, which a run chart does not have.
+            methods = ["anhoej", "ihi"] if chart_type == "run" else ["anhoej", "nhs", "ihi", "weco", "nelson"]
+            method = st.selectbox("Signal Method", methods, key="spc_method")
 
             is_oe = chart_type in ("oe", "oep")
             # A keyed widget keeps its session value once created, so a later change to
@@ -115,8 +117,9 @@ with tab_spc:
             
             st.header("4. Aesthetics")
             title = st.text_input("Chart Title", value="SPC Chart", key="spc_title")
-            ylab = st.text_input("Y-Axis Label", value=col_y if col_y else "Value", key="spc_ylab")
-            xlab = st.text_input("X-Axis Label", value=col_x if col_x else "Subgroup", key="spc_xlab")
+            # Blank means the column name, so the label follows a later column change.
+            ylab = st.text_input("Y-Axis Label", placeholder=col_y or "Value", key="spc_ylab") or col_y or "Value"
+            xlab = st.text_input("X-Axis Label", placeholder=col_x or "Subgroup", key="spc_xlab") or col_x or "Subgroup"
             
     with col_main:
         if spc_file is not None and df_spc is not None:
@@ -132,18 +135,15 @@ with tab_spc:
                         exclude_val = [int(i.strip()) for i in exclude.split(',')] if exclude else None
                         
                         kwargs = {
-                            "data": df_spc, "x": col_x, "y": col_y,
-                            "chart": chart_type, "method": method,
-                            "title": title, "ylab": ylab, "xlab": xlab
+                            "x": col_x, "y": col_y, "chart": chart_type, "method": method,
                         }
                         if col_n: kwargs["n"] = col_n
                         if col_facets: kwargs["facets"] = col_facets
                         if col_notes: kwargs["notes"] = col_notes
                         if exclude_val: kwargs["exclude"] = exclude_val
-                        if show_95: kwargs["show_95"] = True
-                        if cl_override is not None: kwargs["cl"] = cl_override
                         if col_part: kwargs["part"] = col_part
                         if freeze_val is not None: kwargs["freeze"] = freeze_val
+                        display = {"title": title, "ylab": ylab, "xlab": xlab}
 
                         with st.spinner("Computing..."):
                             if funnel or is_oe:
@@ -153,12 +153,13 @@ with tab_spc:
                                     measure=_FUNNEL_MEASURES[chart_type],
                                     overdispersion=chart_type in ("pp", "up", "oep"),
                                     facets=col_facets or None, center=cl_override,
-                                    title=title, ylab=ylab, xlab=xlab,
                                 )
+                                figure = result.plot(**display)
                             else:
-                                result = qic(**kwargs)
+                                result = qic(df_spc, **kwargs)
+                                figure = result.plot(show_95=show_95, **display)
 
-                        st.plotly_chart(result.plot(), use_container_width=True)
+                        st.plotly_chart(figure, use_container_width=True)
 
                         # The single most misread thing about a provider funnel: an
                         # empty chart at low volume is missing evidence, not a pass.

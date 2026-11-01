@@ -54,36 +54,18 @@
     "chart_type": "p",
     "method": "anhoej",
     "signals": true,
-    "title": "",
-    "subtitle": null,
-    "caption": null,
-    "ylab": "Value",
-    "xlab": "Sample size",
     "summary": {
       "n_obs": 10,
-      "n_baseline": 9,
       "signals": true,
-      "limit_basis": "all",
-      "freeze": null,
-      "excluded": [
-        9
-      ],
-      "n_useful": 9,
-      "longest_run": 7,
-      "n_crossings": 2,
-      "run_threshold": 10,
-      "crossings_threshold": -1,
-      "run_signal": false,
-      "crossings_signal": false,
+      "n_warn": 0,
       "limit_method": "exact",
+      "count_model": "binomial",
+      "p_value_method": "exact",
+      "n_tested": 9,
       "dispersion_phi": 0.7412872170469719,
       "dispersion_tau": 0.0,
       "overdispersed": false,
-      "count_model": "binomial",
-      "p_value_method": "exact",
       "runs_disabled": true,
-      "note": "runs signals suppressed (funnel mode)",
-      "n_warn": 0,
       "signal_side": "both",
       "signal_method": "limits",
       "levels": [
@@ -94,10 +76,13 @@
         0.05,
         0.1
       ],
-      "n_tested": 9,
-      "min_detectable_ratio_median": 2.0639300356579096,
+      "excluded": [
+        9
+      ],
       "n_underpowered": 5,
       "underpowered": true,
+      "n_filtered": 0,
+      "min_detectable_ratio_median": 2.0639300356579096,
       "power_note": "5 of 9 points have too few cases to detect even a doubling of the center-line proportion (smallest detectable proportion, median: 2.1\u00d7 the center line). Absence of a signal is not evidence of acceptable performance; aggregate more time periods or compare at a higher level before drawing conclusions."
     },
     "data": [

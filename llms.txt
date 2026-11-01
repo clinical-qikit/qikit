@@ -1,0 +1,29 @@
+# clinical-qikit
+
+> SPC charts and funnel plots for healthcare quality, in Python. qic() charts one measure over time; funnel() compares providers with their peers. Both return a result with .data (a table), .summary (a dict) and .plot() (a Plotly figure, optional extra). Core needs only numpy and pandas.
+
+Import as `qikit` (`pip install clinical-qikit`, or `clinical-qikit[plot]` for figures).
+
+## Start here
+
+- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, the shared vocabulary, the module map, and invariants not to break. Shipped inside the package.
+- [README.md](README.md): overview, decision tables, result columns.
+
+## Methods
+
+- [docs/methods.md](docs/methods.md): funnel methods, every departure from Spiegelhalter (2005), simulations, choosing tau.
+- [docs/qic-methods.md](docs/qic-methods.md): control-chart limits, run and zone rules, NHS Making Data Count, departures from qicharts2.
+
+## Deployment
+
+- [docs/snowflake.md](docs/snowflake.md): Snowpark stored procedure and UDTF recipes, packaging, Streamlit in Snowflake.
+
+## Workflows
+
+- [skills/spc-monitoring/SKILL.md](skills/spc-monitoring/SKILL.md): monitoring a measure over time with qic().
+- [skills/provider-funnels/SKILL.md](skills/provider-funnels/SKILL.md): comparing physicians or hospitals with funnel().
+
+## Optional
+
+- [CHANGELOG.md](CHANGELOG.md): breaking changes and renames by release.
+- [data/examples/README.md](data/examples/README.md): bundled example datasets.

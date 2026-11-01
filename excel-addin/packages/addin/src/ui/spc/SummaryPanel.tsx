@@ -45,11 +45,11 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ result }) => {
               <>
                 <div className={styles.summaryItem}>
                   <div className={styles.summaryKey}>Longest run</div>
-                  <div className={styles.summaryVal}>{result.summary.longest_run} (lim {result.summary.run_threshold})</div>
+                  <div className={styles.summaryVal}>{result.summary.longest_run} (signal above {result.summary.longest_run_max})</div>
                 </div>
                 <div className={styles.summaryItem}>
                   <div className={styles.summaryKey}>Crossings</div>
-                  <div className={styles.summaryVal}>{result.summary.n_crossings} (lim {result.summary.crossings_threshold})</div>
+                  <div className={styles.summaryVal}>{result.summary.n_crossings} (signal below {result.summary.n_crossings_min})</div>
                 </div>
               </>
             )}

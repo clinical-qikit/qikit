@@ -26,25 +26,19 @@ export function movingRanges(y: number[]): number[] {
   return mrs;
 }
 
+/**
+ * Mean moving range of the baseline, screened once as qicharts2 does (Nelson 1982):
+ * ranges at or above 3.267·MR̄ are dropped and MR̄ recomputed. A missing value breaks
+ * the series rather than bridging it. Where the screen would leave MR̄ = 0 (most ranges
+ * zero), the unscreened MR̄ is kept. Twin of screened_mean_mr in shewhart.py.
+ */
 export function screenedMeanMR(y: number[], mask: boolean[]): number {
-  const yValid: number[] = [];
-  for (let i = 0; i < y.length; i++) {
-    if (mask[i] && typeof y[i] === 'number' && !isNaN(y[i])) {
-      yValid.push(y[i]);
-    }
-  }
-  if (yValid.length < 2) return NaN;
-  
-  const mrs = movingRanges(yValid);
-  const mrBar = nanmean(mrs);
-  const screened = mrs.filter(m => m <= D4[2] * mrBar);
-  if (screened.length === 0) return mrBar;
-
-  // Screening drops MRs above D4·MR̄, but where most MRs are zero the threshold
-  // falls below the one informative MR and screens it out. The survivors then
-  // average to 0, collapsing the limits onto the center line and flagging every
-  // point. Fall back to the unscreened mean whenever screening leaves nothing
-  // to estimate from.
-  const screenedMean = nanmean(screened);
-  return isNaN(screenedMean) || screenedMean <= 0 ? mrBar : screenedMean;
+  const base: number[] = [];
+  for (let i = 0; i < y.length; i++) if (mask[i]) base.push(y[i]);
+  const mrs = movingRanges(base).filter(m => !isNaN(m));
+  if (mrs.length === 0) return NaN;
+  const mrBar = mrs.reduce((a, b) => a + b, 0) / mrs.length;
+  const kept = mrs.filter(m => m < D4[2] * mrBar);
+  const screened = kept.length ? kept.reduce((a, b) => a + b, 0) / kept.length : NaN;
+  return screened > 0 ? screened : mrBar;
 }

@@ -111,18 +111,29 @@ before reporting anything.
   satisfaction or top-box. Leave `None` only when both directions matter.
 - `signal="limits"` (default): flags match the drawn lines (exact test).
 - `signal="fdr"`: when there are hundreds of providers and false alarms are costly.
-  Many very-low-volume providers? Add `test_min_expected=<E>`. It sets a volume floor
+  Many very-low-volume providers? Add `fdr_min_denominator=<E>`. It sets a volume floor
   for the FDR step only; those providers keep a `p_value` and still flag under
   `"limits"`. Choose the floor from volume alone, never from outcomes.
-- τ (the spread between providers): leave `tau_method="winsorized"` (the default).
+- τ (the spread between providers): leave `tau_method="spiegelhalter"` (the default,
+  as published). It is the screening choice: robust to outliers and errs toward
+  flagging.
+  - Flags acted on one by one, where the 0.1% and 2.5% chance rates must hold (for
+    example credentialing): `tau_method="winsorized"`, the debiased estimator.
+  - Reproducing a CQC or NHS SHMI funnel: `tau_method="cqc"` or `"shmi"`.
   - Fewer than 30 providers, or a validated τ from earlier periods: pass
     `tau=<value>`. If `summary["notes"]` says the current estimate differs more than
     1.5-fold, report that.
-  - `tau_method="spiegelhalter"` only to reproduce a published funnel (FunnelPlotR,
-    CQC) number for number.
   - `tau_method="ml"` only with no gross outliers; it reports `summary["tau_ci"]`.
-- Several measures: one call with `facets="<measure column>"` (each gets its own
-  center line, spread and FDR step), or one call per measure.
+- Two questions, two settings. "Unusual among peers?" is the default. "Different from
+  what the risk model predicts?" is `overdispersion=False, center=1.0`, usually with
+  `signal="fdr"` to control false alarms.
+- **Does a flag depend on the model?** Before reporting a borderline flag, run
+  `funnel_sensitivity(<same arguments>)`. It returns one row per provider with
+  `signal_spiegelhalter`, `signal_winsorized`, `signal_ml`, `signal_unadjusted` and
+  `consistent`. Report a flag that is not consistent as model-dependent.
+- Several measures: one call with `facets="<measure column>"` (or a list of columns);
+  each gets its own centre line, spread and FDR step, and the facet columns lead
+  `r.data`.
 
 ## 4. Read and report
 
@@ -166,6 +177,11 @@ Reporting rules:
 lower_alert, upper_alert, p_value, q_value, signal, direction, min_detectable,
 ci_lower, ci_upper, excluded, raw_excess, reliability, eb_rate, eb_excess, prob_worse,
 p_value_drop1, flag_survives_drop1, fragility` (plus `effective_denominator` under a
-`within_dispersion` column, `facet`, and any `hover=` columns).
+`within_dispersion` column, the `facets=` columns first, and any `hover=` columns).
 
-Full reference: `help(qikit.funnel)`. Methods: `docs/methods.md` in the qikit repository.
+Display options (`title=`, `styles=`, `label_signals=`, `x_log=`, sizes) go to
+`r.plot()`, not to `funnel()`.
+
+Full reference: `help(qikit.funnel)`. Methods: `docs/methods.md`; CQC and SHMI in
+§4.17; choosing τ in §4.16. Writing results back from a stored procedure or UDTF:
+`docs/snowflake.md`.
