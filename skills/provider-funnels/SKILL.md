@@ -145,7 +145,7 @@ before reporting anything.
   - Use it in confidential feedback only, never for credentialing, compensation or
     public report cards.
 - Several measures: one call with `facets="<measure column>"` (or a list of columns);
-  each gets its own centre line, spread and FDR step, and the facet columns lead
+  each gets its own center line, spread and FDR step, and the facet columns lead
   `r.data`.
 
 ## 4. Read and report
@@ -168,7 +168,7 @@ Reporting rules:
   `summary["underpowered"]` is True. Say "not enough data to tell".
 - Do not re-rank providers by `p_value` into a league table; the tiers are the result.
   To order *flagged* providers for action, sort by `eb_excess` (expected excess
-  days/events after shrinkage), not `raw_excess`, which favours high volume.
+  days/events after shrinkage), not `raw_excess`, which favors high volume.
 - `signal` answers "unusual among peers?". `prob_worse` answers "probably worse than
   average?" (the CMS question). Name the question you report, and don't flag on
   `prob_worse` unless the user asked that question.

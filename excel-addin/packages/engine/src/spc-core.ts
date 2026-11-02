@@ -33,7 +33,7 @@ import { detectSignals } from './signals';
 /**
  * Poisson funnel limits at one probability contour, on the rate (or O/E) scale.
  *
- * With nᵢ the denominator and θ₀ the center line, the count of events is modelled
+ * With nᵢ the denominator and θ₀ the center line, the count of events is modeled
  * Poisson(λᵢ = θ₀·nᵢ); the limit is that distribution's quantile divided back through
  * nᵢ [1, A.2.1]. For an O/E chart nᵢ is the expected events; for a u funnel it is the
  * exposure [1, A.2.3]. Dividing by nᵢ is what makes the funnel narrow with volume.
@@ -155,7 +155,7 @@ function oePowerSummary(
 ): Record<string, unknown> {
   const finite = detArr
     // Ghosted (exclude=) points are hidden from signal detection, so they are not
-    // among the points this chart could flag and must not colour its power.
+    // among the points this chart could flag and must not color its power.
     .filter((_, i) => !excludeMask[i])
     .map(d => d / multiply)
     .filter(d => Number.isFinite(d))
@@ -519,9 +519,9 @@ export const CHARTS: Record<string, ChartSpec> = {
     needsN: false, isAttribute: false, floorLcl: true
   },
   g: {
-    // Limits from the baseline mean m, m ± 3√(m(m + 1)) (Montgomery p. 319); the centre
+    // Limits from the baseline mean m, m ± 3√(m(m + 1)) (Montgomery p. 319); the center
     // line drawn is the median, as qicharts2. Returns the limits about m and the median
-    // as the per-point centre line. A clOverride is the mean.
+    // as the per-point center line. A clOverride is the mean.
     center: (yb) => nanmedian(yb),
     limits: (cl, y, _n, mask, _subN, _sBar, _sigmaHat, _lm, _t2, _diag, clOverride) => {
       const m = clOverride !== undefined ? cl : nanmean(y.filter((_v, i) => mask[i]));

@@ -1,7 +1,7 @@
 """
 dispersion.py — how much providers spread beyond chance: φ̂ and τ̂² for funnels.
 
-Over-dispersion is estimated against the centre line the funnel is drawn around [1, §5].
+Over-dispersion is estimated against the center line the funnel is drawn around [1, §5].
 tau_method= chooses the estimator (docs/methods.md §4.3, §4.16, §4.17):
 
 | tau_method     | Residuals                 | Robustness       | τ² on      | Used by                    |
@@ -57,7 +57,7 @@ def overdispersion(
 ) -> Dispersion:
     """
     φ̂ and τ̂² by tau_method (the ML estimate is separate: tau2_ml). center_fixed says the
-    centre line was given rather than pooled from these providers; the "winsorized"
+    center line was given rather than pooled from these providers; the "winsorized"
     estimator then counts K rather than K − 1 degrees of freedom (no mean was estimated),
     while the published methods keep their published form, which is what reproducing a
     published funnel requires.
@@ -117,7 +117,7 @@ def funnel_dispersion(
       τ̂² = (Kφ̂ − (K−1)) / (Σwᵢ − Σwᵢ²/Σwᵢ) with wᵢ = 1/V₀ᵢ, and τ̂² = 0 whenever
       φ̂ < (K−1)/K: no evidence of heterogeneity means none is assumed. It never goes
       negative, so an under-dispersed sample keeps its unadjusted limits.
-    - known_mean: the centre line was given, not estimated, so no degree of freedom was
+    - known_mean: the center line was given, not estimated, so no degree of freedom was
       spent on it: τ̂² = K(φ̂ − 1)/Σwᵢ, 0 when φ̂ ≤ 1.
 
     τ̂ is the standard deviation of providers' true rates (or true O/E) around θ₀ that
@@ -363,7 +363,7 @@ def dispersion_shape(
 
 
 # ---------------------------------------------------------------------------
-# CQC and SHMI: residuals on a variance-stabilising scale (FunnelPlotR)
+# CQC and SHMI: residuals on a variance-stabilizing scale (FunnelPlotR)
 # ---------------------------------------------------------------------------
 
 def transform_scale(method: str, family: str) -> str:

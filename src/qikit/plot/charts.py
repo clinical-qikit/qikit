@@ -6,10 +6,10 @@ the reference lines and the words around them. plot_spc() and plot_funnel() buil
 from their result; everything after that is shared.
 
 Design (Tufte): the series carries the darkest ink and reference lines are light
-hairlines; colour is reserved for meaning (brick for outliers, amber for runs or
+hairlines; color is reserved for meaning (brick for outliers, amber for runs or
 alerts, Making Data Count's blue and orange for improving and concerning special
-causes) and every signal also changes the marker, so it survives colour-vision
-deficiency; lines are labelled at their right-hand end.
+causes) and every signal also changes the marker, so it survives color-vision
+deficiency; lines are labeled at their right-hand end.
 """
 
 from __future__ import annotations
@@ -327,7 +327,7 @@ def _line(style: dict) -> dict:
 
 def _point_roles(frame: pd.DataFrame) -> list[str | None]:
     """
-    The role that colours each point: an outlier first, then a Making Data Count reading
+    The role that colors each point: an outlier first, then a Making Data Count reading
     (improving, concerning, neutral) where there is one, then an alert or a run.
     """
     variation = frame["variation"].to_numpy() if "variation" in frame else None
@@ -640,7 +640,7 @@ def _signal_label_offsets(positions, above, min_gap):
     """
     Arrow offsets (ax, ay) for signal labels: up above the line and down below it, and
     along each side a label close to the previous one steps to the next of three
-    levels, so a cluster of flagged neighbours stays legible.
+    levels, so a cluster of flagged neighbors stays legible.
     """
     out = [(0, 0)] * len(positions)
     for side in (True, False):
@@ -684,7 +684,7 @@ def _within(coords, lo, hi):
 def _fit_ranges(panels, x_range, y_range, x_log, y_neg, y_expand, shared_y, fit_y=False):
     """
     Axis ranges for x_range= / y_range=. The y axis is fitted to the points inside the x
-    range, the centre line there, and each drawn limit's value nearest the centre line,
+    range, the center line there, and each drawn limit's value nearest the center line,
     which keeps a funnel's narrow end in view while its low-volume flare no longer sets
     the scale. An end the caller gave is used as given.
     """
@@ -775,8 +775,8 @@ def _apply_ranges(fig, panels, x_bounds, y_bounds, x_log, flip):
 
 def _add_legend_entries(fig, drawing: Drawing, opts) -> None:
     """
-    Legend-only markers for the series and each signal colour the figure draws (the
-    colours live on one data trace), and on a funnel one entry per contour pair.
+    Legend-only markers for the series and each signal color the figure draws (the
+    colors live on one data trace), and on a funnel one entry per contour pair.
     """
     st = _resolve_styles(opts["styles"], drawing)
     given = validate_styles(opts["styles"])
@@ -843,7 +843,7 @@ _CLUSTERED_CAPTION = (
 
 
 def _signal_caption(drawing: Drawing) -> str | None:
-    """The rule that coloured a funnel's points: the test and its levels, or the FDR rule."""
+    """The rule that colored a funnel's points: the test and its levels, or the FDR rule."""
     if not drawing.funnel:
         return None
     tail = "two-sided" if drawing.side == "both" else f"one-sided, {drawing.side} the center line"

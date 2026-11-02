@@ -118,7 +118,7 @@ describe('multiply', () => {
   });
 
   test('dispersion_phi is multiply-invariant', () => {
-    // Regression: the summary once fed the multiply-scaled centre line into the
+    // Regression: the summary once fed the multiply-scaled center line into the
     // dispersion estimate against raw ratios, silently corrupting φ̂ whenever
     // multiply≠1. The estimate now runs per segment on raw arrays, before multiply.
     const y = [23, 8, 34, 19, 59, 31, 72, 38];

@@ -13,7 +13,7 @@ qic(df, x="MONTH", y="NUM", n="DEN", chart="p", facets=["MEASURE", "SERVICE"]).d
 funnel(df, y="OBS", n="EXP", measure="oe", unit="NPI", facets="MEASURE").data
 ```
 
-`facets=` takes one column or a list. Each combination gets its own centre line,
+`facets=` takes one column or a list. Each combination gets its own center line,
 limits, τ and FDR step, and the facet columns lead the output, so the result joins back
 to the source table on them.
 
@@ -88,7 +88,7 @@ checks that row for row.
 
 ## 3. UDTF: limits inside a SQL pipeline
 
-When the limits belong in a SQL statement rather than a separate table, a vectorised
+When the limits belong in a SQL statement rather than a separate table, a vectorized
 UDTF runs `qic()` once per partition. Each partition is one chart.
 
 ```sql

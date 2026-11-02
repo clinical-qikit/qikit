@@ -1,7 +1,7 @@
 """
 Tests for qikit.plot — the figures qic(...).plot() and funnel(...).plot() draw.
 
-Trace names, colours, labels, captions, axes, styles and legends are a public contract:
+Trace names, colors, labels, captions, axes, styles and legends are a public contract:
 callers restyle figures by trace name and paste screenshots into reports.
 """
 
@@ -106,7 +106,7 @@ class TestSignalColors:
 @pytest.fixture
 def crossings_and_run():
     """
-    24 points in blocks of 9/4/3/4/4 around the centre: only 4 crossings (fewer than 8,
+    24 points in blocks of 9/4/3/4/4 around the center: only 4 crossings (fewer than 8,
     so the crossings rule fires and covers the series), and the leading 9 are a run
     longer than round(log2 24) + 3 = 8. No point is beyond the limits.
     """
@@ -121,10 +121,10 @@ class TestRunsHighlight:
         assert s["crossings_signal"] and s["longest_run_signal"]
         assert (crossings_and_run.data["signal"] == "none").all()
 
-    def test_all_colours_every_point(self, crossings_and_run):
+    def test_all_colors_every_point(self, crossings_and_run):
         assert _colors(crossings_and_run.plot(runs_highlight="all")).count(RUNS_ORANGE) == 24
 
-    def test_localized_colours_only_the_run(self, crossings_and_run):
+    def test_localized_colors_only_the_run(self, crossings_and_run):
         colors = _colors(crossings_and_run.plot(runs_highlight="localized"))
         assert colors[:9] == [RUNS_ORANGE] * 9
         assert all(c == NORMAL_GRAY for c in colors[9:]) and RUNS == RUNS_ORANGE
@@ -135,7 +135,7 @@ class TestRunsHighlight:
             _colors(crossings_and_run.plot(runs_highlight="localized"))
 
     @pytest.mark.parametrize("mode", ["all", "localized", "none"])
-    def test_outliers_stay_brick_and_symbols_track_colour(self, crossings_and_run, mode):
+    def test_outliers_stay_brick_and_symbols_track_color(self, crossings_and_run, mode):
         assert SIGMA_RED in _colors(qic(y=[10.0] * 29 + [40.0], chart="i").plot(runs_highlight=mode))
         fig = crossings_and_run.plot(runs_highlight=mode)
         for c, s in zip(_colors(fig), fig.data[0].marker.symbol):
@@ -181,11 +181,11 @@ class TestLabelsAndOptions:
     def test_explicit_decimals(self, i_result):
         assert all(len(t.split(".")[1]) == 3 for t in _end_labels(i_result.plot(decimals=3)))
 
-    def test_flat_series_labels_only_the_centre(self):
+    def test_flat_series_labels_only_the_center(self):
         labels = _end_labels(qic(y=[10.0] * 20, chart="i").plot())
         assert len(labels) == 1 and labels[0].startswith("CL=")
 
-    def test_run_chart_draws_data_and_centre_only(self):
+    def test_run_chart_draws_data_and_center_only(self):
         assert len(qic(y=list(range(1, 21)), chart="run").plot().data) == 2
 
     def test_display_options(self, i_result):
@@ -246,11 +246,11 @@ class TestLabelsAndOptions:
 
 
 class TestMakingDataCount:
-    """method="nhs" colours each special cause by direction, as NHS boards read them."""
+    """method="nhs" colors each special cause by direction, as NHS boards read them."""
 
     Y = [50.0] * 3 + [52, 49, 51, 50, 48, 51, 49, 50, 52] + [30, 29, 31, 30, 29, 31, 30]
 
-    def test_improving_and_concerning_take_mdc_colours(self):
+    def test_improving_and_concerning_take_mdc_colors(self):
         down_is_good = qic(y=self.Y, chart="i", method="nhs", worse="higher")
         up_is_good = qic(y=self.Y, chart="i", method="nhs", worse="lower")
         assert IMPROVING in _colors(down_is_good.plot())
@@ -293,7 +293,7 @@ class TestFunnelBasics:
         labels = _end_labels(_oe().plot(show_labels=True))
         assert any(t.startswith("99.8%+=") for t in labels)
 
-    def test_tiers_take_their_colours(self):
+    def test_tiers_take_their_colors(self):
         r = _oe()
         colors = _colors(r.plot())
         assert [c for c, s in zip(colors, r.data["signal"]) if s == "alert"] == [RUNS] * 3
@@ -312,13 +312,13 @@ class TestFunnelBasics:
     def test_label_signals(self, mode, count):
         assert len(_signal_annotations(_oe().plot(label_signals=mode))) == count
 
-    def test_labels_use_names_and_tier_colour(self):
+    def test_labels_use_names_and_tier_color(self):
         anns = {a.text: a for a in _signal_annotations(_oe(label=NAMES).plot(label_signals="both"))}
         assert set(anns) == {"Dr A", "Dr G", "Dr I", "Dr J"}
         assert anns["Dr I"].font.color == SIGMA and anns["Dr A"].font.color == RUNS
         assert anns["Dr A"].ay < 0 and anns["Dr J"].ay > 0
 
-    def test_offsets_stagger_neighbours_and_reset_after_a_gap(self):
+    def test_offsets_stagger_neighbors_and_reset_after_a_gap(self):
         offs = _signal_label_offsets([0, 1, 2, 3, 10], [True] * 5, min_gap=1)
         assert [ay for _, ay in offs] == [-22, -38, -54, -22, -22]
         assert offs[1][0] != offs[2][0]
@@ -470,7 +470,7 @@ class TestStyles:
     @pytest.mark.parametrize("styles,match", [
         ({"limit": {"color": "red"}}, "unknown role"),
         ({"sigma": {"color": "red"}}, "it is 'outlier' now"),
-        ({"cl": {"colour": "red"}}, "unknown attribute"),
+        ({"cl": {"shade": "red"}}, "unknown attribute"),
         ({"outlier": {"width": 2}}, "unknown attribute"),
         ({"ucl_95": {"dash": "dotted"}}, "dash"),
         ({"cl": {"width": 0}}, "positive number"),
@@ -507,7 +507,7 @@ class TestStyles:
         assert _trace(fig, "Upper 99.8%") is not None and _trace(fig, "99.8%+") is None
         assert any(t.startswith("Upper 99.8%=") for t in _end_labels(fig))
 
-    def test_point_label_and_line_colours(self):
+    def test_point_label_and_line_colors(self):
         fig = _oe().plot(label_signals="outlier", styles={
             "outlier": {"color": "#c00000"}, "alert": {"color": "#ff8800"},
             "data": {"color": "#111111", "width": 2},

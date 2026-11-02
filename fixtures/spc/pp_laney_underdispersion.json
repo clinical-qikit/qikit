@@ -1,6 +1,6 @@
 {
   "id": "pp_laney_underdispersion",
-  "reference": "Laney 2002 as qicharts2 implements it: sigma_z is the screened mean moving range of the standardised residuals over 1.128, with no floor. This series is underdispersed (sigma_z ~ 0.544), so the p' limits are narrower than the p limits and the last point signals.",
+  "reference": "Laney 2002 as qicharts2 implements it: sigma_z is the screened mean moving range of the standardized residuals over 1.128, with no floor. This series is underdispersed (sigma_z ~ 0.544), so the p' limits are narrower than the p limits and the last point signals.",
   "function": "qic",
   "input": {
     "y": [

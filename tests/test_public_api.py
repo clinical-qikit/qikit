@@ -363,7 +363,7 @@ class TestFunnelCorrections:
         assert s["within_dispersion"] < 1
         assert any("below 1" in note for note in s["notes"])
 
-    def test_byar_above_the_exact_range_is_labelled_and_tested_alike(self):
+    def test_byar_above_the_exact_range_is_labeled_and_tested_alike(self):
         r = funnel(y=[200_100, 199_000, 201_500], n=[200_000.0, 200_000.0, 200_000.0],
                    measure="oe", overdispersion=False)
         assert r.summary["limit_method"] == "byar" and r.summary["p_value_method"] == "byar"
@@ -404,7 +404,7 @@ class TestSensitivity:
 # ---------------------------------------------------------------------------
 
 def test_snowpark_style_partitions_match_one_faceted_call():
-    """A vectorised UDTF hands each partition to end_partition(); the rows it returns
+    """A vectorized UDTF hands each partition to end_partition(); the rows it returns
     must equal the faceted call's, so either way of running gives one answer."""
     df = pd.concat([_monthly(seed=s).assign(unit=f"U{s}") for s in range(4)])
     whole = qic(df, x="month", y="events", n="cases", chart="p", facets="unit").data

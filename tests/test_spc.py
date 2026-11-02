@@ -1011,7 +1011,7 @@ class TestFunnelAlignment:
         assert r.data["cl"].iloc[0] == pytest.approx((4 + 45 + 4700) / (5 + 50 + 5000))
 
     def test_bare_exclude_index_follows_the_sort(self):
-        """The scalar form is normalised before the remap, so it permutes too."""
+        """The scalar form is normalized before the remap, so it permutes too."""
         assert self._funnel(exclude=2).data["cl"].iloc[0] == pytest.approx(
             self._funnel(exclude=[2]).data["cl"].iloc[0]
         )
@@ -1530,7 +1530,7 @@ class TestBChart:
 
 class TestLaneySigmaZ:
     """σ_z as qicharts2 computes Laney's: the screened mean moving range of the
-    standardised residuals over 1.128, with no floor."""
+    standardized residuals over 1.128, with no floor."""
 
     UNDER_PP = ([50, 53, 50, 53, 50, 53, 50, 53, 50, 65], 1000)
 
@@ -2108,7 +2108,7 @@ class TestOEOverdispersion:
 
     def test_clears_points_the_unadjusted_chart_flags(self):
         """The point of the adjustment: 2 of 12 flagged at 99.8% is not a credible
-        rate of genuine outliers, it is unmodelled between-provider variation."""
+        rate of genuine outliers, it is unmodeled between-provider variation."""
         plain = qic(y=self.Y, n=self.N, chart="oe", funnel=True)
         assert plain.data["sigma_signal"].sum() == 2
         assert self._oep().data["sigma_signal"].sum() == 0
@@ -2352,7 +2352,7 @@ class TestExactFunnelLimits:
 
     def test_non_integer_denominator_is_reported(self):
         """A fractional denominator (n/φ under within_dispersion) is interpolated
-        between its whole neighbours, not handed to the normal approximation."""
+        between its whole neighbors, not handed to the normal approximation."""
         r = qic(y=self.Y, n=[v + 0.5 for v in self.N], chart="p", funnel=True)
         assert r.summary["limit_method"] == "interpolated"
 
@@ -3292,7 +3292,7 @@ class TestBinomialInversion:
         assert _dist.binomial_cdf(k, m, t) == pytest.approx(self._cdf(k, m, t), rel=1e-12)
 
     def test_cdf_survives_hospital_volumes(self):
-        """(1 − θ)^m underflows here; the normalised walk never forms it."""
+        """(1 − θ)^m underflows here; the normalized walk never forms it."""
         assert _dist.binomial_cdf(5000, 10_000, 0.5) == pytest.approx(0.5040, abs=1e-4)
 
     def test_cdf_edges(self):
@@ -3496,7 +3496,7 @@ class TestFunnelPowerReporting:
             assert (b.data[c] / 100).tolist() == pytest.approx(a.data[c].tolist())
         assert b.summary["min_detectable_ratio_median"] == a.summary["min_detectable_ratio_median"]
 
-    def test_excluded_points_do_not_colour_the_verdict(self):
+    def test_excluded_points_do_not_color_the_verdict(self):
         assert self._r(exclude=[1]).summary["n_underpowered"] == 11
 
     def test_well_powered_funnel_stays_quiet(self):

@@ -46,7 +46,7 @@ idea has one name.
 | Idea | Argument or column | In `qic()` | In `funnel()` |
 |---|---|---|---|
 | Data | `data=`, then column names | `x=`, `y=`, `n=` | `y=`, `n=`, `unit=` |
-| A fixed centre line | `center=` | yes | yes (`1.0` on O/E) |
+| A fixed center line | `center=` | yes | yes (`1.0` on O/E) |
 | Which direction is bad | `worse="higher"`/`"lower"` | NHS improving/concerning | one-sided flags |
 | Points left out of the model | `exclude=` | yes | yes |
 | One chart per group | `facets=` (a column or list) | yes | yes |
@@ -81,7 +81,7 @@ Rows that share an `x` are aggregated into one subgroup. Numeric and date x are 
 
 **Rules (`method=`):**
 
-- **`"anhoej"`** (default): qicharts2's run rules. A run on one side of the centre line
+- **`"anhoej"`** (default): qicharts2's run rules. A run on one side of the center line
   longer than round(log₂ n) + 3, or fewer crossings than the 5th percentile of
   Binomial(n − 1, ½).
 - **`"nhs"`**: NHS England's Making Data Count, for XmR boards. A point beyond the
@@ -91,7 +91,7 @@ Rows that share an `x` are aggregated into one subgroup. Numeric and date x are 
 - **`"ihi"`**: Provost and Murray. **`"weco"`**, **`"nelson"`**: the classic zone rules.
 
 **Baseline and phases.** `freeze=k` sets the limits from points 1..k and judges later
-points against them. `part=` splits the chart into phases, each with its own centre
+points against them. `part=` splits the chart into phases, each with its own center
 line, limits and rules. `exclude=` drops points from the limits and the rules.
 
 `qic()` reproduces qicharts2 to 1e-6 on its own data. Where it departs, and why, is in
@@ -140,20 +140,20 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 | `unit`, `label` | The provider and its display name |
 | `y` | The plotted value: O/E, proportion or rate |
 | `numerator`, `denominator` | The summed `y=` and `n=` (observed and expected, events and cases) |
-| `cl` | The centre line: pooled ΣO/ΣE (or Σevents/Σn) unless `center=` is given |
+| `cl` | The center line: pooled ΣO/ΣE (or Σevents/Σn) unless `center=` is given |
 | `lower_outlier`, `upper_outlier` | The 99.8% contour at this provider's volume |
 | `lower_alert`, `upper_alert` | The 95% contour |
 | `p_value` | Exact p-value against the model the contours are drawn from; one-sided toward `worse=`, doubled when two-sided |
 | `q_value` | Its Benjamini–Hochberg adjustment across the chart's providers |
 | `signal` | `"outlier"`, `"alert"` or `"none"`. The tiers never overlap |
-| `direction` | `"higher"` or `"lower"` than the centre line |
+| `direction` | `"higher"` or `"lower"` than the center line |
 | `min_detectable` | The smallest true value this provider could have flagged with 80% power |
 | `ci_lower`, `ci_upper` | Exact 95% interval for the provider's own value |
 | `excluded` | Left out with `exclude=` (drawn faded, not tested) |
 | `raw_excess` | (observed − cl × denominator), signed so positive is worse: excess days or events |
 | `reliability` | How much of the provider's difference is signal, 0–1. 0 everywhere when τ̂ = 0 |
 | `eb_rate`, `eb_excess` | The shrunk (empirical Bayes) value and its excess: the exact posterior mean of the chart's own model. Rank flagged providers on `eb_excess` |
-| `prob_worse` | Posterior probability that the true value is worse than the centre line (CMS-style "worse than average"); NaN when τ̂ = 0 |
+| `prob_worse` | Posterior probability that the true value is worse than the center line (CMS-style "worse than average"); NaN when τ̂ = 0 |
 | `p_value_drop1` | The p-value with the provider's single most extreme case removed (needs case rows or `max_case_y=`/`max_case_n=`); descriptive, no q-value |
 | `flag_survives_drop1` | For flagged providers: still flagged without that case? |
 | `fragility` | Case rows: the fewest worst cases whose removal clears the flag (1 = one case carries it) |
@@ -185,7 +185,7 @@ On a faceted funnel the same keys are under `by_facet`.
 Each contour is the boundary of an **exact test**. A provider is beyond the 99.8% line
 exactly when its one-sided p-value is below 0.001, and beyond the 95% line exactly when
 it is below 0.025. For the unadjusted O/E chart that is the same as "the provider's own
-exact 95% interval excludes the center line". The line, the p-value, the colour and the
+exact 95% interval excludes the center line". The line, the p-value, the color and the
 interval always agree.
 
 `signal=` picks one test for both tiers:
@@ -211,7 +211,7 @@ the combined tier ([methods §4.11](docs/methods.md)).
 No risk model captures everything, so providers differ by more than chance allows. With
 `overdispersion=True` (the default) each provider is judged against that spread as
 well as chance, using Spiegelhalter's additive random-effects model. The smallest
-providers' limits barely move. The busiest level off at about the centre ± z·τ instead
+providers' limits barely move. The busiest level off at about the center ± z·τ instead
 of closing onto the line. When τ̂ is 0, which is common at physician scale, the chart is
 identical to `overdispersion=False`.
 
@@ -234,7 +234,7 @@ whose tier depends on the choice:
 from qikit import funnel_sensitivity
 
 s = funnel_sensitivity(df, y="deaths", n="expected", measure="oe", unit="surgeon")
-s[~s.consistent]      # flagged under one model and not another: a judgement call
+s[~s.consistent]      # flagged under one model and not another: a judgment call
 ```
 
 Treat a non-zero τ̂ as a finding about the system: unmeasured case mix, data
@@ -321,7 +321,7 @@ r.data[r.data.signal != "none"]
 
 ### An achievable goal: `benchmark=`
 
-The centre line is the average, and the average is not a goal. `benchmark=` adds one
+The center line is the average, and the average is not a goal. `benchmark=` adds one
 the best providers in the same data already reach:
 
 - `"abc"`, the achievable benchmark of care (Kiefe et al. 1998), for process measures.
@@ -363,7 +363,7 @@ r.plot(
 
 - **Defaults for a projector:** contours at 3.5:1 contrast, the 95% line dashed, points
   at 0.85 opacity, and the legend on. Outliers are red circles and alerts amber
-  diamonds, so the tier never depends on colour alone.
+  diamonds, so the tier never depends on color alone.
 - **Axes and caption:** the y axis is fitted to the providers and the narrow end of the
   funnel, not its low-volume flare. An unset caption states the flag rule.
 - **`styles=`** restyles by role: `data`, `outlier`, `alert`, `runs`, `improving`,
@@ -380,9 +380,9 @@ r.plot(
 |---|---|---|
 | `measure` | required | `"oe"`, `"proportion"` or `"rate"` |
 | `unit`, `label`, `hover` | `None` | Provider id, display name, extra tooltip columns |
-| `facets` | `None` | One funnel per value (a column or list): own centre line, τ, FDR step |
+| `facets` | `None` | One funnel per value (a column or list): own center line, τ, FDR step |
 | `exclude` | `None` | A boolean column, or a list of unit ids, left out of the model |
-| `center` | pooled | A fixed centre line, e.g. `1.0` on O/E |
+| `center` | pooled | A fixed center line, e.g. `1.0` on O/E |
 | `overdispersion` | `True` | Judge against the spread between providers (τ) |
 | `within_dispersion` | `1.0` | Clustered counts or survey items: a number, `"estimate"`, or a column of per-provider φᵢ |
 | `tau_method` | `"spiegelhalter"` | `"spiegelhalter"`, `"winsorized"`, `"ml"`, `"cqc"`, `"shmi"` |

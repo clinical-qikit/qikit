@@ -42,10 +42,10 @@ STYLE_GROUPS: dict[str, tuple[str, ...]] = {
 }
 DASHES = ("solid", "dot", "dash", "longdash", "dashdot", "longdashdot")
 
-# Which points on a time-ordered chart carry the runs colour.
+# Which points on a time-ordered chart carry the runs color.
 #   localized — the points forming a run or trend (default)
-#   all       — every point, when the series as a whole crosses its centre too rarely
-#   none      — no runs colour
+#   all       — every point, when the series as a whole crosses its center too rarely
+#   none      — no runs color
 RUNS_HIGHLIGHT = ("localized", "all", "none")
 # Which flagged points get a text label: qic has outliers only; a funnel also alerts.
 LABEL_SIGNALS = (None, "outlier", "alert", "both")

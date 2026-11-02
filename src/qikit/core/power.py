@@ -153,7 +153,7 @@ def binomial_detectable_rate(t_count: float, n: float) -> float:
     Returns inf when no count can flag at all — the upper limit sits at or above n,
     which happens at a handful of cases against a high center line — and NaN when the
     point has no usable denominator. A non-integer n (ν = n/φ under within_dispersion)
-    interpolates the chance of flagging in ν between its whole neighbours, as the
+    interpolates the chance of flagging in ν between its whole neighbors, as the
     limits do (§4.13).
     """
     if not (n > 0) or math.isnan(t_count) or math.isinf(t_count):

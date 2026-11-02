@@ -2,7 +2,7 @@
 pvalues.py — exact per-point p-values and Benjamini–Hochberg q-values for funnels.
 
 Each p-value tests one point against the same null model its funnel contours are drawn
-from: the count is Poisson or binomial at the centre line, the Poisson–gamma or
+from: the count is Poisson or binomial at the center line, the Poisson–gamma or
 beta-binomial mixture with the τ² the adjusted contours use, Byar's approximation where
 the contour uses it, or the normal model of a transformed scale under tau_method="cqc" or
 "shmi". They are conventional tail probabilities, P(X ≥ O) above and P(X ≤ O) below, and
@@ -113,7 +113,7 @@ def _point_tails(
 
     method is "exact" for a whole-number count. A count between whole numbers (an
     averaged aggregate, or an effective count O/φ under within_dispersion) takes each
-    tail linearly interpolated between its two integer neighbours: "interpolated".
+    tail linearly interpolated between its two integer neighbors: "interpolated".
     That is the inverse of Spiegelhalter's interpolated quantile, so the point is
     beyond a contour exactly when this p-value is below its tail probability, as for
     a whole count. A non-integer binomial denominator (ν = n/φ under within_dispersion)

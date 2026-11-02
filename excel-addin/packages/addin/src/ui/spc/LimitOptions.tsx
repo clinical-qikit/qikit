@@ -23,7 +23,7 @@ export const LimitOptions: React.FC<LimitOptionsProps> = ({ options, needsSubgro
     <>
       <div className={styles.settingRow}>
         <label className={styles.settingLabel} htmlFor="spc-opt-freeze"
-          title="Compute the centre line and limits from only the first N points, then extend them — useful for before/after comparisons.">
+          title="Compute the center line and limits from only the first N points, then extend them — useful for before/after comparisons.">
           Freeze at
         </label>
         <NumericField id="spc-opt-freeze" placeholder="e.g. 20" integer min={1}
@@ -86,7 +86,7 @@ export const LimitOptions: React.FC<LimitOptionsProps> = ({ options, needsSubgro
           </div>
           <div className={styles.settingRow}>
             <label className={styles.settingLabel} htmlFor="spc-opt-cl"
-              title="Use this value as the centre line instead of computing it from the data (e.g. a historical baseline).">
+              title="Use this value as the center line instead of computing it from the data (e.g. a historical baseline).">
               CL override
             </label>
             <NumericField id="spc-opt-cl" placeholder="value"

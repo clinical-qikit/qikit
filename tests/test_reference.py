@@ -48,7 +48,7 @@ DEPARTURES = {
                   "qicharts2 draws 2/3 of the UCL (2.178·MR̄)",
     },
     "qicharts2_s_cabg": {
-        col: "unequal subgroups: CLᵢ = c4(nᵢ)·σ̂ with σ̂ = Sp/c4(d + 1), so the centre "
+        col: "unequal subgroups: CLᵢ = c4(nᵢ)·σ̂ with σ̂ = Sp/c4(d + 1), so the center "
              "follows E[sᵢ]; qicharts2 keeps a flat CL = Sp with B3/B4(nᵢ)"
         for col in ("cl", "ucl", "lcl", "ucl_95", "lcl_95", "signal", "runs")
     },
@@ -116,7 +116,7 @@ def test_funnelplotr(path):
     r = funnel(
         frame, y="y", n="n", unit="unit", measure=_MEASURE[inp["data_type"]],
         tau_method=_METHOD[(inp["data_type"], inp["sr_method"])],
-        # FunnelPlotR benchmarks a standardised ratio against 1, a proportion against
+        # FunnelPlotR benchmarks a standardized ratio against 1, a proportion against
         # the pooled rate.
         center=1.0 if inp["data_type"] == "SR" else None,
     )

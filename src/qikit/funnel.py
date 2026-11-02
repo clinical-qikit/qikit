@@ -7,7 +7,7 @@ funnel.py — funnel(): compare providers on one measure, and flag the unusual o
     r.summary                            # model, expected chance flags, notes
     r.plot()
 
-The pipeline, per facet, top to bottom: sum each provider's rows; set the centre line
+The pipeline, per facet, top to bottom: sum each provider's rows; set the center line
 θ₀; estimate the spread between providers τ² (core/dispersion.py); draw the contours at
 every provider's denominator (core/contours.py); test each provider against them
 (core/pvalues.py); add what each provider could have shown (core/power.py), shrunk
@@ -163,12 +163,12 @@ def funnel(
 
     - signal: "outlier", "alert" or "none". The tiers never overlap; an outlier is
       not also an alert. Under worse= only the worse side is flagged.
-    - direction: "higher" or "lower", which side of the centre line the point is on.
+    - direction: "higher" or "lower", which side of the center line the point is on.
     - y: the plotted value (O/E ratio, proportion or rate, after multiply=);
       numerator and denominator: the summed y= and n= inputs, in the caller's units.
     - effective_denominator: only with a per-provider within_dispersion column: the
       denominator ÷ φᵢ the model sees, which is the x axis of the plot.
-    - cl: the centre line. lower_outlier / upper_outlier: the outer contour (99.8% by
+    - cl: the center line. lower_outlier / upper_outlier: the outer contour (99.8% by
       default); lower_alert / upper_alert: the inner one (95%). Each contour is the
       boundary of the test, so a point is beyond the upper_outlier line exactly when
       its one-sided p-value is below 0.001.
@@ -180,7 +180,7 @@ def funnel(
       80% power. A provider inside the funnel at physician volumes is often "not
       enough data", not "fine". ci_lower / ci_upper: an exact 95% interval for the
       provider's own value.
-    - excluded: dropped from the centre line, the dispersion estimates and testing.
+    - excluded: dropped from the center line, the dispersion estimates and testing.
     - raw_excess: (numerator − cl·denominator), signed so positive is worse: the
       excess days or events.
     - reliability: the shrinkage weight, 0 to 1: how much of the provider's difference
@@ -189,7 +189,7 @@ def funnel(
       for high-stakes use of a single score.
     - eb_rate, eb_excess: the shrunk (empirical Bayes) value and its excess, the exact
       posterior mean of the chart's own Poisson–gamma or beta-binomial model. Sort on
-      eb_excess to prioritise.
+      eb_excess to prioritize.
     - prob_worse: the posterior probability that the provider's true value is worse
       than cl ("is this provider truly worse than average?", the CMS question), where
       signal answers "is it unusual among peers?" (methods §4.16). NaN when τ = 0.
@@ -224,10 +224,10 @@ def funnel(
     unit : provider identifier column; rows are providers when omitted.
     label : display name column (the first value per unit); hover : extra tooltip columns.
     facets : a column, or list of columns: one funnel per value, each with its own
-        centre line, dispersion and Benjamini–Hochberg step.
-    exclude : a boolean column, or a list of unit ids, left out of the centre line,
+        center line, dispersion and Benjamini–Hochberg step.
+    exclude : a boolean column, or a list of unit ids, left out of the center line,
         dispersion and testing (still drawn, faded).
-    center : a fixed centre line. On measure="oe", center=1.0 benchmarks against the
+    center : a fixed center line. On measure="oe", center=1.0 benchmarks against the
         risk model itself; the default pooled ΣO/ΣE benchmarks against peers.
     overdispersion : judge each provider against the estimated spread between providers
         (Spiegelhalter's additive τ²) as well as chance. Default True.
@@ -267,10 +267,10 @@ def funnel(
         first by (x + 1)/(n + 2), taken until they hold benchmark_share of the
         denominator (ties at that point included), and their raw counts pooled. Designed
         for process proportions; on "oe" and "rate" the ranking adds one event at the
-        centre line instead, an extension its authors would caution against.
+        center line instead, an extension its authors would caution against.
         "eb": the (1 − benchmark_share) quantile of the shrunk eb_rate across providers,
         toward the better side (O'Brien et al. 2008): the 90th percentile by default.
-        Suits outcomes; equals the centre line when the funnel finds no spread.
+        Suits outcomes; equals the center line when the funnel finds no spread.
     benchmark_share : the share defining "best", 0.10 by default. Choose it before
         looking at who the best providers are.
     multiply : scale the plotted y, e.g. 1000 for a rate per 1,000.
@@ -496,7 +496,7 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     mask = ~excluded
     tested = np.where(excluded, np.nan, ratio)
 
-    # The centre line and the spread between providers.
+    # The center line and the spread between providers.
     cl = st.center if st.center is not None else _pooled(ratio, n_model, mask)
     estimator = "winsorized" if st.tau_method == "ml" else st.tau_method
     disp = overdispersion(estimator, family, cl, ratio, n_model, mask, st.center is not None)
@@ -605,7 +605,7 @@ def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, rati
         bench = {"method": "eb", "share": share, "value": value * m}
         if summary["tau"] == 0 or not st.overdispersion:
             notes.append("The funnel finds no spread between providers, so every shrunk "
-                         "estimate equals the centre line and so does the benchmark.")
+                         "estimate equals the center line and so does the benchmark.")
     else:
         value, group = _abc(st, share, num, den, n_model, cl, eligible)
         msd = _msd(st, cl)
@@ -667,7 +667,7 @@ def _abc(st: _Settings, share: float, num, den, n_model, cl, eligible) -> tuple[
     if st.measure == "proportion":
         adjusted = (y_eff + 1.0) / (n_model + 2.0)          # Kiefe's APF, Beta(1, 1) prior
     else:
-        prior_n = 1.0 / cl if cl > 0 else math.inf          # one event at the centre line
+        prior_n = 1.0 / cl if cl > 0 else math.inf          # one event at the center line
         adjusted = (y_eff + 1.0) / (n_model + prior_n)
     rank = -adjusted if st.worse == "lower" else adjusted   # ascending: best first
     idx = np.flatnonzero(eligible)
@@ -684,7 +684,7 @@ def _msd(st: _Settings, cl: float) -> float:
     """
     The minimum sufficient denominator (methods §4.18): the fewest cases at which perfect
     performance would be a one-sided 2.5% event if the provider's true rate were the
-    centre line. On a proportion, the smallest N with p̄ᴺ < 0.025, p̄ the rate in the good
+    center line. On a proportion, the smallest N with p̄ᴺ < 0.025, p̄ the rate in the good
     direction; it reproduces every row of Kiefe et al.'s Table 3. On a count with
     worse="higher", the exposure at which zero events has probability e^(−θ₀n) < 0.025.
     """
@@ -1022,13 +1022,13 @@ def funnel_sensitivity(
     **kwargs: Any,
 ) -> pd.DataFrame:
     """
-    Does a provider's flag depend on how the spread between providers was modelled?
+    Does a provider's flag depend on how the spread between providers was modeled?
 
     Runs funnel(data, **kwargs) once per tau_method (and once with overdispersion=False
     when unadjusted=True) and returns one row per provider: unit, label (if given), y,
     denominator, the facet columns, one signal_<method> column per run, and consistent,
     True when every run gives the same tier. A provider flagged under one model and not
-    another is a judgement call to make explicitly, not a finding (methods §4.16).
+    another is a judgment call to make explicitly, not a finding (methods §4.16).
     """
     if "tau_method" in kwargs or "overdispersion" in kwargs:
         raise ValueError("funnel_sensitivity() sets tau_method= and overdispersion= itself; "
