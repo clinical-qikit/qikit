@@ -34,12 +34,12 @@ CREATE OR REPLACE PROCEDURE ...
 **From a stage.** Build or download the wheel and upload it once:
 
 ```bash
-uv build --wheel                      # dist/clinical_qikit-1.0.0-py3-none-any.whl
+uv build --wheel                      # dist/clinical_qikit-1.1.0-py3-none-any.whl
 ```
 
 ```sql
 CREATE STAGE IF NOT EXISTS QI.PUBLIC.PY_LIBS;
-PUT file://dist/clinical_qikit-1.0.0-py3-none-any.whl @QI.PUBLIC.PY_LIBS
+PUT file://dist/clinical_qikit-1.1.0-py3-none-any.whl @QI.PUBLIC.PY_LIBS
   AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
 ```
 
@@ -57,7 +57,7 @@ CREATE OR REPLACE PROCEDURE QI.PUBLIC.ADD_SPC_LIMITS(SOURCE STRING, TARGET STRIN
   LANGUAGE PYTHON
   RUNTIME_VERSION = '3.11'
   PACKAGES = ('snowflake-snowpark-python', 'numpy', 'pandas')
-  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.0.0-py3-none-any.whl')
+  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.1.0-py3-none-any.whl')
   HANDLER = 'run'
 AS
 $$
@@ -98,7 +98,7 @@ CREATE OR REPLACE FUNCTION QI.PUBLIC.QIC_P(MONTH DATE, NUM FLOAT, DEN FLOAT)
   LANGUAGE PYTHON
   RUNTIME_VERSION = '3.11'
   PACKAGES = ('numpy', 'pandas')
-  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.0.0-py3-none-any.whl')
+  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.1.0-py3-none-any.whl')
   HANDLER = 'QicP'
 AS
 $$
