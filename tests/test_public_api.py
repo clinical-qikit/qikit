@@ -24,7 +24,8 @@ FUNNEL_COLUMNS = [
     "unit", "y", "numerator", "denominator", "cl", "lower_outlier", "upper_outlier",
     "lower_alert", "upper_alert", "p_value", "q_value", "signal", "direction",
     "min_detectable", "ci_lower", "ci_upper", "excluded", "raw_excess", "reliability",
-    "eb_rate", "eb_excess", "prob_worse", "p_value_drop1", "flag_survives_drop1", "fragility",
+    "eb_rate", "eb_excess", "prob_worse", "eb_low", "eb_high", "estimate_flag",
+    "p_value_drop1", "flag_survives_drop1", "fragility",
 ]
 
 
@@ -43,7 +44,7 @@ def test_import_does_not_load_plotly():
 
 
 def test_version_and_exports():
-    assert qikit.__version__ == "1.1.0"
+    assert qikit.__version__ == "1.2.0"
     for name in ("qic", "funnel", "funnel_sensitivity", "SPCResult", "FunnelResult"):
         assert name in qikit.__all__
 

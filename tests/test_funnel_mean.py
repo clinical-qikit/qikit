@@ -12,7 +12,10 @@ KW = {"unit": "p", "worse": "higher", "signal": "fdr"}
 # Same model, same units: everything but the echoed numerator and its excesses.
 _SCALE_FREE = ["y", "cl", "lower_outlier", "upper_outlier", "lower_alert", "upper_alert",
                "p_value", "q_value", "min_detectable", "ci_lower", "ci_upper",
-               "reliability", "eb_rate", "prob_worse", "p_value_drop1"]
+               "p_value_drop1"]
+# The estimate columns rest on the ML τ̂, found by a numerical search whose optimum is
+# flat to about 1e-6 relative: equivalent inputs agree to that, not to rounding.
+_ESTIMATES = ["reliability", "eb_rate", "eb_low", "eb_high", "prob_worse"]
 
 
 @pytest.fixture(scope="module")
@@ -49,6 +52,7 @@ def test_equals_oe_ratio_workaround(cases):
     b = funnel(ratio, y="r", n="one", measure="oe", within_dispersion="estimate",
                multiply=mu, **KW)
     _close(a.data, b.data, _SCALE_FREE)
+    _close(a.data, b.data, _ESTIMATES, rtol=1e-5)
 
 
 def test_equals_rate_with_estimated_phi(cases):
@@ -72,7 +76,8 @@ def test_scale_equivariant(cases):
     """Minutes or hours: the same flags and p-values, limits in each unit."""
     a = funnel(cases, y="minutes", measure="mean", **KW)
     b = funnel(cases.assign(hours=cases["minutes"] / 60), y="hours", measure="mean", **KW)
-    _close(a.data, b.data, ["p_value", "q_value", "reliability", "prob_worse"], rtol=1e-9)
+    _close(a.data, b.data, ["p_value", "q_value"], rtol=1e-9)
+    _close(a.data, b.data, ["reliability", "prob_worse"], rtol=1e-5)
     np.testing.assert_allclose(a.data["upper_outlier"], 60 * b.data["upper_outlier"], rtol=1e-9)
     assert a.summary["case_sd"] == pytest.approx(60 * b.summary["case_sd"])
 

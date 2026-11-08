@@ -148,7 +148,7 @@ class FunnelResult(_Serializable):
     # The default contour grid, drawn once: plotting twice reuses it.
     _grid: dict[str, pd.DataFrame] = field(default_factory=dict, repr=False, compare=False)
 
-    def plot(self, **options: Any) -> "go.Figure":
+    def plot(self, kind: str = "funnel", **options: Any) -> "go.Figure":
         """
         A Plotly figure against each provider's volume. Options: title, subtitle,
         caption, xlab, ylab, label_signals ("outlier", "alert", "both"), styles (restyle
@@ -158,10 +158,23 @@ class FunnelResult(_Serializable):
         color_by="fdr" colors the points by their q-value tiers (fdr_levels) on a
         signal="limits" result, leaving its signal column and the drawn limits as they
         are; fdr_watch=0.20 adds a pale watch tier for q below it.
+
+        kind="caterpillar" draws the shrunk estimates instead: one row per provider
+        sorted by eb_rate, the eb_low–eb_high interval as a bar colored by
+        estimate_flag, the raw value as a faint open circle, and the reference as a
+        dotted line. Its options: title, subtitle, caption, xlab, ylab, top= and
+        bottom= (keep the N highest and lowest per panel), label_flagged (None names
+        every row up to 60 per panel and only flagged ones beyond; False names all),
+        show_legend, width, height, styles (roles worse, better, higher, lower,
+        no_different, raw, reference).
         """
         _require_plotly()
-        from .plot.charts import plot_funnel
+        from .plot.charts import plot_caterpillar, plot_funnel
 
+        if kind == "caterpillar":
+            return plot_caterpillar(self, **options)
+        if kind != "funnel":
+            raise ValueError(f"kind must be 'funnel' or 'caterpillar', got {kind!r}.")
         return plot_funnel(self, **options)
 
     def limits(self, n: Any = None) -> pd.DataFrame:
@@ -237,7 +250,9 @@ def _describe(summary: dict) -> str:
              f"alert q < {summary['fdr_levels'][1]:g}"
     )
     side = f"worse = {summary['worse']}" if summary["worse"] else "both sides flagged"
-    lines = [f"Funnel ({summary['measure']}; {rule}; {side})"]
+    asks = {"peers": "; compared with peers", "model": "; compared with the risk model"}
+    lines = [f"Funnel ({summary['measure']}; {rule}; {side}"
+             f"{asks.get(summary.get('compare_to') or '', '')})"]
 
     def counts(s: dict, prefix: str = "") -> str:
         text = (

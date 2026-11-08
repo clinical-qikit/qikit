@@ -25,7 +25,7 @@ from qikit.core.dispersion import TAU_METHODS
 from qikit.core.rules import METHODS
 from qikit.core.shewhart import CHARTS
 from qikit.funnel import MEASURES, SIGNALS
-from qikit.plot.charts import _FUNNEL_OPTIONS, _SPC_OPTIONS
+from qikit.plot.charts import _CATERPILLAR_OPTIONS, _FUNNEL_OPTIONS, _SPC_OPTIONS
 from qikit.plot.options import LABEL_SIGNALS
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,7 +45,7 @@ QIC = _params(qic)
 FUNNEL = _params(funnel)
 SENSITIVITY = _params(funnel_sensitivity) | FUNNEL
 SPC_PLOT = set(_SPC_OPTIONS)
-FUNNEL_PLOT = set(_FUNNEL_OPTIONS)
+FUNNEL_PLOT = set(_FUNNEL_OPTIONS) | set(_CATERPILLAR_OPTIONS) | {"kind"}
 EVERY_NAME = (QIC | FUNNEL | SENSITIVITY | SPC_PLOT | FUNNEL_PLOT | _params(paretochart)
               | _params(bchart) | _params(design) | _params(analyze))
 
@@ -64,6 +64,7 @@ CHOICES = {
     "runs_highlight": {"localized", "all", "none"},
     "scales": {"fixed", "free", "free_x", "free_y"},
     "benchmark": {"abc", "eb"},
+    "compare_to": {"peers", "model"},
 }
 
 

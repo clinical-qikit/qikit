@@ -30,7 +30,7 @@ from .core.dispersion import (
     DEFAULT_TAU_METHOD, TAU_METHODS, dispersion_shape, natural_tau2,
     overdispersion, tau2_ml, transform_scale,
 )
-from .core.dist import beta_tails, gamma_tails
+from .core.dist import beta_quantile, beta_tails, gamma_quantile, gamma_tails
 from .core.power import UNDERPOWERED_RATIO, point_power
 from .core.pvalues import bh_q_values, funnel_p_values, signal_thresholds
 from .results import FunnelResult
@@ -42,6 +42,7 @@ from .validate import (
 MEASURES = ("oe", "proportion", "rate", "mean")
 SIGNALS = ("limits", "fdr")
 BENCHMARKS = (None, "abc", "eb")
+COMPARE_TO = (None, "peers", "model")
 # A provider holding fewer cases than the minimum sufficient denominator could reach
 # 100% by chance at this one-sided level (Kiefe 1998, Table 3; methods §4.18).
 _MSD_ALPHA = 0.025
@@ -55,7 +56,7 @@ _COLUMNS = (
     "p_value", "q_value", "signal", "direction", "min_detectable", "ci_lower", "ci_upper",
     "excluded", "raw_excess", "reliability", "eb_rate", "eb_excess", "prob_worse",
     "p_value_drop1", "flag_survives_drop1", "fragility", "benchmark", "benchmark_group",
-    "meets_benchmark",
+    "meets_benchmark", "eb_low", "eb_high", "estimate_flag",
 )
 
 # Internal working columns on the normalized frame.
@@ -96,7 +97,8 @@ def funnel(
     facets: str | list[str] | None = None,
     exclude: Any = None,
     center: float | None = None,
-    overdispersion: bool = True,
+    overdispersion: bool | None = None,
+    compare_to: str | None = None,
     within_dispersion: float | str | None = None,
     tau_method: str = DEFAULT_TAU_METHOD,
     tau: float | dict | None = None,
@@ -112,6 +114,7 @@ def funnel(
     benchmark: str | None = None,
     benchmark_share: float = 0.10,
     multiply: float = 1.0,
+    interval: float = 0.95,
     **removed: Any,
 ) -> FunnelResult:
     """
@@ -140,6 +143,10 @@ def funnel(
     |   line (a case-mix-weighted φ per provider)        |   each provider's φᵢ, computed in SQL  |
     | a flag a leader will ask "is it one patient?"      | case-level rows (automatic), or        |
     |   about                                            |   max_case_y=, max_case_n= from SQL    |
+    | expected from an external risk model (Vizient,     | compare_to="model" (O/E against 1.0,   |
+    |   CMS), asking "worse than expected?"              |   no allowance for spread)             |
+    | "unusual among peers?" (the default question)      | compare_to="peers", or nothing         |
+    | a fixed target on a proportion or rate             | center=<target>, overdispersion=False  |
     | a measure where only one direction is bad          | worse="higher" (or "lower")            |
     | hundreds of providers, and want few false alarms   | signal="fdr"                           |
     | flags from the lines, figure showing the q tiers   | .plot(color_by="fdr")                  |
@@ -150,15 +157,21 @@ def funnel(
     | to reproduce a CQC or NHS SHMI funnel              | tau_method="cqc" or "shmi"             |
     | to rank flagged providers for action               | sort by eb_excess, not raw_excess      |
     | to say "probably worse than average" (CMS-style)   | read prob_worse; signal is unchanged   |
+    | an estimate with a range per provider (scorecard)  | eb_rate, eb_low, eb_high,              |
+    |                                                    |   estimate_flag; plot(kind=            |
+    |                                                    |   "caterpillar")                       |
     | several measures or service lines in one call      | facets=["measure"] (one or more cols)  |
     | a goal the best providers already reach (ABC)      | benchmark="abc" with worse=            |
     | the same goal for an outcome (O/E mortality, LOS)  | benchmark="eb" with worse=             |
 
-    Two questions, both legitimate (methods §2): the default, overdispersion=True, asks
-    "is this provider unusual among its peers?", judging each provider against the
-    measured spread between providers as well as chance; when there is no spread the
-    chart is identical to the unadjusted one. overdispersion=False with center=1.0 asks
-    "does this provider differ from the risk model?". Decide which before looking.
+    Two questions, both legitimate (methods §2), named by compare_to=: "peers" (the
+    default) asks "is this provider unusual among its peers?", judging each provider
+    against the pooled value and the measured spread between providers as well as
+    chance; "model" asks "does this provider differ from the risk model?" (center=1.0,
+    overdispersion=False). Decide which before looking. A fixed center= with
+    overdispersion=True answers neither: any system-wide gap between the providers and
+    that center is absorbed into tau, widening every limit, and a warning says so
+    (methods §4.2.1).
 
     Reading the result
     ------------------
@@ -187,16 +200,30 @@ def funnel(
     - excluded: dropped from the center line, the dispersion estimates and testing.
     - raw_excess: (numerator − cl·denominator), signed so positive is worse: the
       excess days or events.
+    Shrunk estimates (methods §4.14). Each provider's true value has an exact
+    posterior: gamma for counts (O/E, rate, mean), beta for proportions, on effective
+    counts. Its prior is centered on the center line (under compare_to="model", the
+    pooled value) with the spread estimated by maximum likelihood (or tau=), whatever
+    tau_method the limits use. The columns:
     - reliability: the shrinkage weight, 0 to 1: how much of the provider's difference
-      is signal rather than chance (methods §4.14). 0 for every provider when the
-      funnel finds no spread (τ̂ = 0) or overdispersion=False. 0.7 is the usual floor
-      for high-stakes use of a single score.
-    - eb_rate, eb_excess: the shrunk (empirical Bayes) value and its excess, the exact
-      posterior mean of the chart's own Poisson–gamma or beta-binomial model. Sort on
-      eb_excess to prioritize.
+      is signal rather than chance. 0 for every provider when there is no measurable
+      spread, and on an unadjusted chart with a custom center. 0.7 is the usual floor
+      for high-stakes use of a single score (Adams et al. 2010).
+    - eb_rate, eb_excess: the shrunk (empirical Bayes) value, the posterior mean, and
+      its excess over the reference. Sort on eb_excess to prioritize.
+    - eb_low, eb_high: an equal-tailed interval= (95%) interval for the provider's true
+      value from the same posterior, on the plotted scale. NaN when there is no
+      measurable spread (a note says so). With within_dispersion it runs about 5 points
+      short of nominal (methods §5).
     - prob_worse: the posterior probability that the provider's true value is worse
-      than cl ("is this provider truly worse than average?", the CMS question), where
-      signal answers "is it unusual among peers?" (methods §4.16). NaN when τ = 0.
+      than the reference ("is this provider truly worse?", the CMS question), where
+      signal answers "is it unusual?" (methods §4.16). NaN when there is no spread.
+    - estimate_flag: where [eb_low, eb_high] lies against the reference: "worse" or
+      "better" with worse= ("higher" or "lower" without it) when wholly on one side,
+      else "no different"; None with no interval. It answers a different question from
+      signal and has no multiplicity control: about 5% of average providers' intervals
+      miss their true value. The reference is summary["reference"]: the center line,
+      or 1.0 under compare_to="model".
     - p_value_drop1, flag_survives_drop1, fragility: single-case robustness (case-level
       rows, or max_case_y=/max_case_n= from SQL). Descriptive, never a test (§4.15).
     - benchmark, meets_benchmark: with benchmark=, the goal (the same value on every row
@@ -209,7 +236,10 @@ def funnel(
     (per tier: the chance count under signal="limits", the false discovery bound under
     "fdr"), center, tau (the spread of true values between providers; on the
     transformed scale under "cqc"/"shmi", see tau_scale), phi, tau_method, tau_source,
-    tau_estimated, tau_ci ("ml"), count_model, limit_method, p_value_method,
+    tau_estimated, tau_ci ("ml"), compare_to, center_gap, center_gap_p and tau_pooled
+    (the fixed-center gap check, methods §4.2.1; None unless center= is fixed with
+    overdispersion=True and tau estimated), reference (what the estimate columns are
+    judged against) and estimate_tau (the spread of their prior), count_model, limit_method, p_value_method,
     within_dispersion and its source, dispersion_shape, underpowered, n_underpowered,
     min_detectable_median, n_filtered, n_fragile, notes (sentences to show readers), and
     with benchmark=, benchmark: a dict of method, share and value, and under "abc" also
@@ -236,10 +266,22 @@ def funnel(
         center line, dispersion and Benjamini–Hochberg step.
     exclude : a boolean column, or a list of unit ids, left out of the center line,
         dispersion and testing (still drawn, faded).
-    center : a fixed center line. On measure="oe", center=1.0 benchmarks against the
-        risk model itself; the default pooled ΣO/ΣE benchmarks against peers.
+    center : a fixed center line (a target). Pair it with overdispersion=False: with the
+        spread allowance on, a gap between the providers' pooled value and the center
+        widens every limit, and a UserWarning says so (methods §4.2.1). For O/E against
+        the risk model use compare_to="model".
     overdispersion : judge each provider against the estimated spread between providers
-        (Spiegelhalter's additive τ²) as well as chance. Default True.
+        (Spiegelhalter's additive τ²) as well as chance. Default True (unless
+        compare_to="model").
+    interval : coverage of eb_low / eb_high, 0.95 by default.
+    compare_to : which question the chart answers. "peers": the pooled center line and
+        overdispersion=True (the default settings). "model": O/E against the risk
+        model's expected, center=1.0 and overdispersion=False; measure="oe" only. A
+        center= or overdispersion= that contradicts it is an error. None (default):
+        center= and overdispersion= as given. Recorded in summary["compare_to"]
+        ("peers", "model" or "custom"). Under "model" the limits and signal use 1.0
+        with no spread, but the shrunk estimates use a prior centered on the pooled
+        value (methods §4.14), and tau= sets only their spread.
     within_dispersion : how much more variable each count is than its model because
         units clump inside cases (patient-days; the items of one survey). 1.0 (default)
         means independent units; under measure="mean" the default, and the only
@@ -293,7 +335,8 @@ def funnel(
     multiply : scale the plotted y, e.g. 1000 for a rate per 1,000.
 
     Display options (title, axis labels, styles, x_log, ...) are arguments of
-    result.plot(); result.limits() gives the contours at any denominators.
+    result.plot(); result.plot(kind="caterpillar") draws the shrunk estimates with
+    their intervals instead; result.limits() gives the contours at any denominators.
     """
     if removed:
         reject_removed("funnel", removed, _RENAMED, _DISPLAY, other=("chart", "method", "freeze", "part"))
@@ -301,7 +344,8 @@ def funnel(
         measure=measure, overdispersion=overdispersion, tau_method=tau_method, tau=tau,
         worse=worse, signal=signal, limits=limits, fdr_levels=fdr_levels,
         fdr_min=fdr_min_denominator, multiply=multiply, center=center, facets=facets,
-        benchmark=benchmark, benchmark_share=benchmark_share,
+        benchmark=benchmark, benchmark_share=benchmark_share, compare_to=compare_to,
+        interval=interval,
     )
     mean = measure == "mean"
     if mean:
@@ -414,6 +458,22 @@ class _Settings:
     benchmark_share: float = 0.10
     hover: tuple[str, ...] = ()
     limit_method: str = "exact"
+    compare_to: str | None = None   # as the caller passed it
+    interval: float = 0.95          # coverage of eb_low / eb_high
+
+    @property
+    def question(self) -> str:
+        """Which question the settings answer: "peers", "model" or "custom"."""
+        if self.center is None and self.overdispersion:
+            return "peers"
+        if self.measure == "oe" and self.center == 1.0 and not self.overdispersion:
+            return "model"
+        return "custom"
+
+    @property
+    def center_user_fixed(self) -> bool:
+        """A center line the caller fixed, other than through compare_to="model"."""
+        return self.center is not None and self.compare_to != "model"
 
     @property
     def family(self) -> str:
@@ -426,8 +486,10 @@ class _Settings:
 
 def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits,
               fdr_levels, fdr_min, multiply, center, facets, benchmark=None,
-              benchmark_share=0.10, limit_method="exact") -> _Settings:
+              benchmark_share=0.10, limit_method="exact", compare_to=None,
+              interval=0.95) -> _Settings:
     check_choice("measure", measure, MEASURES)
+    center, overdispersion = _compare_to(compare_to, measure, center, overdispersion)
     check_choice("worse", worse, WORSE)
     check_choice("signal", signal, SIGNALS)
     check_choice("tau_method", tau_method, TAU_METHODS)
@@ -445,6 +507,8 @@ def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits
     check_number("multiply", multiply, 0.0, strict=True)
     if fdr_min is not None:
         check_number("fdr_min_denominator", fdr_min)
+    if not check_number("interval", interval, 0.0, strict=True) < 1.0:
+        raise ValueError(f"interval is a coverage strictly between 0 and 1, e.g. 0.95; got {interval!r}.")
     if center is not None:
         check_number("center", center, 0.0, strict=True)
         if measure == "proportion" and not center < 1.0:
@@ -452,24 +516,74 @@ def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits
     check_facet_names(split_facets(facets), _COLUMNS, "funnel")
     return _Settings(
         measure=measure, overdispersion=bool(overdispersion), tau_method=tau_method,
-        tau_fixed=_tau_fixed(tau, facets, overdispersion), tau=tau, worse=worse,
+        tau_fixed=_tau_fixed(tau, facets, overdispersion,
+                             model=measure == "oe" and center == 1.0 and not overdispersion),
+        tau=tau, worse=worse,
         signal=signal, limits=check_levels("limits", limits, outer_wider=True),
         fdr_levels=check_levels("fdr_levels", fdr_levels, outer_wider=False),
         fdr_min=fdr_min, multiply=float(multiply),
         center=None if center is None else float(center),
         facets=tuple(split_facets(facets)), benchmark=benchmark,
         benchmark_share=float(benchmark_share), limit_method=limit_method,
+        compare_to=compare_to, interval=float(interval),
     )
 
 
-def _tau_fixed(tau: Any, facets: Any, overdispersion: bool) -> Any:
-    """tau= as τ² (a number, or a dict of τ² per facet), validated."""
+def _compare_to(compare_to, measure, center, overdispersion) -> tuple[Any, bool]:
+    """
+    (center, overdispersion) resolved from compare_to=. Settings that agree with it may be
+    passed too; one that contradicts it is an error naming the fix (methods §2, §4.2).
+    """
+    check_choice("compare_to", compare_to, COMPARE_TO)
+    if compare_to is None:
+        return center, True if overdispersion is None else bool(overdispersion)
+    if compare_to == "peers":
+        if center is not None:
+            raise ValueError(
+                f"compare_to='peers' judges each provider against the pooled value of its "
+                f"peers, so it cannot take center={center!r}. Drop center=, or drop "
+                f"compare_to= to keep a fixed center line."
+            )
+        if overdispersion is False:
+            raise ValueError(
+                "compare_to='peers' allows for the spread between providers "
+                "(overdispersion=True). Drop overdispersion=False, or drop compare_to= for "
+                "an unadjusted chart around the pooled center."
+            )
+        return None, True
+    if measure != "oe":
+        raise ValueError(
+            f"compare_to='model' compares observed with a risk model's expected (O/E against "
+            f"1.0); measure={measure!r} has no model value. For a fixed target pass "
+            f"center=<target> and overdispersion=False instead."
+        )
+    if center is not None and center != 1.0:
+        raise ValueError(
+            f"compare_to='model' sets center=1.0 (observed equals expected), so it cannot "
+            f"take center={center!r}. Drop center=, or drop compare_to= to use that center."
+        )
+    if overdispersion is True:
+        raise ValueError(
+            "compare_to='model' asks whether each provider differs from the risk model, so "
+            "it allows no spread between providers (overdispersion=False). Drop "
+            "overdispersion=True, or use compare_to='peers' to ask whether a provider is "
+            "unusual among its peers."
+        )
+    return 1.0, False
+
+
+def _tau_fixed(tau: Any, facets: Any, overdispersion: bool, model: bool = False) -> Any:
+    """
+    tau= as τ² (a number, or a dict of τ² per facet), validated. Against the risk model
+    (model=True) it sets only the spread the shrunk estimates use (methods §4.14).
+    """
     if tau is None:
         return None
-    if not overdispersion:
+    if not overdispersion and not model:
         raise ValueError(
             "tau= needs overdispersion=True: it is the spread the adjusted chart judges "
-            "providers against, and the unadjusted chart has none."
+            "providers against, and the unadjusted chart has none. (Against the risk "
+            "model, compare_to='model', it sets the spread of the shrunk estimates.)"
         )
     if isinstance(tau, dict):
         if not split_facets(facets):
@@ -509,6 +623,7 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
         "measure": st.measure, "overdispersion": st.overdispersion, "worse": st.worse,
         "signal": st.signal, "limits": st.limits, "fdr_levels": st.fdr_levels,
         "tau_method": st.tau_method, "fdr_min_denominator": st.fdr_min,
+        "compare_to": st.question,
     }
     if not keys:
         summary = {**settings, **by_facet[None]}
@@ -523,7 +638,7 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
         "signal": st.signal, "limits": st.limits, "fdr_levels": st.fdr_levels,
         "measure": st.measure, "y_name": names["y"] if isinstance(names["y"], str) else None,
         "n_name": names["n"] if isinstance(names["n"], str) else None,
-        "phi_column": phi_column, "multiply": st.multiply,
+        "phi_column": phi_column, "multiply": st.multiply, "interval": st.interval,
     }
     return FunnelResult(data=data, summary=summary, _models=models, _meta=meta)
 
@@ -633,7 +748,8 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     table["excluded"] = excluded
     for col in st.hover:
         table[col] = agg[col].to_numpy()
-    _add_shrinkage(table, st, cl, natural_tau2(scale, cl, used), n_model)
+    prior = _prior(st, cl, ratio, n_model, mask, family, used, scale, tau_fixed, disp)
+    _add_shrinkage(table, st, cl, prior, n_model)
     fragile = _add_robustness(table, rows, agg, st, cl, used, scale, n_model, phi_u, aggregated)
 
     summary = {
@@ -656,12 +772,25 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
         "within_dispersion_source": within.source,
         "n_filtered": int(np.sum(filtered)),
         "n_fragile": fragile,
+        "reference": prior.reference * m,
     }
     if st.measure == "mean":
         phi_bar = _mean_phi(den, n_model) if within.phi_units is not None else within.phi
         summary["case_sd"] = math.sqrt(phi_bar * cl) * m
     summary["expected_false_flags"] = _expected_false_flags(st, summary)
     notes: list[str] = []
+    if st.compare_to is not None:
+        notes.append(_QUESTION[st.compare_to])
+    summary.update(_center_gap(st, cl, ratio, n_model, mask, family, tau2, source,
+                               disp.scale, notes))
+    summary["estimate_tau"] = math.sqrt(prior.tau2)
+    if (st.overdispersion or prior.model) and not prior.available:
+        notes.append(
+            "Shrunk estimates with a range are unavailable: the funnel finds no measurable "
+            "spread between providers (tau = 0), so eb_low, eb_high and estimate_flag are "
+            "empty. Pass tau= estimated from earlier periods, or compare within a larger "
+            "peer group."
+        )
     if st.benchmark is not None:
         _add_benchmark(table, summary, notes, st, num, den, n_model, ratio, cl, excluded)
     summary.update({"dispersion_shape": None, "within_dispersion_hint": None,
@@ -681,6 +810,86 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     return table, summary, model
 
 
+_QUESTION = {
+    "peers": "This chart asks whether each provider is unusual among its peers: the center "
+             "line is their pooled value, and the limits allow for the spread between them.",
+    "model": "This chart asks whether each provider differs from the risk model: the center "
+             "line is 1.0 (observed equals expected), with no allowance for spread between "
+             "providers.",
+}
+
+# The fixed-center gap guard (methods §4.2.1): warn when the providers' pooled value
+# differs from a center= the caller fixed, under overdispersion=True, by enough that τ̂
+# absorbs it. Both conditions must hold: the gap is beyond chance and the spread between
+# providers (p below _GAP_MAX_P, a sandwich-variance t test), and it widens the limits at
+# the median provider's volume by at least _GAP_MIN_WIDEN. scripts/simulate_center_gap.py
+# calibrates both: at most 0.4% false warnings in any cell (K 20-1000, tau 0-0.2,
+# phi 1-2), and 51-99% warned at a 10% gap on hospital volumes.
+_GAP_MAX_P = 0.001
+_GAP_MIN_WIDEN = 1.10
+
+
+def _center_gap(st: _Settings, cl, ratio, n_model, mask, family, tau2, source, scale,
+                notes) -> dict:
+    """
+    center_gap, center_gap_p, tau_pooled; and the warning when a fixed center line under
+    overdispersion=True has τ̂ absorbing a system-wide gap (methods §4.2.1).
+    """
+    out: dict[str, Any] = {"center_gap": None, "center_gap_p": None, "tau_pooled": None}
+    if not (st.center_user_fixed and st.overdispersion and source == "estimated"):
+        return out
+    ok = mask & np.isfinite(ratio) & (n_model > 0)
+    if ok.sum() < 2:
+        return out
+    pooled = _pooled(ratio, n_model, ok)
+    if st.tau_method == "ml":
+        tau2_p, _ = tau2_ml(pooled, ratio, n_model, ok, family)
+    else:
+        tau2_p = overdispersion(st.tau_method, family, pooled, ratio, n_model, ok).tau2
+    nat_fixed = natural_tau2(scale, cl, tau2)
+    nat_pooled = natural_tau2(scale, pooled, tau2_p)
+    binomial = family == "binomial"
+
+    def var(theta):
+        return theta * (1.0 - theta) if binomial else theta
+
+    p = _gap_p_value(pooled, cl, ratio[ok], n_model[ok])
+    v_med = var(cl) / float(np.median(n_model[ok]))
+    widen = math.sqrt((v_med + nat_fixed) / (v_med + nat_pooled))
+    gap = pooled / cl - 1.0
+    out.update({"center_gap": gap, "center_gap_p": p, "tau_pooled": math.sqrt(tau2_p)})
+    if p < _GAP_MAX_P and widen >= _GAP_MIN_WIDEN:
+        fix = ("for 'worse than the risk model?' use compare_to='model'"
+               if st.measure == "oe" else
+               f"for 'different from the target?' pass overdispersion=False with "
+               f"center={cl:g}")
+        note = (f"The spread between providers is absorbing a {gap:+.0%} system-wide gap "
+                f"between the providers' pooled value ({pooled:.3g}) and center={cl:g}, "
+                f"which widens every limit (by about {widen - 1:.0%} at the median "
+                f"volume). For 'unusual among peers?' leave center unset; {fix}.")
+        notes.append(note)
+        warnings.warn(note, UserWarning, stacklevel=4)
+    return out
+
+
+def _gap_p_value(pooled: float, cl: float, y: np.ndarray, n: np.ndarray) -> float:
+    """
+    Two-sided p-value for the pooled value Σnᵢyᵢ/Σnᵢ against a fixed center: a weighted
+    mean with its robust (sandwich) variance K/(K − 1)·Σnᵢ²(yᵢ − ȳ)²/(Σnᵢ)², referred to
+    t on K − 1 degrees of freedom. The observed scatter carries chance, within-case
+    clumping and real spread between providers alike, so no τ̂ (biased low at small K
+    under the published estimator) enters the test (methods §4.2.1).
+    """
+    k = len(y)
+    total = float(n.sum())
+    se2 = k / (k - 1) * float(np.sum(n * n * (y - pooled) ** 2)) / total ** 2
+    if not se2 > 0:
+        return 1.0 if pooled == cl else 0.0
+    t2 = (pooled - cl) ** 2 / se2
+    df = k - 1
+    return beta_tails(df / (df + t2), df / 2.0, 0.5)[0]
+
+
 def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, ratio, cl,
                    excluded) -> None:
     """The benchmark= columns, summary keys and notes for one facet (methods §4.18)."""
@@ -691,7 +900,7 @@ def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, rati
         q = 1.0 - share if st.worse == "lower" else share
         value = float(np.quantile(eb[eligible], q)) if eligible.any() else math.nan
         bench = {"method": "eb", "share": share, "value": value * m}
-        if summary["tau"] == 0 or not st.overdispersion:
+        if not (table["reliability"].to_numpy(dtype=float) > 0).any():
             notes.append("The funnel finds no spread between providers, so every shrunk "
                          "estimate equals the center line and so does the benchmark.")
     else:
@@ -982,34 +1191,148 @@ def _two_sig(x: float) -> str:
 # Shrinkage and robustness
 # ---------------------------------------------------------------------------
 
-def _add_shrinkage(table, st: _Settings, cl, tau2, n_model) -> None:
+@dataclass(frozen=True)
+class _Prior:
+    """The prior the estimate columns shrink toward, and what they are judged against."""
+    center: float        # θ₀ of the prior (the chart's center line, or the pooled value)
+    tau2: float          # its variance, on the natural scale
+    reference: float     # what prob_worse and estimate_flag compare with
+    model: bool          # compare_to="model": pooled prior, judged against 1.0
+    params: tuple | None  # (α, β) of the beta prior on a proportion, else None
+    binomial: bool = False
+
+    @property
+    def available(self) -> bool:
+        """Whether the posterior intervals exist: a spread, and on a proportion a beta."""
+        return self.tau2 > 0 and not (self.binomial and self.params is None)
+
+
+# Below this reliability at the largest provider, an estimated τ counts as no spread.
+_MIN_RELIABILITY = 0.01
+
+
+def _prior(st: _Settings, cl, ratio, n_model, mask, family, used, scale, tau_fixed,
+           disp) -> _Prior:
     """
-    raw_excess, reliability, eb_rate, eb_excess, prob_worse (methods §4.14). The weight is
-    the exact conjugate posterior mean of the chart's own mixture model: Poisson–gamma,
-    B = τ²/(τ² + θ₀/n); beta-binomial, B = n/(n + s), s = θ₀(1 − θ₀)/τ² − 1; both on the
-    model's n (÷ φ). B = 0 when τ² = 0: no measured spread, nothing to shrink toward.
-    On a transformed-scale chart (cqc, shmi) τ² is carried back by the delta method.
+    The estimate columns' prior (methods §4.14): its center, its spread τ², and the
+    reference the estimates are judged against.
+
+    τ² is the maximum-likelihood estimate of the chart's own mixture model around the
+    prior's center, or tau= when given. The limits keep the chart's tau_method: the
+    published estimator understates τ, which suits a screen whose flags are reviewed,
+    but would over-shrink the estimates and leave their intervals short (95% intervals
+    cover 56-89% of true values under it, 91-95% under ML; methods §5).
+
+    The center is the chart's center line, judged against itself. Against the risk
+    model (compare_to="model", which has no spread allowance) the limits stay at 1.0
+    with no τ, but the prior is centered on the providers' pooled value, with τ̂ around
+    it; each provider is then judged against 1.0. Estimating τ around 1.0 would absorb
+    any system-wide gap into it (§4.2.1), and the pooled value is the best guess for a
+    low-volume provider in this system. A chart with neither (overdispersion=False on
+    a custom center) has no prior: nothing to shrink toward.
+    """
+    binomial = family == "binomial"
+    model = st.question == "model"
+    ok = mask & np.isfinite(ratio) & (n_model > 0)
+    if model:
+        center, reference = _pooled(ratio, n_model, ok), 1.0
+    else:
+        center, reference = cl, cl
+    if tau_fixed is not None:
+        tau2 = float(tau_fixed) if model else natural_tau2(scale, cl, used)
+    elif not (st.overdispersion or model) or ok.sum() < 2:
+        tau2 = 0.0
+    else:
+        tau2 = tau2_ml(center, ratio, n_model, ok, family)[0]
+        # An estimate that would leave every provider's reliability below
+        # _MIN_RELIABILITY is no measurable spread: ML returns such values from the
+        # numerical noise beside τ = 0, and their priors (a + b in the millions on a
+        # proportion) carry nothing but cost.
+        n_max = float(np.max(n_model[ok]))
+        v = center * (1.0 - center) if binomial else center
+        if tau2 > 0 and tau2 / (tau2 + v / n_max) < _MIN_RELIABILITY:
+            tau2 = 0.0
+    params = beta_params(center, tau2) if binomial and tau2 > 0 else None
+    return _Prior(float(center), float(tau2), float(reference), model, params, binomial)
+
+
+def _add_shrinkage(table, st: _Settings, cl: float, prior: _Prior, n_model) -> None:
+    """
+    raw_excess, reliability, eb_rate, eb_excess, prob_worse, eb_low, eb_high,
+    estimate_flag (methods §4.14). The weight is the exact conjugate posterior mean of
+    the chart's own mixture model: Poisson–gamma, B = τ²/(τ² + θ₀/n); beta-binomial,
+    B = n/(n + s), s = θ₀(1 − θ₀)/τ² − 1; both on the model's n (÷ φ). B = 0 when
+    τ² = 0: no measured spread, nothing to shrink toward. On a transformed-scale chart
+    (cqc, shmi) τ² is carried back by the delta method. θ₀ is the prior's center (the
+    center line, or under compare_to="model" the pooled value); raw_excess stays
+    against the center line, and eb_excess, prob_worse and estimate_flag against the
+    reference (the center line, or 1.0 under compare_to="model").
     """
     sign = -1.0 if st.worse == "lower" else 1.0
     binomial = st.measure == "proportion"
+    c, tau2, ref, params = prior.center, prior.tau2, prior.reference, prior.params
     num = table["numerator"].to_numpy(dtype=float)
     den = table["denominator"].to_numpy(dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):
         y = num / den
-        params = beta_params(cl, tau2) if binomial and tau2 > 0 else None
         if not (tau2 > 0):
             b = np.zeros(len(table))
         elif params is not None:
             b = n_model / (n_model + params[0] + params[1])
         else:
-            b = tau2 / (tau2 + (cl * (1.0 - cl) if binomial else cl) / n_model)
-        eb = b * y + (1.0 - b) * cl
+            b = tau2 / (tau2 + (c * (1.0 - c) if binomial else c) / n_model)
+        eb = b * y + (1.0 - b) * c
+    m = st.multiply
     table["raw_excess"] = sign * (num - cl * den)
     table["reliability"] = b
-    table["eb_rate"] = eb * st.multiply
-    table["eb_excess"] = sign * (eb - cl) * den
-    table["prob_worse"] = _prob_worse(y * n_model, n_model, cl, tau2, binomial,
-                                      st.worse == "lower", params)
+    table["eb_rate"] = eb * m
+    table["eb_excess"] = sign * (eb - ref) * den
+    o_eff = y * n_model
+    table["prob_worse"] = _prob_worse(o_eff, n_model, c, tau2, binomial,
+                                      st.worse == "lower", params, ref)
+    low, high = _posterior_interval(o_eff, n_model, c, tau2, binomial, params, st.interval)
+    table["eb_low"], table["eb_high"] = low * m, high * m
+    table["estimate_flag"] = _estimate_flag(low, high, ref, st.worse)
+
+
+def _posterior_interval(o_eff, n_eff, c, tau2, binomial, params, coverage):
+    """
+    Equal-tailed interval for each provider's true value from its own posterior:
+    Gamma(c²/τ² + O, rate c/τ² + E) for counts, Beta(α + Y, β + n − Y) for proportions,
+    on effective counts (y/φ out of n/φ). NaN everywhere when τ² = 0 (methods §4.14).
+    """
+    k = len(o_eff)
+    low, high = np.full(k, np.nan), np.full(k, np.nan)
+    if not (tau2 > 0) or (binomial and params is None):
+        return low, high
+    lo_p, hi_p = (1.0 - coverage) / 2.0, (1.0 + coverage) / 2.0
+    for i, (o, n) in enumerate(zip(o_eff, n_eff)):
+        if not (np.isfinite(o) and np.isfinite(n) and n > 0):
+            continue
+        if binomial:
+            a, b = params[0] + o, params[1] + n - o
+            low[i], high[i] = beta_quantile(lo_p, a, b), beta_quantile(hi_p, a, b)
+        else:
+            shape, rate = c * c / tau2 + o, c / tau2 + n
+            low[i] = gamma_quantile(lo_p, shape) / rate
+            high[i] = gamma_quantile(hi_p, shape) / rate
+    return low, high
+
+
+def _estimate_flag(low, high, ref, worse) -> np.ndarray:
+    """
+    Where the interval lies against the reference: wholly above or below it, or
+    across it ("no different"). With worse= the sides are "worse" and "better";
+    without it, "higher" and "lower". None where there is no interval.
+    """
+    up, down = ("worse", "better") if worse == "higher" else (
+        ("better", "worse") if worse == "lower" else ("higher", "lower"))
+    out = np.full(len(low), None, dtype=object)
+    ok = np.isfinite(low) & np.isfinite(high)
+    out[ok] = "no different"
+    out[ok & (low > ref)] = up
+    out[ok & (high < ref)] = down
+    return out
 
 
 def _add_robustness(table, rows, agg, st: _Settings, cl, tau2, scale, n_model, phi_u,
@@ -1121,9 +1444,16 @@ def funnel_sensitivity(
     if "tau_method" in kwargs or "overdispersion" in kwargs:
         raise ValueError("funnel_sensitivity() sets tau_method= and overdispersion= itself; "
                          "choose them with tau_methods= and unadjusted=.")
+    if kwargs.get("compare_to") == "model":
+        raise ValueError(
+            "funnel_sensitivity() varies how the spread between providers is modeled, and "
+            "compare_to='model' allows no spread, so every run would be the same chart. Run "
+            "funnel(..., compare_to='model') alone, or use compare_to='peers' here."
+        )
     runs = {f"signal_{m}": funnel(data, tau_method=m, **kwargs) for m in tau_methods}
     if unadjusted:
-        runs["signal_unadjusted"] = funnel(data, overdispersion=False, **kwargs)
+        plain = {k: v for k, v in kwargs.items() if k != "compare_to"}
+        runs["signal_unadjusted"] = funnel(data, overdispersion=False, **plain)
     first = next(iter(runs.values())).data
     facets = split_facets(kwargs.get("facets"))
     keep = [c for c in (*facets, "unit", "label", "y", "denominator") if c in first]
@@ -1395,13 +1725,15 @@ def _within_check(rows: pd.DataFrame, measure: str, aggregated: bool = False):
     return phi, 0.5 * math.erfc(z / math.sqrt(2.0))
 
 
-def _prob_worse(o_eff, n_eff, cl, tau2, binomial, lower, params) -> np.ndarray:
+def _prob_worse(o_eff, n_eff, cl, tau2, binomial, lower, params, ref=None) -> np.ndarray:
     """
-    P(true value worse than cl | data) under the chart's posterior (methods §4.16):
+    P(true value worse than the reference | data) under the posterior (methods §4.16):
     Gamma(a + O, rate b + E) with a = cl²/τ², b = cl/τ² for counts, Beta(α + Y,
-    β + n − Y) for proportions, on effective counts. NaN when τ = 0 or no beta has the
+    β + n − Y) for proportions, on effective counts, cl the prior's center. The
+    reference is cl, or 1.0 under compare_to="model". NaN when τ = 0 or no beta has the
     spread.
     """
+    ref = cl if ref is None else ref
     out = np.full(len(o_eff), np.nan)
     if not (tau2 > 0) or (binomial and params is None):
         return out
@@ -1409,8 +1741,8 @@ def _prob_worse(o_eff, n_eff, cl, tau2, binomial, lower, params) -> np.ndarray:
         if not (np.isfinite(o) and np.isfinite(n) and n > 0):
             continue
         if binomial:
-            below, above = beta_tails(cl, params[0] + o, params[1] + n - o)
+            below, above = beta_tails(ref, params[0] + o, params[1] + n - o)
         else:
-            below, above = gamma_tails(cl * cl / tau2 + o, (cl / tau2 + n) * cl)
+            below, above = gamma_tails(cl * cl / tau2 + o, (cl / tau2 + n) * ref)
         out[i] = below if lower else above
     return out
