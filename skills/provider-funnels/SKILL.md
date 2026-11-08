@@ -159,9 +159,12 @@ before reporting anything.
     `tau=<value>`. If `summary["notes"]` says the current estimate differs more than
     1.5-fold, report that.
   - `tau_method="ml"` only with no gross outliers; it reports `summary["tau_ci"]`.
-- Two questions, two settings. "Unusual among peers?" is the default. "Different from
-  what the risk model predicts?" is `overdispersion=False, center=1.0`, usually with
-  `signal="fdr"` to control false alarms.
+- Two questions, one argument. "Unusual among peers?" is `compare_to="peers"` (the
+  default settings). "Different from what the risk model predicts?" (O/E against
+  Vizient or CMS expected) is `compare_to="model"`, usually with `signal="fdr"` to
+  control false alarms. Never set `center=1.0` alone: the spread allowance absorbs any
+  system-wide gap and widens every limit, and `funnel()` warns (methods §4.2.1). If
+  that warning appears, report it and pick one of the two questions.
 - **Does a flag depend on the model?** Before reporting a borderline flag, run
   `funnel_sensitivity(<same arguments>)`. It returns one row per provider with
   `signal_spiegelhalter`, `signal_winsorized`, `signal_ml`, `signal_unadjusted` and
@@ -204,12 +207,20 @@ Reporting rules:
 - Do not re-rank providers by `p_value` into a league table; the tiers are the result.
   To order *flagged* providers for action, sort by `eb_excess` (expected excess
   days/events after shrinkage), not `raw_excess`, which favors high volume.
-- `signal` answers "unusual among peers?". `prob_worse` answers "probably worse than
-  average?" (the CMS question). Name the question you report, and don't flag on
-  `prob_worse` unless the user asked that question.
+- `signal` answers "unusual among peers?". `prob_worse` and `estimate_flag` answer
+  "probably worse than the reference?" (the CMS question: the center line, or 1.0
+  under `compare_to="model"`, `summary["reference"]`). Name the question you report,
+  and don't flag on `prob_worse` or `estimate_flag` unless the user asked that question.
+  `estimate_flag` has no multiplicity control.
+- **A scorecard wants an estimate with a range:** report `eb_rate` with `eb_low`–`eb_high`
+  and `estimate_flag`, and draw `r.plot(kind="caterpillar")` (`top=`/`bottom=` for
+  hundreds of providers). Say that small providers are pulled toward the center, so
+  their intervals usually cross the reference: "not enough data", not "fine". With
+  `within_dispersion` the intervals cover about 90%, not 95%.
 - Report `reliability` with any single-provider number. Below about 0.7 a score is too
-  noisy for high-stakes use. Reliability 0 everywhere means the chart found no spread
-  between providers (τ̂ = 0): no provider is reliably different.
+  noisy for high-stakes use (Adams et al. 2010). Reliability 0 everywhere, with empty
+  `eb_low`/`eb_high`, means no measurable spread between providers: no provider is
+  reliably different. Physician readmissions are often like this; facet by hospital.
 - For each flagged provider, report `fragility` (stay rows) or `flag_survives_drop1`. A
   fragility of 1 on length of stay means one stay carries the flag, so ask for that case
   to be reviewed before acting. On event counts it is expected at low volume (every event
@@ -226,7 +237,7 @@ Reporting rules:
 
 `unit, label, y, numerator, denominator, cl, lower_outlier, upper_outlier,
 lower_alert, upper_alert, p_value, q_value, signal, direction, min_detectable,
-ci_lower, ci_upper, excluded, raw_excess, reliability, eb_rate, eb_excess, prob_worse,
+ci_lower, ci_upper, excluded, raw_excess, reliability, eb_rate, eb_excess, eb_low, eb_high, estimate_flag, prob_worse,
 p_value_drop1, flag_survives_drop1, fragility` (plus `effective_denominator` under a
 `within_dispersion` column; `benchmark`, `meets_benchmark` and, for the ABC only,
 `benchmark_group` with `benchmark=`; the `facets=` columns first; and any `hover=`

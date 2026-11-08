@@ -109,6 +109,8 @@ including where qikit departs from the paper.
 | You have | Pass |
 |---|---|
 | Observed events and risk-model expected events (mortality or readmission O/E) | `measure="oe"`, `y=observed`, `n=expected` |
+| Expected from an external risk model (Vizient, CMS), asking "worse than expected?" | `compare_to="model"` (O/E against 1.0, no allowance for spread between providers) |
+| Asking "unusual among peers?" (the default question) | `compare_to="peers"`, or leave it unset |
 | Events out of cases (complication %, top-box %) | `measure="proportion"`, `y=events`, `n=cases` |
 | Events over exposure (infections per line-day) | `measure="rate"`, `y=events`, `n=exposure` |
 | A per-case amount: minutes, cost or counts per stay (EHR minutes per discharge) | `measure="mean"`, `y=` the amount, one row per case; or per provider `y=SUM`, `n=COUNT(*)`, `sum_sq=SUM(y*y)` |
@@ -127,7 +129,7 @@ including where qikit departs from the paper.
 | The spread between providers known from earlier periods, or fewer than 30 providers | `tau=<value>` (fixed in advance) |
 | "Does this flag depend on the model?" | `funnel_sensitivity(...)` |
 | "Is this provider probably worse than average?" (the CMS question) | read `prob_worse`; `signal` answers "unusual among peers?" |
-| A benchmark against the risk model itself, not the peer average | `center=1.0` |
+| A fixed target on a proportion or rate (a 2% goal, not the peer average) | `center=<target>` with `overdispersion=False`. With `overdispersion=True` a gap between the providers and the target widens every limit, and qikit warns |
 | A goal the best providers already reach, on a process measure (achievable benchmark of care) | `benchmark="abc"` with `worse=` |
 | The same goal on an outcome (O/E mortality, LOS, readmission) | `benchmark="eb"` with `worse=` |
 
@@ -153,9 +155,11 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
 | `ci_lower`, `ci_upper` | Exact 95% interval for the provider's own value |
 | `excluded` | Left out with `exclude=` (drawn faded, not tested) |
 | `raw_excess` | (observed − cl × denominator), signed so positive is worse: excess days or events |
-| `reliability` | How much of the provider's difference is signal, 0–1. 0 everywhere when τ̂ = 0 |
-| `eb_rate`, `eb_excess` | The shrunk (empirical Bayes) value and its excess: the exact posterior mean of the chart's own model. Rank flagged providers on `eb_excess` |
-| `prob_worse` | Posterior probability that the true value is worse than the center line (CMS-style "worse than average"); NaN when τ̂ = 0 |
+| `reliability` | How much of the provider's difference is signal, 0–1. 0 everywhere when there is no measurable spread |
+| `eb_rate`, `eb_excess` | The shrunk (empirical Bayes) value, the exact posterior mean, and its excess over the reference. Rank flagged providers on `eb_excess` |
+| `eb_low`, `eb_high` | A 95% (`interval=`) interval for the provider's true value from the same posterior; NaN with no measurable spread |
+| `prob_worse` | Posterior probability that the true value is worse than the reference (CMS-style "worse than average"); NaN with no spread |
+| `estimate_flag` | `"worse"`, `"better"` or `"no different"`: where the interval lies against the reference (`"higher"`/`"lower"` without `worse=`) |
 | `p_value_drop1` | The p-value with the provider's single most extreme case removed (needs case rows or `max_case_y=`/`max_case_n=`); descriptive, no q-value |
 | `flag_survives_drop1` | For flagged providers: still flagged without that case? |
 | `fragility` | Case rows: the fewest worst cases whose removal clears the flag (1 = one case carries it) |
@@ -170,6 +174,8 @@ Rows that share a `unit` are summed, so stay-level or year-level data aggregates
   `tau_scale`, `tau_source` ("estimated" or "pre-specified"), `tau_estimated`, and
   `tau_ci` under `tau_method="ml"`.
 - `phi`: the over-dispersion ratio as the chosen method defines it.
+- `reference`: what the estimate columns are judged against (the center line, or 1.0
+  under `compare_to="model"`), and `estimate_tau`, the spread of their prior.
 - `count_model`, `limit_method`, `within_dispersion`, `dispersion_shape`, `underpowered`,
   `n_filtered`, `n_fragile`.
 - With `benchmark=`: `benchmark`, a dict of `method`, `share` and `value`. Under
@@ -217,7 +223,11 @@ No risk model captures everything, so providers differ by more than chance allow
 well as chance, using Spiegelhalter's additive random-effects model. The smallest
 providers' limits barely move. The busiest level off at about the center ± z·τ instead
 of closing onto the line. When τ̂ is 0, which is common at physician scale, the chart is
-identical to `overdispersion=False`.
+identical to `overdispersion=False`. That holds around the pooled center only. Around a
+fixed `center=`, τ̂ also absorbs any system-wide gap between the providers and that
+center, so it can be large. Every limit then widens, and qikit raises a `UserWarning`
+saying by how much ([methods §4.2.1](docs/methods.md)). For "worse than the risk
+model?" pass `compare_to="model"`, which turns the allowance off.
 
 How τ is estimated (`tau_method=`, [methods §4.16](docs/methods.md)):
 
@@ -265,6 +275,23 @@ r = funnel(stays, y="LOS_DAYS", n="EXPECTED_LOS_DAYS", measure="oe",
            within_dispersion="estimate", worse="higher")
 r.summary["within_dispersion"]     # φ̂: how much more variable each count is than Poisson
 ```
+
+Decide which question the chart answers before looking, and say it in the call:
+
+```python
+args = dict(y="LOS_DAYS", n="EXPECTED_LOS_DAYS", measure="oe", unit="PROVIDER_ID",
+            within_dispersion="estimate", worse="higher")
+
+# Is this provider unusual among its peers? Pooled ΣO/ΣE center, spread allowed.
+peers = funnel(stays, **args, compare_to="peers")
+
+# Do this provider's stays run longer than the risk model (Vizient, CMS) expects?
+model = funnel(stays, **args, compare_to="model")
+```
+
+If the whole system runs long against the model, `model` flags many providers and
+`peers` few: that gap is a finding about the system, not about one provider. Passing
+`center=1.0` alone answers neither question (see the over-dispersion section above).
 
 - **The estimate:** φ̂ comes from each stay's residual around its own provider's rate, so
   real differences between providers stay with τ.
@@ -322,6 +349,65 @@ funnel(df[df.year == 2025], y="observed_deaths", n="expected_deaths",
 r = funnel(df, y="observed_deaths", n="expected_deaths", measure="oe", unit="physician")
 r.data[r.data.signal != "none"]
 ```
+
+Physician scores are less reliable than they look. Hofer et al. found that physicians
+accounted for a small share of the variation in diabetes care, that reliability at
+typical panel sizes was low, and that a physician could improve a report card by
+dropping a few of their sickest patients (*JAMA* 1999). The `fragility` and
+`p_value_drop1` columns exist for that last point. For hospitalists, Goodwin et al.
+found meaningful variation in length of stay and discharge destination but very little
+in 30-day readmission or mortality, and much of the hospitalist variation was explained
+by the hospital (*J Gen Intern Med* 2013). Expect low reliability for physician
+readmissions, and facet by hospital or campus (`facets=`) before comparing physicians.
+
+### Estimates with a range
+
+Every funnel also gives each provider a shrunk estimate with an interval, the output a
+CMS-style hierarchical model reports (Keenan et al., *Circ Cardiovasc Qual Outcomes*
+2008), without writing one. A provider's true value has an exact posterior under the
+funnel's own model, and the interval is from that posterior:
+
+```python
+from qikit import funnel
+
+r = funnel(stays, y="READMIT", n="VIZIENT_EXPECTED", measure="oe",
+           unit="ATTENDING_NPI", label="ATTENDING_NAME",
+           compare_to="model", worse="higher")
+r.data[["label", "y", "eb_rate", "eb_low", "eb_high", "prob_worse", "estimate_flag"]]
+r.plot(kind="caterpillar")
+```
+
+- **What the interval means.** `eb_low`–`eb_high` is a 95% (`interval=`) range for the
+  provider's true value. Low-volume providers are pulled most toward the center line
+  (under `compare_to="model"`, toward the system's pooled value). Shrunk estimates are
+  steadier and forecast next year's performance better than raw ones, especially at
+  low volume (Dimick et al., *Health Serv Res* 2010). The pull also means a small
+  provider's interval usually crosses the reference. That is "not enough data", not
+  "fine".
+- **`estimate_flag` and `signal` answer different questions.** `signal` asks whether a
+  provider is unusual given chance and the spread between providers. `estimate_flag`
+  asks whether its true value is clearly above or below the reference (1.0 against the
+  risk model, else the center line). Neither replaces the other, and `estimate_flag`
+  has no multiplicity control: across many average providers about 5% of intervals miss.
+- **Against the risk model,** the limits and `signal` stay exactly those of
+  `compare_to="model"` (1.0, no spread). The estimates shrink toward the pooled value,
+  so a whole system running long shows every provider above 1.0, with the worst leading.
+- **No measurable spread,** and the interval columns are empty with a note. Pass `tau=`
+  from earlier periods, or compare within a larger peer group.
+- **The caterpillar plot** sorts providers by `eb_rate`, draws each interval as a bar
+  colored by `estimate_flag`, the raw value as a faint circle, and the reference as a
+  dotted line. Ranks are very uncertain even when real differences exist (Marshall and
+  Spiegelhalter, *BMJ* 1998), so read the intervals, not the order. With hundreds of
+  providers, `top=` and `bottom=` keep the ends, and only flagged providers are named.
+
+The spread of the prior is estimated by maximum likelihood whatever `tau_method` the
+limits use: the published estimator understates it and would leave 95% intervals
+covering as few as half of true values ([methods §4.14, §5](docs/methods.md)).
+
+For your own risk model or covariates, the notebook
+[docs/examples/hierarchical_readmissions.ipynb](docs/examples/hierarchical_readmissions.ipynb)
+fits the full patient-level hierarchical model in PyMC (installed separately), with an
+optional hospital level, next to the `funnel()` equivalent, and compares the two.
 
 ### An achievable goal: `benchmark=`
 
@@ -392,7 +478,9 @@ r.plot(color_by="fdr", fdr_watch=0.20)   # points by q tier; the lines stay the 
 | `unit`, `label`, `hover` | `None` | Provider id, display name, extra tooltip columns |
 | `facets` | `None` | One funnel per value (a column or list): own center line, τ, FDR step |
 | `exclude` | `None` | A boolean column, or a list of unit ids, left out of the model |
-| `center` | pooled | A fixed center line, e.g. `1.0` on O/E |
+| `interval` | `0.95` | Coverage of `eb_low`/`eb_high` |
+| `compare_to` | `None` | `"peers"` (pooled center, spread allowed) or `"model"` (O/E against 1.0, no spread allowance) |
+| `center` | pooled | A fixed center line (a target); pair it with `overdispersion=False` |
 | `overdispersion` | `True` | Judge against the spread between providers (τ) |
 | `within_dispersion` | `1.0` | Clustered counts or survey items: a number, `"estimate"`, or a column of per-provider φᵢ |
 | `tau_method` | `"spiegelhalter"` | `"spiegelhalter"`, `"winsorized"`, `"ml"`, `"cqc"`, `"shmi"` |

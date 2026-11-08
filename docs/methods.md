@@ -42,6 +42,11 @@ The two kinds of funnel ask different questions, and both are legitimate:
   spread between providers?* This treats the spread, τ, as "acceptable" variation [1, §5]
   and flags only providers outside it.
 
+`funnel(compare_to=)` names the two: `"model"` is the unadjusted chart of O/E against
+1.0 (`center=1.0`, `overdispersion=False`), and `"peers"` the adjusted chart around the
+pooled value (the default settings). A fixed center with the adjustment on answers
+neither question (§4.2.1).
+
 Which question applies is a policy decision. Make it before seeing the data, and record
 it in the analysis plan [8, step 1]; Spiegelhalter calls the boundary between
 acceptable and out-of-control "a matter of judgment" [1, §5]. If the data are
@@ -158,6 +163,43 @@ side, and inflates τ̂ even though its own residual is winsorized. This is the 
 provider entirely (`test_a_lone_outlier_still_leaks_in_through_the_pooled_center_line`).
 Anchoring with `center=` removes the effect. Pavlou et al. [9] suggest a pre-specified τ as
 another remedy (§6).
+
+#### 4.2.1 A fixed center under the adjustment: the absorbed gap
+
+τ̂ is estimated around whatever center line the chart uses. Around the pooled value it
+measures the spread between providers. Around a fixed `center=` it also absorbs any
+system-wide gap between the providers and that center: a whole system running 10% above
+its risk model looks, to the moment estimator, like providers spread widely around 1.0.
+Every limit then widens by that gap, and the chart answers neither question of §2. It
+is not judging against the model, because the allowance has swallowed the gap, and it
+is not judging against peers, because the line is not theirs.
+
+On 60 simulated physicians' stays (a system running 10% long, three physicians 40%
+worse on top, `within_dispersion="estimate"`), the default chart has τ̂ = 0.035 and flags
+the three. With `center=1.0` alone τ̂ rises to 0.136, the limits at the median
+volume widen by about 112%, and one of the three falls back to an alert. With
+`compare_to="model"` (no allowance) 13 physicians are outliers and 23 alerts: the
+system-wide gap is now visible as signal, which is what that question asks.
+
+**The guard.** When `center=` is fixed, `overdispersion=True` and τ is estimated (not
+`tau=`), `funnel()` compares the providers' pooled value Σnᵢyᵢ/Σnᵢ with the center and
+warns when both of the following hold:
+
+1. The gap is beyond chance and the spread between providers: a two-sided p < 0.001
+   from a t test on K − 1 degrees of freedom with the robust (sandwich) variance
+   K/(K − 1)·Σnᵢ²(yᵢ − ȳ)²/(Σnᵢ)², on the model's nᵢ (÷ φ). The observed scatter carries
+   chance, within-case clumping and real spread together, so the test needs no τ̂. A
+   first version used the model variance ȳ/Σnᵢ + τ̂²Σnᵢ²/(Σnᵢ)² instead. At K = 20 it
+   warned in up to 3.6% of no-gap cohorts, because the published estimator understates
+   τ at small K (§4.3).
+2. The gap matters: the 99.8% half-width at the median provider's volume,
+   √(V₀ + τ̂²) around the fixed center against √(V₀ + τ̂ₚ²) with τ̂ₚ the same estimator
+   around the pooled value, is at least 10% wider.
+
+The warning gives the gap and the widening, and names the fix: `compare_to="model"` on
+O/E, `overdispersion=False` with the target on a proportion or rate, or no `center=` for
+the peer question. `summary` reports `center_gap` (pooled ÷ center − 1), `center_gap_p`
+and `tau_pooled`. The calibration is in §5.
 
 ### 4.3 The over-dispersion estimator: published by default, debiased on request
 
@@ -821,7 +863,14 @@ Every funnel reports, per provider:
 | `raw_excess` | (Y − θ₀N), signed so positive is worse: the observed excess days or events |
 | `reliability` | B, the shrinkage weight below |
 | `eb_rate` | B·y + (1 − B)·θ₀ (on the plotted scale) |
-| `eb_excess` | (eb_rate − θ₀)·N, signed as `raw_excess` |
+| `eb_excess` | (eb_rate − reference)·N, signed as `raw_excess` |
+| `eb_low`, `eb_high` | Equal-tailed `interval=` (95%) quantiles of the provider's posterior |
+| `prob_worse` | P(true value worse than the reference), from the same posterior |
+| `estimate_flag` | Where [`eb_low`, `eb_high`] lies against the reference |
+
+θ₀ here is the prior's center: the center line, or under `compare_to="model"` the pooled
+value (below). The reference is the center line, or 1.0 under `compare_to="model"`
+(`summary["reference"]`).
 
 **The estimator is the chart's own posterior mean.** The adjusted funnels already model
 true provider rates as gamma (counts) or beta (proportions) around θ₀ with variance τ²
@@ -835,28 +884,88 @@ same number. B is also the reliability of the provider's score in the sense of t
 physician-profiling literature, τ²/(τ² + V₀) [24]; for the beta-binomial it carries the
 model's (n − 1)/n factor.
 
-**No spread, no shrinkage target.** When τ̂ = 0, or under `overdispersion=False`, every
-B is 0, every `eb_rate` is θ₀ and every `eb_excess` is 0. That is the honest answer: the
-data show no between-provider spread, so no provider's difference can be told from
-chance. No fallback weight is invented. With the debiased φ̂ (§4.3) this happens far
-less often at physician scale.
+**The prior's spread is estimated by maximum likelihood.** The limits keep the chart's
+`tau_method`, but the estimate columns use τ̂ by maximum likelihood of the same
+mixture model around θ₀ (`summary["estimate_tau"]`), or `tau=` when given. The
+published estimator understates τ, often returning 0 for a real spread (§4.16). For a
+screen whose flags are reviewed, that errs toward flagging, which is acceptable. For an
+estimate, it over-shrinks every provider toward θ₀ and leaves the intervals short: with
+τ estimated by the published method, 95% intervals covered 49–89% of true values; by
+maximum likelihood, 91–95% (§5). Maximum likelihood is not robust to outliers (§4.16):
+a few extreme providers raise τ̂, which shrinks everyone less. For an estimate that is
+the cautious direction. Before 1.2 the estimate columns used the chart's τ, so their
+values changed with 1.2.
+
+**Intervals.** With a = θ₀²/τ², b = θ₀/τ², a provider's true value has posterior
+Gamma(a + O, rate b + E) on counts (O/E, rates, means), and with α = θ₀s, β = (1 − θ₀)s,
+Beta(α + Y, β + n − Y) on proportions, all on effective counts (O/φ out of E/φ). `eb_low`
+and `eb_high` are its (1 − c)/2 and (1 + c)/2 quantiles for `interval=` c, found by
+inverting the regularized incomplete gamma and beta functions with safeguarded Newton
+steps on log x (gamma) or logit x (beta); no dependency beyond numpy. `estimate_flag` is
+`"worse"` or `"better"` (with `worse=`; `"higher"` or `"lower"` without) when the whole
+interval lies on one side of the reference, and `"no different"` otherwise. It is the
+CMS reporting rule [23, 45] in this model, and it has no multiplicity control.
+
+**Against the risk model.** `compare_to="model"` draws limits around 1.0 with no
+spread, so the chart itself has no prior to shrink toward. The estimate columns then
+use a prior centered on the providers' pooled value Σnᵢyᵢ/Σnᵢ, with τ̂ estimated around
+that value (or `tau=`, which here sets only this spread). Each provider is judged
+against 1.0: `prob_worse` is P(true O/E > 1.0), and `estimate_flag` compares the
+interval with 1.0. The pooled center is deliberate. τ estimated around 1.0 would absorb
+any system-wide gap between the providers and the model (§4.2.1), and the pooled value
+is the best prior guess for a low-volume provider in this system. Limits, p-values,
+q-values and `signal` are exactly those of `center=1.0, overdispersion=False`. The same
+prior applies to that explicit pair.
+
+This adapts the CMS hospital-level method [45] to physicians, with an external expected
+(Vizient, CMS) as the baseline. It applies established methods [21, 23, 35, 46, 49]; it
+is not a replication of a published physician-level design. CMS fits a hierarchical
+logistic model on patient-level data with full uncertainty. `funnel()` uses the
+Poisson–gamma or beta-binomial model on provider totals, with τ plugged in. Its
+intervals are therefore somewhat narrower when τ is poorly determined (few providers).
+The example notebook (`docs/examples/hierarchical_readmissions.ipynb`) fits the
+patient-level model for comparison.
+
+**No spread, no shrinkage target.** When τ̂ = 0, every B is 0, every `eb_rate` is θ₀,
+every `eb_excess` is 0 against the center line, and the interval columns are NaN with a
+note. That is the honest answer: the data show no between-provider spread, so no
+provider's difference can be told from chance. No fallback weight is invented. An
+estimated τ that would leave even the largest provider's reliability below 0.01 counts as
+no spread: maximum likelihood returns such values from numerical noise beside the
+τ = 0 boundary, and their priors carry nothing. An unadjusted chart with a custom center
+(`overdispersion=False`, not against the risk model) has no prior either.
 
 **Why rank on `eb_excess`.** `raw_excess` scales with volume, so a high-volume provider
 with a small, noisy difference outranks a mid-volume provider with a large, certain one.
 `eb_excess` is the expected excess once chance is discounted. It is a defensible
 prioritization loss, the expected reducible days or events. Posterior means are not the
-optimal statistic for ranks themselves [26]. The approach is the one the CMS hospital
-measures and the COPSS–CMS white paper endorse [23, 21], and reliability is how
+optimal statistic for ranks themselves [26]. Shrunk estimates are steadier year to year
+and forecast future performance better than raw rates, most of all at low volume [46].
+The approach is the one the CMS hospital measures [45] and the COPSS–CMS white paper
+endorse [23, 21], and reliability is how
 physician profiling is judged: Adams et al. found most physicians' cost profiles below
 the 0.7 reliability usually asked of high-stakes use (59% of physicians), with about 22%
 misclassified in a two-tier network [24]. Hofer et al. made the same point for diabetes report cards [25].
 `reliability` lets an application apply that floor.
 
 **`prob_worse`** is the posterior probability, under the same model, that the provider's
-true value is worse than θ₀: the upper (or, for `worse="lower"`, lower) tail of
-Gamma(a + O, b + E) or Beta(α + Y, β + n − Y) at θ₀, on effective counts, from the
-regularized incomplete gamma and beta functions. It is NaN when τ = 0. It answers a
+true value is worse than the reference: the upper (or, for `worse="lower"`, lower) tail of
+Gamma(a + O, b + E) or Beta(α + Y, β + n − Y) at the reference, on effective counts, from
+the regularized incomplete gamma and beta functions. It is NaN when τ = 0. It answers a
 different question from `signal`; §4.16 explains which to use.
+
+**Ranks.** The caterpillar plot (`plot(kind="caterpillar")`) orders providers by
+`eb_rate` but draws each interval, because league-table ranks are very uncertain even
+when real differences between providers exist [47]. Jones and Spiegelhalter [49] set out
+how screening for divergent providers and estimating each provider's value from the
+same hierarchical model fit together. Here, `signal` is the screen and the estimate
+columns are the estimates.
+
+**At physician level** much of the variation in an outcome may belong to the hospital,
+not the physician. Goodwin et al. found hospitalists varied meaningfully in length of
+stay and discharge destination but very little in 30-day readmission or mortality, and
+the hospital explained much of the hospitalist variation [48]. Expect low reliability
+for physician readmissions, and facet or adjust by hospital or campus.
 
 **Caveat: exchangeability.** Shrinking toward θ₀ assumes providers are alike apart from
 noise and τ². A volume–outcome relationship breaks that, because small providers would
@@ -980,18 +1089,20 @@ providers whose true value differs from the average. The funnel's `signal` answe
 first: a provider is tested against θ₀ with the spread τ included. CMS's hierarchical
 models answer the second [23]: a hospital is reported as worse when its shrunk estimate's
 interval lies above the national rate. `prob_worse` is that second question in this
-model. The two respond to τ in opposite directions. 10 replicates of K = 500,
-E ~ U(3, 30), share of providers flagged:
+model, and `estimate_flag == "worse"` is the same rule read from the interval. The two
+questions respond to τ in different ways. 10 replicates of K = 500, E ~ U(3, 30),
+`worse="higher"`, share of providers flagged (`scripts/simulate_eb_intervals.py`; the
+estimate columns use the ML prior of §4.14):
 
-| true τ | `signal` (one-sided 95%) | `prob_worse` > 0.975 | Truly > 20% above average |
-|---|---|---|---|
-| 0 | 1.7% | 0.0% | 0% |
-| 0.15 | 2.2% | 0.5% | 9.9% |
-| 0.30 | 2.4% | 5.2% | 24.2% |
+| true τ | `signal` (beyond the 95% line) | `prob_worse` > 0.975 | `estimate_flag` worse | Truly > 20% above average |
+|---|---|---|---|---|
+| 0 | 1.6% | 0.0% | 0.0% | 0% |
+| 0.15 | 3.5% | 0.1% | 0.1% | 9.1% |
+| 0.30 | 4.8% | 5.1% | 5.1% | 23.2% |
 
-As real variation grows, the funnel keeps flagging about 2%, because that variation is
-what peers look like. The CMS-style rule flags more, because more providers really are
-worse than average. Use `signal` to choose whom to review as unusual. Use `prob_worse`
+As real variation grows, the funnel's flag rate rises only slowly, because that
+variation is what peers look like. The CMS-style rule starts near zero and climbs
+faster, because more providers really are worse than average. Use `signal` to choose whom to review as unusual. Use `prob_worse`
 when the question is whether a provider is probably worse than average, for example for
 improvement targeting, and say which question was asked.
 
@@ -1413,6 +1524,79 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 | 1.25 (the floor) | 30% | 5% |
 | 2.42 | 100% | 100% |
 
+**The fixed-center gap guard (§4.2.1).** `uv run python scripts/simulate_center_gap.py`:
+500 cohorts per cell over K ∈ {20, 50, 200, 1000}, two volume bands (physician: 5–50
+expected events; hospital: 50–500), true spread τ ∈ {0, 0.1, 0.2} (relative SD; on the
+logit scale for proportions), within-case clumping φ ∈ {1, 2}, and O/E, rate (2 per
+1,000) and proportion (10%). The providers' system value sits a stated offset above the
+fixed center. The script first checks that its direct call of the guard agrees with
+`funnel()`.
+
+With no gap the guard warned in at most 0.4% of cohorts in any of the 144 cells (mean
+0.03%). Under `tau_method="ml"` and `"winsorized"` the worst cell was 1.2% (ML, K = 20
+physicians, τ = 0.2, 250 cohorts).
+
+Warning rate by gap, averaged over τ, φ and measure:
+
+| Volume | K | 2.5% | 5% | 10% |
+|---|---|---|---|---|
+| Hospital | 20 | 0.7% | 5.8% | 36% |
+| Hospital | 50 | 1.0% | 16% | 69% |
+| Hospital | 200 | 0.7% | 25% | 92% |
+| Hospital | 1000 | 0% | 20% | 96% |
+| Physician | 20 | 0.1% | 0.2% | 1.9% |
+| Physician | 1000 | 0% | 0% | 6.6% |
+
+Median widening of the limits at the median volume:
+
+| Volume | 2.5% | 5% | 10% |
+|---|---|---|---|
+| Hospital | 0.7–1.9% | 6.6–7.0% | 26–27% |
+| Physician | 0% | 0% | 0.4–1.5% |
+
+The guard is quiet where a gap does no harm. At physician volumes chance dominates each
+provider's variance, so a 10% gap barely moves the limits (at most 1.5%). At hospital
+volumes a 10% gap widens them by about a quarter, and the guard catches it in 36% of
+20-provider cohorts and 92–96% at K ≥ 200. A 5% gap widens them by about 7%, under the
+10% materiality bar, so it warns less often (17% on hospital volumes on average; a 5%
+bar would double that, at a worst-cell false-warning rate of 0.6%). Real spread and
+clumping (τ = 0.2, φ = 2) lower detection at 10% to about half on hospital volumes,
+because they make the gap harder to tell from the scatter between providers.
+
+**Coverage of the shrunk-estimate intervals (§4.14).** `uv run python
+scripts/simulate_eb_intervals.py`: each provider's true value is drawn from the model's
+own mixture distribution (gamma or beta, mean θ₀, SD τ), then its data given that value.
+Coverage is the share of (provider, cohort) pairs whose true value lies in
+[`eb_low`, `eb_high`] (nominal 95%). Scenarios:
+
+- O/E counts: K = 200, E from 5 to 100 (log-uniform), 200 cohorts.
+- Proportions: K = 200, n from 50 to 1,000, base rate 13%, 200 cohorts.
+- Length of stay: K = 100, 20–200 stays each, lognormal noise (φ near 2),
+  `within_dispersion="estimate"`, 50 cohorts.
+
+| Data | true τ | τ known (`tau=`) | τ by ML (default) | τ by the published estimator (before 1.2) |
+|---|---|---|---|---|
+| O/E counts | 0.1 | 94.7% | 91.3% | 55.8%, no interval in 92% of cohorts |
+| O/E counts | 0.2 | 95.1% | 94.7% | 74.1% |
+| O/E counts | 0.3 | 94.9% | 94.8% | 85.3% |
+| Proportions | 0.1 | 94.8% | 92.6% | 49.4%, no interval in 64% of cohorts |
+| Proportions | 0.2 | 94.9% | 94.6% | 81.8% |
+| Proportions | 0.3 | 94.9% | 94.9% | 89.0% |
+| Length of stay | 0.1 | 91.1% | 90.1% | 89.9% |
+| Length of stay | 0.2 | 89.7% | 88.7% | 89.0% |
+| Length of stay | 0.3 | 89.4% | 89.0% | 88.0% |
+
+Coverage is flat across volume terciles (within 2 points of the overall figure in
+every row). Two findings:
+
+- **ML τ̂ is the choice for estimates.** It reaches nominal coverage once the spread is
+  measurable (τ ≥ 0.2), and is 2–4 points short at τ = 0.1, where τ̂ is itself
+  uncertain. The published estimator over-shrinks.
+- **Length of stay runs about 5 points short even with τ known.** The posterior treats
+  each provider's total as quasi-Poisson, y/φ out of E/φ. The variance of a total of
+  skewed per-stay amounts grows with Σeᵢ² rather than Σeᵢ, so the gamma posterior is
+  slightly too narrow. Read these intervals as about 90%.
+
 ## 6. Known limitations and planned work
 
 - **Small cohorts.** τ̂ is imprecise below about 30 providers (IQR 0.17–0.27 when
@@ -1586,3 +1770,19 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
     doi:10.1093/intqhc/mzt069
 44. O'Brien SM, DeLong ER, Peterson ED. Impact of case volume on hospital performance
     assessment. *Archives of Internal Medicine* 2008;168:1277–1283.
+45. Keenan PS, Normand SLT, Lin Z, et al. An administrative claims measure suitable for
+    profiling hospital performance on the basis of 30-day all-cause readmission rates
+    among patients with heart failure. *Circulation: Cardiovascular Quality and
+    Outcomes* 2008;1(1):29–37. doi:10.1161/CIRCOUTCOMES.108.802686
+46. Dimick JB, Staiger DO, Birkmeyer JD. Ranking hospitals on surgical mortality: the
+    importance of reliability adjustment. *Health Services Research* 2010;45(6 Pt
+    1):1614–1629. doi:10.1111/j.1475-6773.2010.01158.x
+47. Marshall EC, Spiegelhalter DJ. Reliability of league tables of in vitro
+    fertilisation clinics: retrospective analysis of live birth rates. *BMJ*
+    1998;316:1701–1704. doi:10.1136/bmj.316.7146.1701
+48. Goodwin JS, Lin YL, Singh S, Kuo YF. Variation in length of stay and outcomes among
+    hospitalized patients attributable to hospitals and hospitalists. *Journal of
+    General Internal Medicine* 2013;28(3):370–376. doi:10.1007/s11606-012-2255-6
+49. Jones HE, Spiegelhalter DJ. The identification of "unusual" health-care providers
+    from a hierarchical model. *The American Statistician* 2011;65(3):154–163.
+    doi:10.1198/tast.2011.10190

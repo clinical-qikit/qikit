@@ -24,7 +24,7 @@ from .funnel import funnel, funnel_sensitivity
 from .results import BChartResult, FunnelResult, ParetoResult, SPCResult
 from .spc import qic
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __all__ = [
     "qic", "funnel", "funnel_sensitivity", "SPCResult", "FunnelResult",
     "paretochart", "bchart", "ParetoResult", "BChartResult",

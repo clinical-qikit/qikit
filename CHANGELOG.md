@@ -1,8 +1,37 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-11-08)
 
 ### Added
+
+- **`compare_to=` on `funnel()`:** names which question the chart answers.
+  `"peers"`: the pooled center line and `overdispersion=True` (the default settings).
+  `"model"`: O/E against the risk model's expected, `center=1.0` and
+  `overdispersion=False`; `measure="oe"` only, and a proportion or rate is told to pass
+  `center=<target>, overdispersion=False`. A `center=` or `overdispersion=` that
+  contradicts it is an error naming the fix; agreeing values are allowed.
+  `summary["compare_to"]` records `"peers"`, `"model"` or `"custom"` on every call, and
+  `print(result)` ends its first line with the question. Passing `compare_to=` adds a
+  note saying which question the chart answers. `funnel_sensitivity()` forwards
+  `"peers"` and rejects `"model"`, whose runs would all be the same chart.
+  - `overdispersion=` now defaults to `None` (meaning `True` unless
+    `compare_to="model"`), so an agreeing value can be told from an unset one. Every
+    existing call resolves as before.
+- **A warning for a fixed center under the spread allowance:** `center=` with
+  `overdispersion=True` let τ̂ absorb any system-wide gap between the providers and the
+  center, silently widening every limit (`center=1.0` on a system running 10% above
+  its risk model nearly quadrupled τ̂). When the gap is beyond chance (p < 0.001, a
+  sandwich-variance t test) and widens the limits at the median volume by at least
+  10%, `funnel()` raises a `UserWarning` and adds a note with the gap, the widening and
+  the fix. New summary keys `center_gap`, `center_gap_p` and `tau_pooled`. Skipped
+  under a pre-specified `tau=`. Calibrated by `scripts/simulate_center_gap.py`: at most
+  0.4% false warnings in any cell; methods §4.2.1, §5.
+  - README, the docstring, AGENTS.md (a new funnel decision recipe, with a canonical
+    physician LOS vs Vizient expected call and scorecard-wide FDR), the provider-funnels
+    skill and `llms.txt` now pair "against the risk model" with `compare_to="model"`
+    rather than `center=1.0` alone. The README's "identical when τ̂ = 0" now says it
+    holds around the pooled center only.
+  - Python only; the Excel add-in does not draw funnels.
 
 - **`measure="mean"` on `funnel()`:** compares providers on a per-case amount, such as
   EHR minutes per discharge or cost per case, in the amount's own units. Pass one row
@@ -20,6 +49,36 @@
   - `n=` is now optional in the signature; every other measure still requires it.
   - The `benchmark=` docs now say which option suits which measure: `"abc"` for
     proportions, `"eb"` for `"oe"`, `"rate"` and `"mean"`.
+  - Python only; the Excel add-in does not draw funnels.
+- **Shrunk estimates with a range, and a caterpillar plot:** new columns `eb_low` and
+  `eb_high`, an equal-tailed interval for each provider's true value from its exact
+  posterior (gamma on counts, beta on proportions, on effective counts), with
+  `interval=` (default 0.95), and `estimate_flag`: `"worse"`, `"better"` or
+  `"no different"` (`"higher"`/`"lower"` without `worse=`) as the interval lies against
+  the reference. `estimate_flag` answers "clearly worse than the reference?", where
+  `signal` answers "unusual?"; `signal` is unchanged. No interval and a note when there
+  is no measurable spread. `result.plot(kind="caterpillar")` draws them: providers
+  sorted by `eb_rate`, intervals colored by `estimate_flag`, raw values faint, the
+  reference dotted, small multiples per facet, and `top=`/`bottom=` for long lists.
+  New summary keys `reference` and `estimate_tau`. Methods §4.14, §5.
+  - **The estimate columns' prior now uses the ML τ̂** (or `tau=`) whatever
+    `tau_method` the limits use, so **`eb_rate`, `eb_excess`, `reliability`,
+    `prob_worse` and `benchmark="eb"` values change**. The published estimator
+    understates τ: under it 95% intervals covered 49–89% of true values, under ML
+    91–95%. Limits, p-values, q-values and `signal` are unchanged. An ML τ̂ that would
+    leave every provider's reliability below 0.01 counts as no spread.
+  - **Shrinkage against the risk model:** under `compare_to="model"` (and the
+    equivalent `center=1.0, overdispersion=False`) the estimate columns, which were
+    empty, now use a prior centered on the pooled value with τ̂ around it, and judge each
+    provider against 1.0. `tau=` is accepted there and sets only that spread. Limits and
+    flags are unchanged.
+  - New core helpers `gamma_quantile` and `beta_quantile` (no new dependencies).
+  - `docs/examples/hierarchical_readmissions.ipynb`: the patient-level hierarchical
+    model in PyMC beside `funnel()`, with an optional hospital level. On its simulated
+    data the two agree to a correlation of 0.996.
+  - With `within_dispersion` the intervals cover about 90%, not 95% (methods §5).
+  - Cited: Keenan 2008, Dimick 2010, Marshall & Spiegelhalter 1998, Goodwin 2013, Jones
+    & Spiegelhalter 2011; README physician section now cites Hofer 1999 and Goodwin 2013.
   - Python only; the Excel add-in does not draw funnels.
 
 - **`color_by="fdr"` on `FunnelResult.plot()`:** colors the points by their q-value

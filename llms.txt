@@ -6,13 +6,17 @@ Import as `qikit` (`pip install clinical-qikit`, or `clinical-qikit[plot]` for f
 
 ## Start here
 
-- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, the shared vocabulary, the module map, and invariants not to break. Shipped inside the package.
+- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, the shared vocabulary, the funnel decision recipe (peers vs model with compare_to=, within_dispersion, limits vs FDR, fixed tau, scorecard-wide FDR), the module map, and invariants not to break. Shipped inside the package.
 - [README.md](README.md): overview, decision tables, result columns.
 
 ## Methods
 
 - [docs/methods.md](docs/methods.md): funnel methods, every departure from Spiegelhalter (2005), simulations, choosing tau.
 - [docs/qic-methods.md](docs/qic-methods.md): control-chart limits, run and zone rules, NHS Making Data Count, departures from qicharts2.
+
+## Examples
+
+- [docs/examples/hierarchical_readmissions.ipynb](docs/examples/hierarchical_readmissions.ipynb): physician readmissions against an external expected, fitted as a patient-level hierarchical model in PyMC (not a qikit dependency) and with funnel(compare_to="model"), compared.
 
 ## Deployment
 

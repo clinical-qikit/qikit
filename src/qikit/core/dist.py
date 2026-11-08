@@ -897,3 +897,83 @@ def beta_tails(x: float, a: float, b: float) -> tuple[float, float]:
         return lower, 1.0 - lower if lower < 0.5 else front * _beta_cf(b, a, 1.0 - x) / b
     upper = front * _beta_cf(b, a, 1.0 - x) / b
     return (1.0 - upper if upper < 0.5 else front * _beta_cf(a, b, x) / a), upper
+
+
+def _tail_root(tails, log_pdf, p: float, to_x, log_jac, u0: float, u_lo: float,
+               u_hi: float) -> float:
+    """
+    The x where tails(x) = (p, 1 − p), each tail taken where it is the smaller, solved
+    for u (log x for a gamma, logit x for a beta) so the root is found to relative
+    precision however close it lies to an end of the support. Newton's steps from u0,
+    kept inside a shrinking bracket and bisecting when a step would leave it, usually
+    land in three to six evaluations; Brent's method takes over if they do not.
+    """
+    if p <= 0.5:
+        def f(u):
+            return tails(to_x(u))[0] - p
+    else:
+        def f(u):
+            return (1.0 - p) - tails(to_x(u))[1]
+    a, b = u_lo, u_hi
+    u = min(max(u0, a), b)
+    for _ in range(60):
+        fu = float(f(u))
+        if fu == 0.0:
+            return to_x(u)
+        if fu < 0.0:
+            a = u
+        else:
+            b = u
+        slope = math.exp(log_pdf(to_x(u)) + log_jac(u))
+        new = u - fu / slope if slope > 0 and math.isfinite(slope) else math.nan
+        if not (a < new < b):
+            new = 0.5 * (a + b)
+        if abs(new - u) <= 1e-12 * max(1.0, abs(u)):
+            return to_x(new)
+        u = new
+    return to_x(brent(f, a, b, tol=1e-12))
+
+
+def _expit(u: float) -> float:
+    return 1.0 / (1.0 + math.exp(-u)) if u >= 0 else math.exp(u) / (1.0 + math.exp(u))
+
+
+def gamma_quantile(p: float, a: float) -> float:
+    """
+    The p quantile of Gamma(shape a, rate 1), by inverting gamma_tails (divide by the
+    rate for another). NaN for a ≤ 0 or p outside (0, 1).
+    """
+    if not (a > 0) or not (0.0 < p < 1.0):
+        return math.nan
+    hi = a + 10.0 * math.sqrt(a) + 10.0
+    while gamma_tails(a, hi)[0] < p:
+        hi *= 2.0
+    norm = math.lgamma(a)
+    # Wilson–Hilferty for the start: Gamma(a) ≈ a(1 − 1/(9a) + z/√(9a))³.
+    z = _NORMAL.inv_cdf(p)
+    wh = a * (1.0 - 1.0 / (9.0 * a) + z / math.sqrt(9.0 * a)) ** 3
+    u0 = math.log(wh) if wh > 0 else math.log(hi) - 50.0
+    return _tail_root(lambda x: gamma_tails(a, x),
+                      lambda x: (a - 1.0) * math.log(x) - x - norm if x > 0 else -math.inf,
+                      p, math.exp, lambda u: u, u0, -745.0, math.log(hi))
+
+
+def beta_quantile(p: float, a: float, b: float) -> float:
+    """The p quantile of Beta(a, b), by inverting beta_tails. NaN off its domain."""
+    if not (a > 0) or not (b > 0) or not (0.0 < p < 1.0):
+        return math.nan
+    norm = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+    mean = a / (a + b)
+    sd = math.sqrt(a * b / ((a + b) ** 2 * (a + b + 1.0)))
+    x0 = min(max(mean + _NORMAL.inv_cdf(p) * sd, 1e-12), 1.0 - 1e-12)
+
+    def log_pdf(x):
+        if not 0.0 < x < 1.0:
+            return -math.inf
+        return norm + (a - 1.0) * math.log(x) + (b - 1.0) * math.log1p(-x)
+
+    def log_jac(u):   # dx/du = x(1 − x)
+        return -abs(u) - 2.0 * math.log1p(math.exp(-abs(u)))
+
+    return _tail_root(lambda x: beta_tails(x, a, b), log_pdf, p, _expit, log_jac,
+                      math.log(x0 / (1.0 - x0)), -745.0, 40.0)

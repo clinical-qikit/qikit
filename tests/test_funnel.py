@@ -116,6 +116,7 @@ class TestResult:
             "p_value", "q_value", "signal", "direction",
             "min_detectable", "ci_lower", "ci_upper", "excluded",
             "raw_excess", "reliability", "eb_rate", "eb_excess", "prob_worse",
+            "eb_low", "eb_high", "estimate_flag",
             "p_value_drop1", "flag_survives_drop1", "fragility",
         ]
         assert set(d["signal"]) <= {"outlier", "alert", "none"}
@@ -691,8 +692,11 @@ class TestSufficientStatistics:
         for key in ("center", "tau", "within_dispersion"):
             assert agg.summary[key] == pytest.approx(rows.summary[key], rel=1e-12)
         a, b = rows.data.set_index("unit"), agg.data.set_index("unit").loc[rows.data["unit"]]
-        for col in ("p_value", "q_value", "eb_excess", "reliability"):
+        for col in ("p_value", "q_value"):
             np.testing.assert_allclose(b[col], a[col], rtol=1e-10)
+        # The estimates rest on the ML τ̂, flat at its optimum to about 1e-6.
+        for col in ("eb_excess", "reliability"):
+            np.testing.assert_allclose(b[col], a[col], rtol=1e-5)
         assert (a["signal"].to_numpy() == b["signal"].to_numpy()).all()
 
     def test_matches_case_rows_for_proportions(self):
@@ -773,7 +777,7 @@ class TestShrinkage:
     def test_eb_rate_is_the_gamma_posterior_mean(self):
         o, e = _physicians(np.random.default_rng(41), k=300, tau=0.3)
         r = funnel(y=o, n=e, measure="oe")
-        cl, tau2 = r.summary["center"], r.summary["tau"] ** 2
+        cl, tau2 = r.summary["center"], r.summary["estimate_tau"] ** 2
         assert tau2 > 0
         d = r.data
         a, b = cl * cl / tau2, cl / tau2
@@ -786,7 +790,7 @@ class TestShrinkage:
         n = rng.integers(20, 300, 300).astype(float)
         y = rng.binomial(n.astype(int), np.clip(0.8 + 0.05 * rng.standard_normal(300), .01, .99))
         r = funnel(y=y, n=n, measure="proportion")
-        cl, tau2 = r.summary["center"], r.summary["tau"] ** 2
+        cl, tau2 = r.summary["center"], r.summary["estimate_tau"] ** 2
         s = cl * (1 - cl) / tau2 - 1
         d = r.data
         np.testing.assert_allclose(d["eb_rate"], (cl * s + d["numerator"]) / (s + d["denominator"]),
@@ -807,7 +811,7 @@ class TestShrinkage:
     def test_within_dispersion_shrinks_on_effective_counts(self):
         o, e = _physicians(np.random.default_rng(43), k=300, tau=0.3, lo=20, hi=200)
         r = funnel(y=o * 3, n=e * 3, measure="oe", within_dispersion=3.0)
-        cl, tau2 = r.summary["center"], r.summary["tau"] ** 2
+        cl, tau2 = r.summary["center"], r.summary["estimate_tau"] ** 2
         d = r.data
         expect = (cl * cl / tau2 + d["numerator"] / 3) / (cl / tau2 + d["denominator"] / 3)
         np.testing.assert_allclose(d["eb_rate"], expect, rtol=1e-10)
@@ -1023,7 +1027,7 @@ class TestProbWorse:
     def test_matches_monte_carlo_from_the_gamma_posterior(self):
         o, e = _physicians(np.random.default_rng(81), k=200, tau=0.3)
         r = funnel(y=o, n=e, measure="oe", worse="higher")
-        cl, tau2 = r.summary["center"], r.summary["tau"] ** 2
+        cl, tau2 = r.summary["center"], r.summary["estimate_tau"] ** 2
         d = r.data.iloc[::20]
         draws = np.random.default_rng(0).gamma(
             (cl * cl / tau2 + d["numerator"].to_numpy())[:, None],
@@ -1035,7 +1039,7 @@ class TestProbWorse:
         n = rng.integers(20, 300, 200).astype(float)
         y = rng.binomial(n.astype(int), np.clip(0.8 + 0.06 * rng.standard_normal(200), .01, .99))
         r = funnel(y=y, n=n, measure="proportion", worse="lower")
-        cl, tau2 = r.summary["center"], r.summary["tau"] ** 2
+        cl, tau2 = r.summary["center"], r.summary["estimate_tau"] ** 2
         s = cl * (1 - cl) / tau2 - 1
         d = r.data.iloc[::20]
         draws = np.random.default_rng(1).beta(
@@ -1199,3 +1203,287 @@ class TestShrunkPercentileBenchmark:
                    worse="higher", benchmark="eb", overdispersion=False)
         assert r.summary["benchmark"]["value"] == pytest.approx(r.summary["center"])
         assert any("no spread" in n for n in r.summary["notes"])
+
+
+def _system_offset_stays(offset=1.10, seed=2):
+    """Stay-level LOS for 60 doctors: the system runs `offset` long, 3 doctors 40% worse."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for d in range(60):
+        true = offset * (1.4 if d < 3 else 1.0)
+        for _ in range(rng.integers(40, 250)):
+            e = rng.gamma(2, 2)
+            rows.append((d, e, e * true * rng.lognormal(-0.18, 0.6)))
+    return pd.DataFrame(rows, columns=["doc", "exp", "obs"])
+
+
+_LOS = dict(y="obs", n="exp", measure="oe", unit="doc", worse="higher",
+            within_dispersion="estimate")
+
+
+def _cohort(rng, k, tau, measure="oe", lo=20.0, hi=300.0, center=1.0):
+    """Provider totals whose system value equals center, with relative spread tau."""
+    expected = np.exp(rng.uniform(np.log(lo), np.log(hi), k))
+    z = rng.standard_normal(k)
+    if measure == "proportion":
+        logit = np.log(center / (1 - center)) + tau * z
+        cases = np.round(expected / center)
+        return rng.binomial(cases.astype(int), 1 / (1 + np.exp(-logit))), cases
+    return rng.poisson(center * np.exp(tau * z - tau * tau / 2) * expected / center), \
+        expected / center
+
+
+class TestCompareTo:
+    """compare_to= and the fixed-center gap guard (methods §2, §4.2.1)."""
+
+    def test_center_alone_warns_when_tau_absorbs_a_system_gap(self):
+        df = _system_offset_stays()
+        with pytest.warns(UserWarning, match="absorbing a \\+14% system-wide gap"):
+            r = funnel(df, **_LOS, center=1.0)
+        s = r.summary
+        assert s["compare_to"] == "custom"
+        assert s["center_gap"] == pytest.approx(0.144, abs=0.005)
+        assert s["center_gap_p"] < 1e-10
+        assert s["tau"] > 3 * s["tau_pooled"]
+        assert any("compare_to='model'" in note for note in s["notes"])
+
+    def test_model_matches_the_explicit_pair_and_does_not_warn(self):
+        df = _system_offset_stays()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            model = funnel(df, **_LOS, compare_to="model")
+        pair = funnel(df, **_LOS, center=1.0, overdispersion=False)
+        pd.testing.assert_frame_equal(model.data, pair.data)
+        assert model.summary["compare_to"] == pair.summary["compare_to"] == "model"
+        assert model.summary["center_gap"] is None
+        assert (model.summary["n_outlier"], model.summary["n_alert"]) == (
+            pair.summary["n_outlier"], pair.summary["n_alert"])
+
+    def test_peers_matches_the_default(self):
+        df = _system_offset_stays()
+        peers = funnel(df, **_LOS, compare_to="peers")
+        default = funnel(df, **_LOS)
+        pd.testing.assert_frame_equal(peers.data, default.data)
+        assert default.summary["compare_to"] == "peers"
+
+    def test_the_question_note_only_when_compare_to_is_passed(self):
+        assert not any("This chart asks" in n for n in _r().summary["notes"])
+        assert any("unusual among its peers" in n
+                   for n in _r(compare_to="peers").summary["notes"])
+        assert any("differs from the risk model" in n
+                   for n in _r(compare_to="model").summary["notes"])
+
+    def test_print_names_the_question(self):
+        assert "compared with peers)" in str(_r()).splitlines()[0]
+        assert "compared with the risk model)" in str(_r(compare_to="model")).splitlines()[0]
+        assert "compared with" not in str(_r(overdispersion=False)).splitlines()[0]
+
+    @pytest.mark.parametrize("kw, match", [
+        (dict(compare_to="peers", center=1.0), "cannot take center=1.0"),
+        (dict(compare_to="peers", overdispersion=False), "Drop overdispersion=False"),
+        (dict(compare_to="model", center=1.1), "cannot take center=1.1"),
+        (dict(compare_to="model", overdispersion=True), "Drop overdispersion=True"),
+        (dict(compare_to="risk"), "compare_to must be one of"),
+    ])
+    def test_contradictions_name_the_fix(self, kw, match):
+        with pytest.raises(ValueError, match=match):
+            _r(**kw)
+
+    @pytest.mark.parametrize("measure", ["proportion", "rate"])
+    def test_model_needs_oe(self, measure):
+        with pytest.raises(ValueError, match="pass center=<target> and overdispersion=False"):
+            funnel(y=[3, 5, 8], n=[50, 60, 70], measure=measure, compare_to="model")
+
+    def test_agreeing_values_are_allowed(self):
+        a = _r(compare_to="model", center=1.0, overdispersion=False)
+        b = _r(compare_to="model")
+        pd.testing.assert_frame_equal(a.data, b.data)
+        pd.testing.assert_frame_equal(_r(compare_to="peers", overdispersion=True).data,
+                                      _r().data)
+
+    @pytest.mark.parametrize("k, tau, measure", [
+        (20, 0.0, "oe"), (20, 0.15, "oe"), (1000, 0.0, "oe"), (1000, 0.15, "oe"),
+        (200, 0.15, "rate"), (200, 0.15, "proportion"),
+    ])
+    def test_no_warning_when_the_pooled_value_equals_the_center(self, k, tau, measure):
+        rng = np.random.default_rng(100 + k)
+        center = 0.1 if measure == "proportion" else 1.0
+        for _ in range(10):
+            y, n = _cohort(rng, k, tau, measure, center=center)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                s = funnel(y=y, n=n, measure=measure, center=center).summary
+            assert s["center_gap"] is not None
+
+    def test_fixed_tau_skips_the_guard(self):
+        df = _system_offset_stays()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            s = funnel(df, **_LOS, center=1.0, tau=0.05).summary
+        assert s["center_gap"] is None
+
+    def test_proportion_target_names_the_unadjusted_fix(self):
+        rng = np.random.default_rng(5)
+        y, n = _cohort(rng, 200, 0.1, "proportion", center=0.12)
+        with pytest.warns(UserWarning, match="overdispersion=False with center=0.1"):
+            funnel(y=y, n=n, measure="proportion", center=0.1)
+
+    def test_sensitivity_rejects_model_and_forwards_peers(self):
+        from qikit import funnel_sensitivity
+        df = _frame()
+        args = dict(y="deaths", n="expected", measure="oe", unit="surgeon")
+        with pytest.raises(ValueError, match="compare_to='model' allows no spread"):
+            funnel_sensitivity(df, compare_to="model", **args)
+        s = funnel_sensitivity(df, compare_to="peers", **args)
+        assert "signal_unadjusted" in s
+
+
+class TestShrunkIntervals:
+    """eb_low / eb_high, estimate_flag, interval= and model-mode estimates (§4.14)."""
+
+    def _counts(self, k=150, tau=0.2, seed=11):
+        rng = np.random.default_rng(seed)
+        e = np.exp(rng.uniform(np.log(5), np.log(100), k))
+        theta = rng.gamma(1 / tau ** 2, tau ** 2, k)
+        return pd.DataFrame({"u": np.arange(k), "o": rng.poisson(theta * e), "e": e}), theta
+
+    def test_interval_is_the_gamma_posterior(self):
+        from qikit.core.dist import gamma_quantile, gamma_tails
+        df, _ = self._counts()
+        r = funnel(df, y="o", n="e", measure="oe", unit="u", tau=0.2)
+        c, t2 = r.summary["center"], 0.2 ** 2
+        row = r.data.iloc[40]
+        shape, rate = c * c / t2 + row.numerator, c / t2 + row.denominator
+        assert row.eb_low == pytest.approx(gamma_quantile(0.025, shape) / rate, rel=1e-10)
+        assert row.eb_high == pytest.approx(gamma_quantile(0.975, shape) / rate, rel=1e-10)
+        assert row.eb_rate == pytest.approx(shape / rate, rel=1e-10)
+        assert row.prob_worse == pytest.approx(gamma_tails(shape, rate * c)[1], rel=1e-10)
+
+    def test_interval_is_the_beta_posterior(self):
+        from qikit.core.contours import beta_params
+        from qikit.core.dist import beta_quantile
+        rng = np.random.default_rng(4)
+        n = rng.integers(50, 800, 100)
+        y = rng.binomial(n, rng.beta(26, 174, 100))
+        r = funnel(y=y, n=n, measure="proportion", tau=0.03, interval=0.9)
+        a, b = beta_params(r.summary["center"], 0.03 ** 2)
+        row = r.data.iloc[10]
+        lo = beta_quantile(0.05, a + row.numerator, b + row.denominator - row.numerator)
+        assert row.eb_low == pytest.approx(lo, rel=1e-10)
+
+    def test_known_tau_covers_about_nominal(self):
+        hits = []
+        for seed in range(20):
+            df, theta = self._counts(k=200, seed=seed)
+            d = funnel(df, y="o", n="e", measure="oe", unit="u", tau=0.2).data
+            d = d.set_index("unit").loc[np.arange(200)]
+            hits.append(((theta >= d.eb_low) & (theta <= d.eb_high)).mean())
+        assert 0.93 < np.mean(hits) < 0.97
+
+    def test_interval_changes_width_and_is_validated(self):
+        df, _ = self._counts()
+        w95 = funnel(df, y="o", n="e", measure="oe", unit="u", tau=0.2).data
+        w80 = funnel(df, y="o", n="e", measure="oe", unit="u", tau=0.2, interval=0.8).data
+        assert ((w80.eb_high - w80.eb_low) < (w95.eb_high - w95.eb_low)).all()
+        with pytest.raises(ValueError, match="interval is a coverage"):
+            funnel(df, y="o", n="e", measure="oe", unit="u", interval=95)
+
+    def test_no_spread_gives_no_interval_and_a_note(self):
+        rng = np.random.default_rng(6)
+        e = np.exp(rng.uniform(np.log(5), np.log(100), 300))
+        s = funnel(y=rng.poisson(e), n=e, measure="oe")     # chance alone: no spread
+        assert s.summary["estimate_tau"] == 0
+        assert s.data[["eb_low", "eb_high"]].isna().all().all()
+        assert s.data["estimate_flag"].isna().all()
+        assert any("tau= estimated from earlier periods" in n for n in s.summary["notes"])
+
+    def test_flag_names_follow_worse(self):
+        df, _ = self._counts(tau=0.4, seed=3)
+        args = dict(y="o", n="e", measure="oe", unit="u", tau=0.4)
+        assert set(funnel(df, **args).data.estimate_flag) <= {"higher", "lower", "no different"}
+        hi = funnel(df, **args, worse="higher").data
+        lo = funnel(df, **args, worse="lower").data
+        assert set(hi.estimate_flag) <= {"worse", "better", "no different"}
+        assert ((hi.estimate_flag == "worse") == (lo.estimate_flag == "better")).all()
+        w = hi[hi.estimate_flag == "worse"]
+        assert len(w) and (w.eb_low > w.cl).all()
+
+    def test_flag_is_separate_from_signal(self):
+        df, _ = self._counts(tau=0.4, seed=3)
+        d = funnel(df, y="o", n="e", measure="oe", unit="u", tau=0.4, worse="higher").data
+        assert set(d.signal) <= {"outlier", "alert", "none"}
+        assert "estimate_flag" in d and "signal" in d
+
+    def test_peers_flags_the_three_on_the_reproduction(self):
+        d = funnel(_system_offset_stays(), **_LOS).data
+        assert set(d.loc[d.estimate_flag == "worse", "unit"]) == {0, 1, 2}
+
+    def test_model_mode_keeps_the_limits_and_judges_estimates_against_one(self):
+        df = _system_offset_stays()
+        model = funnel(df, **_LOS, compare_to="model")
+        d, s = model.data, model.summary
+        assert s["reference"] == 1.0
+        # The system runs ~14% over the model: the shrunk estimates sit above 1.0, most
+        # with an interval clear of it, and the three planted providers lead.
+        assert (d.eb_rate > 1.0).all() and (d.estimate_flag != "better").all()
+        assert (d.estimate_flag == "worse").sum() > 30
+        top = d.nlargest(3, "eb_rate")
+        assert set(top.unit) == {0, 1, 2} and (top.estimate_flag == "worse").all()
+        assert (d.reliability > 0).all() and (d.prob_worse > 0.5).all()
+        # The prior is centered on the pooled value with tau around it, as peers is.
+        peers = funnel(df, **_LOS)
+        assert s["estimate_tau"] == pytest.approx(peers.summary["estimate_tau"])
+        pd.testing.assert_series_equal(d.eb_rate, peers.data.eb_rate)
+
+    def test_model_mode_tau_sets_only_the_estimates(self):
+        df = _system_offset_stays()
+        free = funnel(df, **_LOS, compare_to="model")
+        fixed = funnel(df, **_LOS, compare_to="model", tau=0.2)
+        cols = ["lower_outlier", "upper_outlier", "p_value", "q_value", "signal"]
+        pd.testing.assert_frame_equal(free.data[cols], fixed.data[cols])
+        assert fixed.summary["estimate_tau"] == pytest.approx(0.2)
+        assert ((fixed.data.eb_high - fixed.data.eb_low)
+                > (free.data.eb_high - free.data.eb_low)).all()
+
+    def test_unadjusted_custom_chart_still_rejects_tau(self):
+        with pytest.raises(ValueError, match="tau= needs overdispersion=True"):
+            funnel(y=[3, 5, 8], n=[50, 60, 70], measure="proportion", center=0.1,
+                   overdispersion=False, tau=0.01)
+
+
+class TestCaterpillar:
+    def _r(self, **kw):
+        rng = np.random.default_rng(8)
+        e = np.exp(rng.uniform(np.log(5), np.log(100), 90))
+        df = pd.DataFrame({"u": [f"P{i:02d}" for i in range(90)],
+                           "o": rng.poisson(e * rng.gamma(10, 0.1, 90)), "e": e,
+                           "f": np.where(np.arange(90) % 3, "A", "B")})
+        return funnel(df, y="o", n="e", measure="oe", unit="u", tau=0.3, **kw)
+
+    def test_draws_one_row_per_provider_sorted_by_estimate(self):
+        pytest.importorskip("plotly")
+        r = self._r(worse="higher")
+        fig = r.plot(kind="caterpillar")
+        est = [x for t in fig.data if t.mode == "markers" and t.name != "Raw value"
+               for x in zip(t.y, t.x)]
+        assert len(est) == 90
+        ordered = [x for _, x in sorted(est)]
+        assert ordered == sorted(ordered)
+        assert any(sh.type == "line" for sh in fig.layout.shapes)   # the reference
+
+    def test_top_bottom_and_facets(self):
+        pytest.importorskip("plotly")
+        fig = self._r(facets="f").plot(kind="caterpillar", top=5, bottom=5)
+        assert fig.layout.yaxis2 is not None
+        n = sum(len(t.x) for t in fig.data if t.mode == "markers" and t.name != "Raw value")
+        assert n == 20
+
+    def test_bad_options(self):
+        pytest.importorskip("plotly")
+        r = self._r()
+        with pytest.raises(ValueError, match="kind must be"):
+            r.plot(kind="forest")
+        with pytest.raises(ValueError, match="top= is a number"):
+            r.plot(kind="caterpillar", top=0)
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            r.plot(kind="caterpillar", x_log=True)
