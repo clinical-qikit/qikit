@@ -283,7 +283,7 @@ def _crossings_blanket(result, frame) -> np.ndarray:
 
 def _funnel_xlab(meta: dict, axis: str) -> str:
     base = meta.get("n_name") or {"oe": "Expected", "proportion": "Cases",
-                                  "rate": "Exposure"}.get(str(meta.get("measure")), "Volume")
+                                  "rate": "Exposure", "mean": "Cases"}.get(str(meta.get("measure")), "Volume")
     if axis == "effective_denominator":
         return f"Effective {base} ({base} / {meta.get('phi_column')})"
     return base
@@ -293,6 +293,8 @@ def _funnel_ylab(meta: dict) -> str:
     measure, y, n = meta.get("measure"), meta.get("y_name"), meta.get("n_name")
     if measure == "oe":
         return "Observed / expected"
+    if measure == "mean":
+        return f"Mean {y}" if y else "Mean"
     if not (y and n):
         return "Proportion" if measure == "proportion" else "Rate"
     if measure == "proportion":
@@ -620,8 +622,10 @@ def _hover(drawing: Drawing, df: pd.DataFrame, excluded: np.ndarray):
     template = "%{customdata[0]}: %{y}"
     if drawing.funnel:
         unit = {"oe": ("observed", "expected"), "proportion": ("events", "cases"),
-                "rate": ("events", "exposure")}.get(str(drawing.measure), ("numerator", "denominator"))
-        smallest = "Smallest detectable O/E" if drawing.measure == "oe" else "Smallest detectable"
+                "rate": ("events", "exposure"), "mean": ("total", "cases"),
+                }.get(str(drawing.measure), ("numerator", "denominator"))
+        smallest = {"oe": "Smallest detectable O/E", "mean": "Smallest detectable mean",
+                    }.get(str(drawing.measure), "Smallest detectable")
         tail = {"above": "above", "below": "below", "both": "two-sided"}[drawing.side]
         for r, num, den, lo, hi, det, p, q in zip(
                 rows, df["numerator"], df["denominator"], df["ci_lower"], df["ci_upper"],

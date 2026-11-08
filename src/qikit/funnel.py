@@ -39,7 +39,7 @@ from .validate import (
     split_facets,
 )
 
-MEASURES = ("oe", "proportion", "rate")
+MEASURES = ("oe", "proportion", "rate", "mean")
 SIGNALS = ("limits", "fdr")
 BENCHMARKS = (None, "abc", "eb")
 # A provider holding fewer cases than the minimum sufficient denominator could reach
@@ -88,7 +88,7 @@ def funnel(
     data: pd.DataFrame | None = None,
     *,
     y: Any,
-    n: Any,
+    n: Any = None,
     measure: str,
     unit: Any = None,
     label: Any = None,
@@ -97,7 +97,7 @@ def funnel(
     exclude: Any = None,
     center: float | None = None,
     overdispersion: bool = True,
-    within_dispersion: float | str = 1.0,
+    within_dispersion: float | str | None = None,
     tau_method: str = DEFAULT_TAU_METHOD,
     tau: float | dict | None = None,
     cases: str | None = None,
@@ -125,6 +125,9 @@ def funnel(
     | observed events and risk-model expected events     | measure="oe", y=observed, n=expected   |
     | events out of cases (mortality %, H&P in 24 h)     | measure="proportion", y=events, n=cases|
     | events over exposure (infections per line-day)     | measure="rate", y=events, n=exposure   |
+    | a per-case amount: minutes, cost or days per stay  | measure="mean", y=the amount, one row  |
+    |   (EHR minutes per discharge, cost per case)       |   per case (n optional), or SQL totals |
+    |                                                    |   y=SUM, n=COUNT, sum_sq=SUM(y*y)      |
     | DAYS or anything where one case adds many units    | stay-level rows (one per case), and    |
     |   (length of stay as observed/expected days)       | within_dispersion="estimate"           |
     | items of a multi-question survey or audit, scored  | one row per survey (y = items "Always",|
@@ -165,7 +168,7 @@ def funnel(
     - signal: "outlier", "alert" or "none". The tiers never overlap; an outlier is
       not also an alert. Under worse= only the worse side is flagged.
     - direction: "higher" or "lower", which side of the center line the point is on.
-    - y: the plotted value (O/E ratio, proportion or rate, after multiply=);
+    - y: the plotted value (O/E ratio, proportion, rate or mean, after multiply=);
       numerator and denominator: the summed y= and n= inputs, in the caller's units.
     - effective_denominator: only with a per-provider within_dispersion column: the
       denominator ÷ φᵢ the model sees, which is the x axis of the plot.
@@ -212,6 +215,7 @@ def funnel(
     with benchmark=, benchmark: a dict of method, share and value, and under "abc" also
     providers, coverage (their share of the denominator), group_denominator (median,
     min, max), msd (minimum sufficient denominator), n_below_msd and without_small.
+    Under measure="mean", case_sd: the spread of a single case, √(φ·center), in y's units.
     Faceted: the counts summed, notes prefixed, and each facet's summary in by_facet.
     print(result) summarizes it in words.
 
@@ -219,9 +223,13 @@ def funnel(
     ----------
     data : DataFrame of providers, or of cases (stay- or survey-level rows) to be summed
         per unit. Without data=, y, n, unit, label are sequences and hover a dict.
-    y, n : columns (or sequences): the numerator and denominator.
+    y, n : columns (or sequences): the numerator and denominator. Under measure="mean",
+        y is the amount and n the case count: 1 per row (the default when n is
+        omitted) or each provider's COUNT(*) alongside sum_sq=.
     measure : "oe" (observed / expected: risk-adjusted mortality, readmission, length
-        of stay), "proportion" (events / cases) or "rate" (events / exposure).
+        of stay), "proportion" (events / cases), "rate" (events / exposure) or "mean"
+        (a per-case amount ≥ 0 such as minutes or cost, averaged per provider; the
+        quasi-Poisson model with φ estimated, in y's own units, methods §4.19).
     unit : provider identifier column; rows are providers when omitted.
     label : display name column (the first value per unit); hover : extra tooltip columns.
     facets : a column, or list of columns: one funnel per value, each with its own
@@ -234,7 +242,8 @@ def funnel(
         (Spiegelhalter's additive τ²) as well as chance. Default True.
     within_dispersion : how much more variable each count is than its model because
         units clump inside cases (patient-days; the items of one survey). 1.0 (default)
-        means independent units. "estimate" computes it from case-level rows; a number
+        means independent units; under measure="mean" the default, and the only
+        scalar, is "estimate" (a column of φᵢ is also accepted). "estimate" computes it from case-level rows; a number
         supplies it (e.g. from SQL: SUM(POWER(los - exp, 2) / exp) / (COUNT(*) - COUNT(
         DISTINCT provider))); a column name gives one φᵢ per provider (case-mix
         weighted, methods §4.12). The model then sees y/φ out of n/φ. An estimate below
@@ -250,11 +259,14 @@ def funnel(
     tau : a τ fixed in advance instead of estimated (a number, or a dict per facet).
         This period's estimate is still reported as tau_estimated.
     cases, sum_sq : per-provider SQL totals (k, and Σ y²/n over the provider's cases) so
-        within_dispersion="estimate" needs no case rows. Pass both or neither.
+        within_dispersion="estimate" needs no case rows. Pass both or neither. Under
+        measure="mean" n is the case count, so pass sum_sq= = SUM(y * y) alone.
     max_case_y, max_case_n : per-provider SQL worst case toward worse= (MAX_BY), for
-        p_value_drop1 and flag_survives_drop1.
+        p_value_drop1 and flag_survives_drop1. Under measure="mean" max_case_y alone
+        (max_case_n is 1).
     fdr_min_denominator : a volume floor for the false discovery rate step only, on the
-        denominator the model sees (expected events, cases or exposure, ÷ φ). Providers
+        denominator the model sees (expected events, cases or exposure, ÷ φ; under
+        measure="mean", the case count). Providers
         below it keep their p_value but get no q_value (independent filtering, §4.11).
     worse : "higher" or "lower" when only one direction is bad: flags only that side and
         makes p-values one-sided.
@@ -269,11 +281,13 @@ def funnel(
         "abc": Kiefe and Weissman's achievable benchmark of care. Providers are ranked best
         first by (x + 1)/(n + 2), taken until they hold benchmark_share of the
         denominator (ties at that point included), and their raw counts pooled. Designed
-        for process proportions; on "oe" and "rate" the ranking adds one event at the
-        center line instead, an extension its authors would caution against.
+        for process proportions; on "oe", "rate" and "mean" the ranking adds one event
+        at the center line instead, an extension its authors would caution against
+        (a note says so).
         "eb": the (1 − benchmark_share) quantile of the shrunk eb_rate across providers,
         toward the better side (O'Brien et al. 2008): the 90th percentile by default.
-        Suits outcomes; equals the center line when the funnel finds no spread.
+        The choice for "oe", "rate" and "mean" (O/E mortality, LOS, minutes or cost
+        per case); equals the center line when the funnel finds no spread.
     benchmark_share : the share defining "best", 0.10 by default. Choose it before
         looking at who the best providers are.
     multiply : scale the plotted y, e.g. 1000 for a rate per 1,000.
@@ -289,12 +303,20 @@ def funnel(
         fdr_min=fdr_min_denominator, multiply=multiply, center=center, facets=facets,
         benchmark=benchmark, benchmark_share=benchmark_share,
     )
+    mean = measure == "mean"
+    if mean:
+        n, cases, max_case_n, within_dispersion = _mean_inputs(
+            data, n, cases, sum_sq, max_case_y, max_case_n, within_dispersion)
+    elif n is None:
+        raise ValueError(f"n= is required for measure={measure!r}: the denominator.")
+    elif within_dispersion is None:
+        within_dispersion = 1.0
     if (cases is None) != (sum_sq is None):
         raise ValueError(
             "cases= and sum_sq= go together: cases is each provider's number of cases and "
             "sum_sq its SUM(POWER(y, 2) / n) over those cases. Pass both, or neither."
         )
-    if (max_case_y is None) != (max_case_n is None):
+    if not mean and (max_case_y is None) != (max_case_n is None):
         raise ValueError(
             "max_case_y= and max_case_n= go together: the numerator and denominator of "
             "each provider's most extreme case. Pass both, or neither."
@@ -308,9 +330,69 @@ def funnel(
     extra = {_CASES: cases, _SS: sum_sq, _MAXY: max_case_y, _MAXN: max_case_n,
              _PHI: phi_column}
     frame, hover_names = _normalize(data, y, n, unit, label, hover, st.facets, exclude, extra)
+    if mean:
+        _check_mean_rows(frame, aggregated=cases is not None)
+        if max_case_y is not None:
+            frame[_MAXN] = 1.0
     return _funnel(frame, replace(st, hover=tuple(hover_names)), within_dispersion,
                    aggregated=cases is not None, phi_column=phi_column,
                    names={"y": y, "n": n})
+
+
+def _mean_inputs(data, n, cases, sum_sq, max_case_y, max_case_n, within_dispersion):
+    """
+    measure="mean" defaults (methods §4.19): n is the case count (1 per row when
+    omitted), cases= is that same n, max_case_n is 1, and φ is always estimated or given
+    per provider, never a scalar the caller would have to know in y's units.
+    """
+    if within_dispersion is None:
+        within_dispersion = "estimate"
+    elif not isinstance(within_dispersion, str):
+        raise ValueError(
+            "measure='mean' estimates within_dispersion from the cases (the variance-to-"
+            "mean ratio of one case, in y's units), so a number cannot be supplied. Leave "
+            "it unset, or pass a column of per-provider phi."
+        )
+    if max_case_n is not None:
+        raise ValueError(
+            "measure='mean' takes max_case_y= alone: the worst single case's amount; its "
+            "denominator is always one case."
+        )
+    if sum_sq is not None:
+        if n is None:
+            raise ValueError(
+                "measure='mean' with sum_sq= needs n=: each provider's number of cases "
+                "(COUNT(*)), alongside y = SUM(amount) and sum_sq = SUM(amount * amount)."
+            )
+        if cases is not None and cases != n:
+            raise ValueError("Under measure='mean' n= is the case count; leave cases= unset.")
+        cases = n
+    elif cases is not None:
+        raise ValueError(
+            "measure='mean' with provider totals takes n= (the case count) and sum_sq= "
+            "(SUM(amount * amount)); cases= is implied by n=."
+        )
+    return n, cases, max_case_n, within_dispersion
+
+
+def _check_mean_rows(frame: pd.DataFrame, aggregated: bool) -> None:
+    """Amounts ≥ 0, and on case rows one case per row."""
+    y = frame[_Y].to_numpy(dtype=float)
+    if np.any(np.isfinite(y) & (y < 0)):
+        raise ValueError(
+            "measure='mean' needs amounts of 0 or more (minutes, cost, days): its "
+            "variance grows with the mean. Signed values such as change scores are not "
+            "supported."
+        )
+    if aggregated:
+        return
+    n = frame[_N].to_numpy(dtype=float)
+    if np.any(np.isfinite(n) & (n != 1.0)):
+        raise ValueError(
+            "measure='mean' on case rows takes one case per row (n = 1, or leave n= "
+            "unset). With one row per provider, pass y = SUM(amount), n = COUNT(*) and "
+            "sum_sq = SUM(amount * amount), so the spread of single cases can be measured."
+        )
 
 
 @dataclass(frozen=True)
@@ -520,7 +602,7 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
         cl, tested, n_model, used, family, st.side, scale, byar=st.limit_method == "byar",
     )
     filtered = (np.zeros(len(p), dtype=bool) if st.fdr_min is None
-                else np.isfinite(p) & (n_model < st.fdr_min))
+                else np.isfinite(p) & ((den if st.measure == "mean" else n_model) < st.fdr_min))
     q = bh_q_values(np.where(filtered, np.nan, p))
     if st.signal == "limits":
         outlier = _beyond(tested, lim.ucl, lim.lcl, st.side)
@@ -575,6 +657,9 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
         "n_filtered": int(np.sum(filtered)),
         "n_fragile": fragile,
     }
+    if st.measure == "mean":
+        phi_bar = _mean_phi(den, n_model) if within.phi_units is not None else within.phi
+        summary["case_sd"] = math.sqrt(phi_bar * cl) * m
     summary["expected_false_flags"] = _expected_false_flags(st, summary)
     notes: list[str] = []
     if st.benchmark is not None:
@@ -786,7 +871,7 @@ def _shape(cl, ratio, n_model, mask, family, within: _Within, measure, notes) ->
                 f"small providers are over-flagged and p- and q-values are too small. {fix}")
         notes.append(note)
         warnings.warn(note, UserWarning, stacklevel=4)
-    if within.source == "estimated" and within.phi < 1.0:
+    if within.source == "estimated" and within.phi < 1.0 and measure != "mean":
         notes.append(
             f"within_dispersion was estimated at {within.phi:.2f}, below 1: single cases vary "
             f"less than a Poisson count, as binary outcomes do (the variance, the sum of "
@@ -829,7 +914,7 @@ def _power(measure: str, det, cl, excluded, notes) -> dict:
     out = {"min_detectable_median": median if math.isfinite(median) else math.nan,
            "n_underpowered": n_under, "underpowered": median > UNDERPOWERED_RATIO}
     if out["underpowered"]:
-        noun = "proportion" if measure == "proportion" else "rate"
+        noun = {"proportion": "proportion", "mean": "mean"}.get(measure, "rate")
         reach = (f"median: {median:.1f}× the center line" if math.isfinite(median)
                  else "median: none, most points cannot flag at all")
         notes.append(
@@ -842,7 +927,7 @@ def _power(measure: str, det, cl, excluded, notes) -> dict:
 
 
 _SPREAD = {"oe": ("the risk model and chance", "O/E"), "proportion": ("chance", "proportions"),
-           "rate": ("chance", "rates")}
+           "rate": ("chance", "rates"), "mean": ("chance", "means")}
 
 
 def _notes(s: dict, st: _Settings, notes: list[str]) -> None:
@@ -1081,7 +1166,8 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
     if data is None:
         if isinstance(y, str) or isinstance(n, str):
             raise ValueError("Without data=, y= and n= must be sequences, not column names.")
-        frame = pd.DataFrame({_Y: np.asarray(y, dtype=float), _N: np.asarray(n, dtype=float)})
+        yv = np.asarray(y, dtype=float)
+        frame = pd.DataFrame({_Y: yv, _N: np.ones(len(yv)) if n is None else np.asarray(n, dtype=float)})
         k = len(frame)
         for col, values in ((_UNIT, unit), (_LABEL, label)):
             if values is not None:
@@ -1104,7 +1190,8 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
                           *(("facets", f) for f in facets)):
             if col is not None and (not isinstance(col, str) or col not in data.columns):
                 raise ValueError(f"{name}= must name a column of data, got {col!r}.")
-        frame = pd.DataFrame({_Y: data[y].to_numpy(dtype=float), _N: data[n].to_numpy(dtype=float)},
+        frame = pd.DataFrame({_Y: data[y].to_numpy(dtype=float),
+                              _N: 1.0 if n is None else data[n].to_numpy(dtype=float)},
                              index=data.index)
         if unit is not None:
             frame[_UNIT] = data[unit].to_numpy()

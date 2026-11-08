@@ -111,6 +111,7 @@ including where qikit departs from the paper.
 | Observed events and risk-model expected events (mortality or readmission O/E) | `measure="oe"`, `y=observed`, `n=expected` |
 | Events out of cases (complication %, top-box %) | `measure="proportion"`, `y=events`, `n=cases` |
 | Events over exposure (infections per line-day) | `measure="rate"`, `y=events`, `n=exposure` |
+| A per-case amount: minutes, cost or counts per stay (EHR minutes per discharge) | `measure="mean"`, `y=` the amount, one row per case; or per provider `y=SUM`, `n=COUNT(*)`, `sum_sq=SUM(y*y)` |
 | **Days**, or anything where one case adds many units (length of stay as O/E days) | stay-level rows, one per case, and `within_dispersion="estimate"` |
 | The same, summed per provider in SQL so the stays never leave the warehouse | one row per provider with `cases=` (k) and `sum_sq=` (`SUM(POWER(obs, 2) / exp)`), and `within_dispersion="estimate"` |
 | Stays whose variability differs by DRG or service line | `within_dispersion="<column>"`: one case-mix-weighted φᵢ per provider, from SQL |

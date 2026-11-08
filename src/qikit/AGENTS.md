@@ -42,7 +42,8 @@ replacement; read the message and apply it.
   `method="anhoej"` (default, qicharts2) or `method="nhs"` with `chart="i"` and
   `worse=` for NHS Making Data Count.
 - **Funnels:** `measure="oe"` (y=observed, n=expected), `"proportion"` (events, cases)
-  or `"rate"` (events, exposure). Length of stay in days needs stay-level rows and
+  `"rate"` (events, exposure) or `"mean"` (a per-case amount such as minutes or cost,
+  one row per case; never rescale it to O/E). Length of stay in days needs stay-level rows and
   `within_dispersion="estimate"`. Keep `tau_method="spiegelhalter"` (the default)
   unless the user asks for CQC/SHMI (`"cqc"`, `"shmi"`) or for the stated chance-flag
   rate to hold (`"winsorized"`).

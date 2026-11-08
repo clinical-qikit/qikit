@@ -4,6 +4,24 @@
 
 ### Added
 
+- **`measure="mean"` on `funnel()`:** compares providers on a per-case amount, such as
+  EHR minutes per discharge or cost per case, in the amount's own units. Pass one row
+  per case (`y=` the amount; `n=` may be omitted), or SQL totals (`y=SUM`,
+  `n=COUNT(*)`, `sum_sq=SUM(y*y)`). The center line is the pooled mean, and cases are on
+  the x axis. It is the quasi-Poisson model with `within_dispersion` always estimated,
+  so every option applies: `worse=`, `signal="fdr"`, `tau_method`, `max_case_y=`,
+  `benchmark="eb"`, `facets=` and `multiply=`. It gives exactly the result of the
+  earlier workaround (each case ÷ the pooled mean as O/E, then `multiply=`), without
+  the rescaling. Methods §4.19.
+  - `summary["case_sd"]`: the SD of a single case, in y's units.
+  - Amounts must be ≥ 0. A scalar `within_dispersion`, `cases=` and `max_case_n=` are
+    refused under `"mean"`, because `n` already is the case count and a single case's
+    denominator is 1.
+  - `n=` is now optional in the signature; every other measure still requires it.
+  - The `benchmark=` docs now say which option suits which measure: `"abc"` for
+    proportions, `"eb"` for `"oe"`, `"rate"` and `"mean"`.
+  - Python only; the Excel add-in does not draw funnels.
+
 - **`color_by="fdr"` on `FunnelResult.plot()`:** colors the points by their q-value
   tiers (outlier q < `fdr_levels[0]`, alert q < `fdr_levels[1]`) on a `signal="limits"`
   result. The `signal` column and the drawn 95% and 99.8% lines are unchanged; the

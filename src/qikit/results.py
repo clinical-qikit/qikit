@@ -254,7 +254,9 @@ def _describe(summary: dict) -> str:
             scale = s.get("tau_scale", "natural")
             on = "" if scale == "natural" else f" on the {scale} scale"
             text += f"; spread between providers tau = {s['tau']:.3g}{on}"
-        if s.get("within_dispersion", 1.0) != 1.0:
+        if s.get("case_sd") is not None:
+            text += f"; one case varies with SD {s['case_sd']:.3g}"
+        elif s.get("within_dispersion", 1.0) != 1.0:
             text += f"; within_dispersion = {s['within_dispersion']:.3g}"
         b = s.get("benchmark")
         if b is not None:

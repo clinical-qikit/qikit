@@ -1058,7 +1058,10 @@ best".
 | `benchmark=` | What it is | Suits |
 |---|---|---|
 | `"abc"` | Kiefe and Weissman's achievable benchmark of care [38, 39]: the pooled rate of the best providers holding 10% of patients | Process-of-care proportions (H&P in 24 h, vaccination) |
-| `"eb"` | The 90th percentile, toward better, of the shrunk estimates `eb_rate` [44] | Outcomes (O/E mortality, length of stay, readmission) |
+| `"eb"` | The 90th percentile, toward better, of the shrunk estimates `eb_rate` [44] | Outcomes (O/E mortality, length of stay, readmission) and per-case amounts (`measure="mean"`: minutes or cost per case) |
+
+Both run on every measure. `"abc"` on `"oe"`, `"rate"` or `"mean"` adds a note that its
+authors designed it for proportions; `"eb"` is the choice there.
 
 **The ABC method.** These are the three steps of Kiefe et al. [38, Table 1], restated by
 Weissman et al. [39, Table 1]:
@@ -1183,6 +1186,52 @@ interval around the ABC, "because the purpose of our benchmarks is to drive qual
 improvement". The same holds for `"eb"`. A benchmark is a goal, not a test. At physician
 volumes the gap between a provider and the benchmark is often within chance, and
 `min_detectable` and `ci_lower`/`ci_upper` say how far the provider's own data can tell.
+
+### 4.19 Continuous per-case amounts (`measure="mean"`)
+
+Minutes of EHR time per discharge, cost per case and days per stay are amounts, not
+counts. The question is the same: does a provider's mean differ from its peers' by more
+than chance and the spread between providers allow?
+
+**The model.** `measure="mean"` is the quasi-Poisson model of §4.12 applied to the raw
+amounts: y = the amount, n = 1 per case, and φ estimated. A provider's total over k
+cases has variance φ·θⱼ·k, so its mean has variance φθⱼ/k. φ is the variance-to-mean
+ratio of one case, in y's units (minutes²/minute), and `summary["case_sd"]` = √(φ̂·θ₀)
+reports the within-provider SD of one case in plain units. τ² is added on top as for
+every measure (§4.4), and the center line is the pooled mean Σy/Σk.
+
+**Why no rescaling is needed.** The model is scale-equivariant. Multiply every amount
+by c and φ̂ is multiplied by c, the effective counts y/φ and k/φ are unchanged, and so
+are every p-value, q-value, reliability and flag. Only the limits, the center line and
+the amounts move, by c. Minutes and hours therefore give the same chart, labeled
+differently, and the test suite checks this. It is also why the construction users
+built first agrees with it to machine precision: dividing each case by the pooled mean
+and passing it as O/E with n = 1, then `multiply=` the pooled mean. That is the same
+model at c = 1/θ₀.
+
+**Why not a normal model.** A normal model with one σ² for every provider would add a
+new family to every part of the engine: contours, tests, τ estimators, shrinkage,
+power, the benchmarks. Variance proportional to the mean fits non-negative, right-skewed
+amounts at least as well, because providers with longer times usually vary more, and
+every option comes along unchanged: `signal="fdr"`, `tau_method`, drop-one robustness,
+`benchmark="eb"`, `facets=` and `multiply=`.
+
+**Inputs.**
+- Case rows: `y=` the amount, one row per case. `n=` may be omitted; if given, it must
+  be 1.
+- SQL totals: `y = SUM(amount)`, `n = COUNT(*)` and `sum_sq = SUM(amount * amount)`. This
+  is the `Σ y²/n` of §4.12 with n = 1. `cases=` is implied by `n`, and `max_case_y=`
+  alone gives drop-one robustness.
+
+`within_dispersion` is always estimated, or given per provider as a column. A scalar is
+refused, because no one knows φ in minutes²/minute. `fdr_min_denominator` counts cases.
+The "φ below 1" note of §4.12 does not apply: φ < 1 here means only that the amounts are
+in small units.
+
+**Limits.**
+- Amounts must be ≥ 0. Signed values, such as change scores, are refused (§6).
+- Long cases dominate φ̂, as long stays do. Cap amounts at a stated percentile first
+  where the measure's convention does.
 
 ## 5. Evidence from simulation
 
@@ -1396,6 +1445,9 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 - **Item-level rows hide the clustering.** qikit cannot tell items from cases when every
   row is one yes/no. It refuses `"estimate"` on such rows and documents the unit to
   pass (§4.13).
+- **Signed continuous values.** `measure="mean"` needs amounts ≥ 0, because its
+  variance grows with the mean (§4.19). Change scores and other signed values would need
+  a normal family with a common σ², which is not built.
 - **Very large expected counts.** Above λ = 10⁵ the contours and p-values switch to
   Byar's approximation, and `summary["limit_method"]` says `"byar"`. No physician-level
   measure comes near this.
