@@ -103,6 +103,7 @@ def _funnel_results():
                           "exp": rng.uniform(3, 7, 240)})
     yield funnel(stays, y="los", n="exp", measure="oe", unit="unit",
                  within_dispersion="estimate")
+    yield funnel(stays, y="los", measure="mean", unit="unit")
     yield funnel(oe.assign(phi=rng.uniform(1, 3, 30)), y="obs", n="exp", measure="oe",
                  unit="unit", within_dispersion="phi")
 

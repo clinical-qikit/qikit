@@ -1,7 +1,7 @@
 """
-shewhart.py — centre lines and control limits for time-ordered charts.
+shewhart.py — center lines and control limits for time-ordered charts.
 
-Every chart here estimates a centre line from its baseline points and a one-sigma
+Every chart here estimates a center line from its baseline points and a one-sigma
 spread per point; the limits are cl ± 3σ and the inner band cl ± 2σ, floored at 0
 (and capped at 1 for proportions) where the measure is bounded. The g, mr and s charts,
 whose limits are not symmetric, compute theirs directly. The t chart is the i chart on
@@ -37,7 +37,7 @@ RATE_CHARTS = ("p", "pp", "u", "up")
 SUBGROUP_CHARTS = ("xbar", "s")
 # The t chart transforms time between events to near-normality (Montgomery §7.3).
 T_POWER = 3.6
-# NHS Making Data Count's XmR constant, 3/d2 rounded as the programme publishes it.
+# NHS Making Data Count's XmR constant, 3/d2 rounded as the program publishes it.
 MDC_CONSTANT = 2.66
 
 
@@ -64,12 +64,12 @@ def shewhart(
     mdc: bool = False,
 ) -> Limits:
     """
-    Centre line and limits for one part of a time-ordered chart.
+    Center line and limits for one part of a time-ordered chart.
 
     y is the plotted value (a proportion or rate on p/pp/u/up, the subgroup mean on
     xbar, the subgroup SD on s, the moving range on mr); n the denominator, or the
-    subgroup size on xbar/s; mask the baseline the centre and spread are estimated
-    from; center a fixed centre line; sd the subgroup SDs (xbar only); categorical
+    subgroup size on xbar/s; mask the baseline the center and spread are estimated
+    from; center a fixed center line; sd the subgroup SDs (xbar only); categorical
     makes Laney's σ_z the SD of z rather than its moving range, as qicharts2 does when x
     has no order; mdc uses Making Data Count's 2.66 on the i chart.
     """
@@ -112,7 +112,7 @@ def shewhart(
         if chart in ("pp", "up"):
             sigma_z = laney_sigma_z(y, cl, sigma, mask, categorical)
             # A series with no point-to-point variation has no spread to estimate, as on
-            # the i chart: no limits rather than limits on the centre line.
+            # the i chart: no limits rather than limits on the center line.
             sigma = sigma * (sigma_z if sigma_z > 0 else np.nan)
             info["sigma_z"] = sigma_z
 
@@ -143,7 +143,7 @@ def screened_mean_mr(y_base: np.ndarray) -> float:
     breaks the series rather than bridging it, as in qicharts2.
 
     One departure: where most moving ranges are 0 the screen can drop the only
-    informative one and leave MR̄ = 0, which would draw limits on the centre line and
+    informative one and leave MR̄ = 0, which would draw limits on the center line and
     flag every point. The unscreened MR̄ is kept then (docs/qic-methods.md).
     """
     mr = np.abs(np.diff(np.asarray(y_base, dtype=float)))
@@ -160,7 +160,7 @@ def laney_sigma_z(
     y: np.ndarray, cl: float, sigma: np.ndarray, mask: np.ndarray, categorical: bool,
 ) -> float:
     """
-    Laney's σ_z: how much the baseline's standardised residuals zᵢ = (yᵢ − cl)/σᵢ vary
+    Laney's σ_z: how much the baseline's standardized residuals zᵢ = (yᵢ − cl)/σᵢ vary
     beyond what the binomial or Poisson model predicts. The screened mean moving range
     of z over d2 in time order; the SD of z when x is categorical (qicharts2). Not
     floored at 1: Laney's method narrows the limits of an under-dispersed series too.
@@ -222,7 +222,7 @@ def _s_limits(y, sizes, mask, center) -> Limits:
     """
     S chart. Equal sizes: CL = S̄, limits B3/B4(nᵢ)·S̄ (Montgomery §6.4). Unequal sizes:
     CLᵢ = c4(nᵢ)·σ̂ and CLᵢ ± 3σ̂√(1 − c4(nᵢ)²), so a series whose subgroup size drifts does
-    not manufacture a run against a flat centre line (docs/qic-methods.md).
+    not manufacture a run against a flat center line (docs/qic-methods.md).
     """
     k = len(y)
     c = np.array([c4(float(s)) for s in sizes])
@@ -256,7 +256,7 @@ def _mr_limits(y, mask, center) -> Limits:
 def _g_limits(y, mask, center) -> Limits:
     """
     G chart (opportunities between rare events, geometric): limits m ± 3√(m(m + 1)) from
-    the baseline mean m, floored at 0 (Montgomery p. 319); the centre line drawn is the
+    the baseline mean m, floored at 0 (Montgomery p. 319); the center line drawn is the
     baseline median, the typical gap, as in qicharts2. A fixed center= is the mean.
     """
     k = len(y)
@@ -269,7 +269,7 @@ def _g_limits(y, mask, center) -> Limits:
 
 
 # ---------------------------------------------------------------------------
-# Centre lines
+# Center lines
 # ---------------------------------------------------------------------------
 
 def _mean(v: np.ndarray) -> float:

@@ -1,7 +1,7 @@
 """
 qikit.core — the numbers, with no pandas and no plotting.
 
-    shewhart.py    centre lines and control limits for time-ordered charts
+    shewhart.py    center lines and control limits for time-ordered charts
     rules.py       run, trend and zone rules (anhoej, ihi, nhs, weco, nelson)
     contours.py    a funnel's probability contours at any denominator
     dispersion.py  the spread between providers (φ̂, τ̂²) by each tau_method

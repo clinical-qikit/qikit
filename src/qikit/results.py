@@ -154,6 +154,10 @@ class FunnelResult(_Serializable):
         caption, xlab, ylab, label_signals ("outlier", "alert", "both"), styles (restyle
         by role), x_log, x_range, y_range, show_legend, show_x_labels, width, height, and
         nrow, ncol, scales for facets. An unset caption states the flag rule.
+
+        color_by="fdr" colors the points by their q-value tiers (fdr_levels) on a
+        signal="limits" result, leaving its signal column and the drawn limits as they
+        are; fdr_watch=0.20 adds a pale watch tier for q below it.
         """
         _require_plotly()
         from .plot.charts import plot_funnel
@@ -250,7 +254,9 @@ def _describe(summary: dict) -> str:
             scale = s.get("tau_scale", "natural")
             on = "" if scale == "natural" else f" on the {scale} scale"
             text += f"; spread between providers tau = {s['tau']:.3g}{on}"
-        if s.get("within_dispersion", 1.0) != 1.0:
+        if s.get("case_sd") is not None:
+            text += f"; one case varies with SD {s['case_sd']:.3g}"
+        elif s.get("within_dispersion", 1.0) != 1.0:
             text += f"; within_dispersion = {s['within_dispersion']:.3g}"
         b = s.get("benchmark")
         if b is not None:

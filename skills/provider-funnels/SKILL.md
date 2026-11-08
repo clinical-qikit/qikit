@@ -15,6 +15,7 @@ limits, p-values, FDR or tier logic; read them from the result.
 | observed events and risk-model expected events | `measure="oe", y=<observed>, n=<expected>` |
 | events out of cases | `measure="proportion", y=<events>, n=<cases>` |
 | events over exposure (line-days, patient-days at risk) | `measure="rate", y=<events>, n=<exposure>` |
+| a per-case amount: minutes, cost or counts per stay | `measure="mean", y=<amount>` (one row per case) |
 
 ## 2. Days, survey items, or anything where one case adds many units: use case-level rows
 
@@ -72,6 +73,37 @@ as its φ: that hides exactly the providers with long, variable stays.
 Event counts (deaths, readmissions, infections) need none of this; leave
 `within_dispersion` at its default.
 
+### Minutes, cost or other amounts per case: `measure="mean"`
+
+For a mean amount per case, such as EHR minutes per discharge or cost per stay, pass the
+amount itself, one row per case. The axes, center line and table are in the amount's
+units, with cases on the x axis, and the spread of single cases is estimated:
+
+```python
+r = funnel(discharges, y="EHR_MINUTES", measure="mean",
+           unit="PROVIDER_ID", label="PROVIDER_NAME", worse="higher", signal="fdr")
+r.summary["case_sd"]   # SD of one discharge, in minutes
+```
+
+From SQL totals, which give the same result:
+
+```python
+prov = session.sql("""
+    SELECT provider_id, provider_name,
+           SUM(ehr_minutes)               AS total_min,
+           COUNT(*)                       AS n_discharges,
+           SUM(ehr_minutes * ehr_minutes) AS sum_sq,
+           MAX(ehr_minutes)               AS worst_min
+    FROM discharges GROUP BY provider_id, provider_name
+""").to_pandas()
+r = funnel(prov, y="TOTAL_MIN", n="N_DISCHARGES", sum_sq="SUM_SQ", max_case_y="WORST_MIN",
+           measure="mean", unit="PROVIDER_ID", label="PROVIDER_NAME", worse="higher")
+```
+
+Do not rescale the amounts to a ratio first: minutes and hours give the same flags.
+`within_dispersion` is always estimated here. Amounts must be ≥ 0. Use
+`benchmark="eb"`, not `"abc"`, for a goal (methods §4.19).
+
 ### Multi-question surveys and audits: one row per survey, not per item
 
 HCAHPS composites ("Communication with Doctors": explains, listens, respects) are scored
@@ -109,7 +141,10 @@ before reporting anything.
 
 - `worse="higher"` for mortality, readmission, LOS, infections; `worse="lower"` for
   satisfaction or top-box. Leave `None` only when both directions matter.
-- `signal="limits"` (default): flags match the drawn lines (exact test).
+- `signal="limits"` (default): flags match the drawn lines (exact test). Among hundreds
+  of providers a point beyond the 95% line can have a large `q_value`; to keep these
+  flags but draw the q tiers, plot with `color_by="fdr"` (and `fdr_watch=0.20` for a
+  watch tier).
 - `signal="fdr"`: when there are hundreds of providers and false alarms are costly.
   Many very-low-volume providers? Add `fdr_min_denominator=<E>`. It sets a volume floor
   for the FDR step only; those providers keep a `p_value` and still flag under
@@ -145,7 +180,7 @@ before reporting anything.
   - Use it in confidential feedback only, never for credentialing, compensation or
     public report cards.
 - Several measures: one call with `facets="<measure column>"` (or a list of columns);
-  each gets its own centre line, spread and FDR step, and the facet columns lead
+  each gets its own center line, spread and FDR step, and the facet columns lead
   `r.data`.
 
 ## 4. Read and report
@@ -168,7 +203,7 @@ Reporting rules:
   `summary["underpowered"]` is True. Say "not enough data to tell".
 - Do not re-rank providers by `p_value` into a league table; the tiers are the result.
   To order *flagged* providers for action, sort by `eb_excess` (expected excess
-  days/events after shrinkage), not `raw_excess`, which favours high volume.
+  days/events after shrinkage), not `raw_excess`, which favors high volume.
 - `signal` answers "unusual among peers?". `prob_worse` answers "probably worse than
   average?" (the CMS question). Name the question you report, and don't flag on
   `prob_worse` unless the user asked that question.
@@ -197,7 +232,7 @@ p_value_drop1, flag_survives_drop1, fragility` (plus `effective_denominator` und
 `benchmark_group` with `benchmark=`; the `facets=` columns first; and any `hover=`
 columns).
 
-Display options (`title=`, `styles=`, `label_signals=`, `x_log=`, sizes) go to
+Display options (`title=`, `styles=`, `label_signals=`, `color_by=`, `x_log=`, sizes) go to
 `r.plot()`, not to `funnel()`.
 
 Full reference: `help(qikit.funnel)`. Methods: `docs/methods.md`; CQC and SHMI in

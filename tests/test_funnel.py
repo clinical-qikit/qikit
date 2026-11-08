@@ -1123,7 +1123,7 @@ class TestAchievableBenchmark:
     @pytest.mark.parametrize("mean, msd", [(0.95, 72), (0.90, 36), (0.85, 23), (0.80, 17),
                                            (0.70, 11), (0.50, 6), (0.30, 4), (0.05, 2)])
     def test_msd_reproduces_kiefe_table_3(self, mean, msd):
-        # Providers of 1,000 cases each at the mean: the centre line is exactly `mean`.
+        # Providers of 1,000 cases each at the mean: the center line is exactly `mean`.
         df = pd.DataFrame({"unit": range(20), "y": [int(1000 * mean)] * 20, "n": [1000] * 20})
         assert self.abc(df).summary["benchmark"]["msd"] == msd
         # For a lower-is-better rate the good direction is 1 − p.
@@ -1194,7 +1194,7 @@ class TestShrunkPercentileBenchmark:
         assert sum(t.name == "Benchmark" for t in r.plot().data) == 1
         assert "shrunk percentile" in str(r)
 
-    def test_with_no_spread_it_is_the_centre_line(self):
+    def test_with_no_spread_it_is_the_center_line(self):
         r = funnel(self.oe(tau=0, k=60), y="o", n="e", measure="oe", unit="unit",
                    worse="higher", benchmark="eb", overdispersion=False)
         assert r.summary["benchmark"]["value"] == pytest.approx(r.summary["center"])

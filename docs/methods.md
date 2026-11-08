@@ -44,7 +44,7 @@ The two kinds of funnel ask different questions, and both are legitimate:
 
 Which question applies is a policy decision. Make it before seeing the data, and record
 it in the analysis plan [8, step 1]; Spiegelhalter calls the boundary between
-acceptable and out-of-control "a matter of judgement" [1, §5]. If the data are
+acceptable and out-of-control "a matter of judgment" [1, §5]. If the data are
 over-dispersed, the spread itself is a finding about the system: unmeasured case mix,
 data or coding differences, or real differences in practice. Spiegelhalter is explicit
 that adjusting is "purely a temporary measure" while its causes are explored [1, §5].
@@ -67,7 +67,7 @@ When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.
 | Robustness | 10% winsorized φ̂ (eqs. 6, 8) | Same |
 | Winsorizing debiasing factor w(q) | Derived (eq. 9), not adopted in his example | Same by default (`tau_method="spiegelhalter"`); `tau_method="winsorized"` applies it (§4.3) |
 | Between-provider variance τ² | Method of moments on winsorized residuals (eq. 10) | Same by default; also maximum likelihood (`"ml"`), CQC and SHMI (`"cqc"`, `"shmi"`), or a τ fixed in advance (`tau=`) (§4.16, §4.17) |
-| A centre line fixed in advance | Not distinguished | Published methods unchanged; `"winsorized"` counts K degrees of freedom rather than K − 1, since no mean was estimated (§4.3) |
+| A center line fixed in advance | Not distinguished | Published methods unchanged; `"winsorized"` counts K degrees of freedom rather than K − 1, since no mean was estimated (§4.3) |
 | Multiplicative model | φ̂, applied if φ̂ > 1 + 2√(2/I) | Not used (§4.4) |
 | Additive model | τ̂² by method of moments (eq. 10), 0 if φ̂ < (I−1)/I | Same |
 | Adjusted limits | θ₀ ± z√(V + τ²), normal (eq. 11) | **Differs**: same variance, exact mixture quantiles (§4.5) |
@@ -118,7 +118,7 @@ interpolated quantile q = r_p − α decides the two sides differently:
 So qikit draws the upper contour at q + 1 on the count scale (capped at n for a
 proportion). With that, a point is beyond either contour exactly when its conventional
 exact p-value, P(X ≥ O) above or P(X ≤ O) below (§4.11), is below the contour's tail
-probability. The drawn line, `p_value`, the point's colour and, on the unadjusted
+probability. The drawn line, `p_value`, the point's color and, on the unadjusted
 O/E chart, "the point's Garwood 95% interval excludes the center line" are then one
 statement. The test suite checks all three on random funnels of every chart.
 
@@ -211,13 +211,13 @@ The two estimators answer the screening question differently:
   estimators do not.
 
 `funnel_sensitivity()` runs a funnel under each τ option and marks the providers whose
-tier depends on the choice; a flag that does is a judgement to make explicitly.
+tier depends on the choice; a flag that does is a judgment to make explicitly.
 
-**A centre line fixed in advance.** Equation 10 counts K − 1 degrees of freedom because
+**A center line fixed in advance.** Equation 10 counts K − 1 degrees of freedom because
 θ₀ is estimated from the same providers. With `center=` given (O/E against 1.0, say) no
 mean is estimated, and the method-of-moments estimate is τ̂² = K(φ̂ − 1)/Σwᵢ, 0 when
 φ̂ ≤ 1. `"winsorized"` uses that form; the published methods keep theirs, since
-reproducing a published funnel is their purpose. Note also that a fixed centre absorbs
+reproducing a published funnel is their purpose. Note also that a fixed center absorbs
 any overall gap between the cohort and the benchmark into τ̂ (§4.2).
 
 **Reproducing published funnels.** The default gives the published estimator bit for
@@ -281,7 +281,7 @@ remove that trade-off.
 Implementation notes (`dist.py`, `stats.ts`):
 
 - **Arithmetic only.** Each pmf is built from its term ratio f(k+1)/f(k) outward from
-  the mode and normalised at the end. It uses only + − × ÷, so results are bit-identical
+  the mode and normalized at the end. It uses only + − × ÷, so results are bit-identical
   across platforms and between Python and TypeScript. There is no lgamma cancellation as
   τ² → 0, and the cost scales with the distribution's spread, not its mean.
 - **Validated** against `scipy.stats` (`binom`, `nbinom`, `betabinom`) to < 1e-9, and one
@@ -290,9 +290,9 @@ Implementation notes (`dist.py`, `stats.ts`):
 - **Fallbacks.** A spread no beta distribution can have (τ² ≥ θ₀(1 − θ₀)), or a
   distribution too wide to walk (only absurd τ), falls back to eq. 11 as published.
   `summary["limit_method"]` then says `"normal"` instead of `"exact"`. A non-integer
-  denominator is interpolated between its whole neighbours (§4.13), and
+  denominator is interpolated between its whole neighbors (§4.13), and
   `limit_method` says `"interpolated"`.
-- **Computation.** From 0.10 the walk is vectorised in blocks after its first 64 terms,
+- **Computation.** From 0.10 the walk is vectorized in blocks after its first 64 terms,
   with the upward and downward running products done by `np.multiply.accumulate` and
   `np.divide.accumulate` and every sum by `np.cumsum`. All three are strictly sequential,
   so every term, the point where the walk stops, every tail sum, and therefore every
@@ -392,7 +392,7 @@ detectable proportion is infinite, so it counts as underpowered and enters the m
 the column shows NaN. With exact interpolated limits this is effectively unreachable.
 A non-integer denominator (n/φ under `within_dispersion`, or an averaged n) has no
 binomial description. Its detectability and interval are interpolated between the
-whole neighbours, as its limits are (§4.13).
+whole neighbors, as its limits are (§4.13).
 
 ### 4.9 The volume axis
 
@@ -420,7 +420,7 @@ steps the plot interpolates linearly.
 
 **Binomial charts step in whole numbers.** On p/pp the grid is rounded to integers,
 where the limits are exact. A non-integer n is interpolated between its whole
-neighbours (§4.13), so the contours stay continuous through every step, including
+neighbors (§4.13), so the contours stay continuous through every step, including
 under `within_dispersion`, where the model sees n/φ. The Poisson and Poisson–gamma
 charts take any positive n.
 
@@ -434,7 +434,7 @@ placed on that scale.
 Many indicators matter in one direction only; excess mortality is the usual example.
 `funnel(worse="higher")` flags only points beyond the upper contours, and
 `worse="lower"` only those beyond the lower ones. `worse=None`, the default, is the two-sided chart of [1]. The filter applies
-to both tiers, and through them to the point colours, the legend ("Worse than
+to both tiers, and through them to the point colors, the legend ("Worse than
 expected: …"), the counts and `label_signals=`. `summary["worse"]` records it.
 
 - **Each side keeps its own tail probability.** A one-sided chart flags at 0.1% and 2.5%
@@ -445,7 +445,7 @@ expected: …"), the counts and `label_signals=`. `summary["worse"]` records it.
 - **Only on funnels.** Runs rules describe patterns, not points beyond a line, and are
   never side-filtered, so `qic()` has no side argument.
 - **Detectability is still about the upper limit.** `min_detectable` describes the
-  upper limit whatever the side. Under `worse="lower"` it says what an above-centre
+  upper limit whatever the side. Under `worse="lower"` it says what an above-center
   provider would have needed, which the chart no longer flags.
 
 ### 4.11 P-values, the false discovery rate, and what decides a flag
@@ -489,7 +489,7 @@ Benjamini–Hochberg step needs.
   therefore keeps its digits, and the result is identical across platforms. Terms the
   walk drops sit below 1e-16 of the mass, so p-values smaller than that read 0.
 - **A count between whole numbers.** This is an averaged aggregate, or an effective
-  count O/φ. Each tail is interpolated linearly between its two integer neighbours. That
+  count O/φ. Each tail is interpolated linearly between its two integer neighbors. That
   is exactly the inverse of the interpolated quantile, so the line-equals-test property
   below holds for these counts too. `summary["p_value_method"]` is then
   `"interpolated"`.
@@ -549,9 +549,16 @@ discovery rate Q exactly when q < Q. Each chart, and each facet, is adjusted on 
 
 **On the figure.**
 
-- **Caption.** A figure without a caption of its own states the rule that coloured its
+- **Caption.** A figure without a caption of its own states the rule that colored its
   points: the exact test and its levels, or the FDR levels and that the curves are then
   for reference only.
+- **Coloring by q on a `"limits"` chart.** The two tests disagree most at the inner
+  contour: a point just beyond the 95% line passes that line's exact test, but among
+  hundreds of providers its q can be 0.3. `.plot(color_by="fdr")` colors the points by the `"fdr"`
+  tiers at `fdr_levels` while the result, its `signal` column and the drawn contours
+  stay `"limits"`, so a figure can match an action list built from `q_value`.
+  `fdr_watch=` adds a looser, display-only tier (open diamonds). The caption then states
+  the q rule.
 - **Hover.** It shows each point's p and q.
 - **Detectability.** `min_detectable` describes the drawn outer contour, which under
   `"limits"` is the test itself. Under `"fdr"` what a point needs depends on every other
@@ -837,7 +844,7 @@ less often at physician scale.
 **Why rank on `eb_excess`.** `raw_excess` scales with volume, so a high-volume provider
 with a small, noisy difference outranks a mid-volume provider with a large, certain one.
 `eb_excess` is the expected excess once chance is discounted. It is a defensible
-prioritisation loss, the expected reducible days or events. Posterior means are not the
+prioritization loss, the expected reducible days or events. Posterior means are not the
 optimal statistic for ranks themselves [26]. The approach is the one the CMS hospital
 measures and the COPSS–CMS white paper endorse [23, 21], and reliability is how
 physician profiling is judged: Adams et al. found most physicians' cost profiles below
@@ -894,7 +901,7 @@ counts, not a data problem. The note says so on event-count charts.
 
 **Trimming comes first.** Length-of-stay benchmarks cap or trim outlying stays at
 DRG-specific points before aggregating (§4.12 advises the same). That is the primary
-defence against single stays. These columns are a check on what remains. For a model-
+defense against single stays. These columns are a check on what remains. For a model-
 based check of whole providers, the cross-validated mixed predictive p-values of
 Marshall and Spiegelhalter [28] remove a provider from the estimate of θ₀ and τ² it is
 judged against, the circularity of §4.2.
@@ -1002,7 +1009,7 @@ caveat above.
 
 The Care Quality Commission [36] and the NHS Summary Hospital-level Mortality Indicator
 [37] measure over-dispersion on a scale where the null variance does not depend on the
-centre, and draw normal limits there. FunnelPlotR [13] implements both
+center, and draw normal limits there. FunnelPlotR [13] implements both
 (`sr_method = "CQC"` and `"SHMI"`). `tau_method="cqc"` and `"shmi"` follow its source:
 
 | | `"cqc"` | `"shmi"` |
@@ -1021,7 +1028,7 @@ normal would only approximate them. The shrinkage columns use τ̂² carried bac
 scale by the delta method (4θ₀τ² for √, 4θ₀(1 − θ₀)τ² for arcsine, θ₀²τ² for log).
 
 **Checked against FunnelPlotR.** `tests/test_reference.py` compares φ̂, τ̂² and the
-limits with FunnelPlotR on its `medpar` data (standardised ratios under both methods,
+limits with FunnelPlotR on its `medpar` data (standardized ratios under both methods,
 length of stay, and a proportion) to 1e-6. Two departures are deliberate:
 
 - **FunnelPlotR draws CQC ratio limits on the √ scale.** It returns 1 ± z·√(s² + τ²)
@@ -1042,7 +1049,7 @@ counts most physicians have. `funnel_sensitivity()` shows which flags change.
 
 ### 4.18 Benchmarks: what the best providers achieve (`benchmark=`)
 
-A funnel shows which providers differ from the centre line. The centre line is the
+A funnel shows which providers differ from the center line. The center line is the
 average, and the average is not a goal. `benchmark=` adds a goal that the best providers
 in the same data already reach. It is drawn as a dashed line, and it does not change
 `signal`. Both options need `worse=`. `benchmark_share=` (default 0.10) defines "the
@@ -1051,7 +1058,10 @@ best".
 | `benchmark=` | What it is | Suits |
 |---|---|---|
 | `"abc"` | Kiefe and Weissman's achievable benchmark of care [38, 39]: the pooled rate of the best providers holding 10% of patients | Process-of-care proportions (H&P in 24 h, vaccination) |
-| `"eb"` | The 90th percentile, toward better, of the shrunk estimates `eb_rate` [44] | Outcomes (O/E mortality, length of stay, readmission) |
+| `"eb"` | The 90th percentile, toward better, of the shrunk estimates `eb_rate` [44] | Outcomes (O/E mortality, length of stay, readmission) and per-case amounts (`measure="mean"`: minutes or cost per case) |
+
+Both run on every measure. `"abc"` on `"oe"`, `"rate"` or `"mean"` adds a note that its
+authors designed it for proportions; `"eb"` is the choice there.
 
 **The ABC method.** These are the three steps of Kiefe et al. [38, Table 1], restated by
 Weissman et al. [39, Table 1]:
@@ -1083,7 +1093,7 @@ toward the share.
   patients the pooled rate was 14%. The 12 best hospitals held at least 125 patients and
   gave an ABC of 49%. The source data are not published, so this one is not a test.
 
-**At physician level.** In the randomised trial [40], 70 physicians, each with at least 20
+**At physician level.** In the randomized trial [40], 70 physicians, each with at least 20
 eligible patients, were ranked on the APF until 10% of patients were included. The ABCs
 for five diabetes process measures ranged from 82% to 99%. Adding the ABC to feedback
 raised the odds of appropriate care by 1.33 to 1.57 times.
@@ -1104,7 +1114,7 @@ rounded down to 5%. At a 94% rate they used the 90% row (36), where the exact ru
 
 qikit ranks every provider on the APF, as Kiefe and Weissman do, and reports the MSD in
 `summary["benchmark"]` without using it to rank:
-- `msd`: the exact rule, at the centre line in the good direction (1 − p̄ when lower is
+- `msd`: the exact rule, at the center line in the good direction (1 − p̄ when lower is
   better).
 - `n_below_msd`: how many eligible providers fall below it.
 - `without_small`: the ABC recomputed without those providers.
@@ -1137,7 +1147,7 @@ when the purpose is to decrease use of medical services" [39, p. 274], which cov
 length of stay and low-value care.
 
 qikit still computes it for `"oe"` and `"rate"`. It ranks by (y + 1)/(n + 1/θ₀), the
-same posterior-mean idea with a prior worth one event at the centre line; for O/E with
+same posterior-mean idea with a prior worth one event at the center line; for O/E with
 θ₀ = 1 that is (O + 1)/(E + 1). Under `within_dispersion`, ranking uses y/φ out of n/φ.
 Each such result carries a note pointing to `"eb"`.
 
@@ -1149,22 +1159,22 @@ ABC. The two were within 3% for most indicators, but the shrunk version was 7–
 where small providers dominated, because shrinkage pulls their lucky extremes back. It
 needs no adjustment for small numbers, it is defined for any measure the funnel fits, and
 it suits outcomes. When the funnel finds no spread (τ̂ = 0, or `overdispersion=False`)
-every shrunk estimate is the centre line, and so is the benchmark; a note says so. Hall
+every shrunk estimate is the center line, and so is the benchmark; a note says so. Hall
 et al. kept the ABC for its transparency. "eb" is less transparent, and better founded
 for outcomes.
 
 The percentile counts providers, as O'Brien et al. do, not patients as the ABC does. At
-physician level, many low-volume physicians are shrunk close to the centre line, which
+physician level, many low-volume physicians are shrunk close to the center line, which
 pulls the percentile toward it. A patient-weighted percentile would match the ABC's "10%
 of patients", but it is not the published method.
 
 **When the two disagree.** On an outcome, report `"eb"`. An ABC far better than the
 `"eb"` benchmark is pooling providers who were lucky. On the bundled surgeon data, with
-τ̂ = 0, the ABC is an O/E of 0.61 and `"eb"` is the centre line, 1.02. There is no
+τ̂ = 0, the ABC is an O/E of 0.61 and `"eb"` is the center line, 1.02. There is no
 spread the data can show, so no surgeon is reliably better than average.
 
-**Peer groups.** Hall et al. found that benchmarks from regional stroke centres differed
-from those of all hospitals. Larger centres face different case mix and constraints
+**Peer groups.** Hall et al. found that benchmarks from regional stroke centers differed
+from those of all hospitals. Larger centers face different case mix and constraints
 [43]. `facets=` gives each peer group its own benchmark, for example
 `facets="hospital_type"`. Choose peer groups for comparability before looking at the
 benchmarks.
@@ -1176,6 +1186,52 @@ interval around the ABC, "because the purpose of our benchmarks is to drive qual
 improvement". The same holds for `"eb"`. A benchmark is a goal, not a test. At physician
 volumes the gap between a provider and the benchmark is often within chance, and
 `min_detectable` and `ci_lower`/`ci_upper` say how far the provider's own data can tell.
+
+### 4.19 Continuous per-case amounts (`measure="mean"`)
+
+Minutes of EHR time per discharge, cost per case and days per stay are amounts, not
+counts. The question is the same: does a provider's mean differ from its peers' by more
+than chance and the spread between providers allow?
+
+**The model.** `measure="mean"` is the quasi-Poisson model of §4.12 applied to the raw
+amounts: y = the amount, n = 1 per case, and φ estimated. A provider's total over k
+cases has variance φ·θⱼ·k, so its mean has variance φθⱼ/k. φ is the variance-to-mean
+ratio of one case, in y's units (minutes²/minute), and `summary["case_sd"]` = √(φ̂·θ₀)
+reports the within-provider SD of one case in plain units. τ² is added on top as for
+every measure (§4.4), and the center line is the pooled mean Σy/Σk.
+
+**Why no rescaling is needed.** The model is scale-equivariant. Multiply every amount
+by c and φ̂ is multiplied by c, the effective counts y/φ and k/φ are unchanged, and so
+are every p-value, q-value, reliability and flag. Only the limits, the center line and
+the amounts move, by c. Minutes and hours therefore give the same chart, labeled
+differently, and the test suite checks this. It is also why the construction users
+built first agrees with it to machine precision: dividing each case by the pooled mean
+and passing it as O/E with n = 1, then `multiply=` the pooled mean. That is the same
+model at c = 1/θ₀.
+
+**Why not a normal model.** A normal model with one σ² for every provider would add a
+new family to every part of the engine: contours, tests, τ estimators, shrinkage,
+power, the benchmarks. Variance proportional to the mean fits non-negative, right-skewed
+amounts at least as well, because providers with longer times usually vary more, and
+every option comes along unchanged: `signal="fdr"`, `tau_method`, drop-one robustness,
+`benchmark="eb"`, `facets=` and `multiply=`.
+
+**Inputs.**
+- Case rows: `y=` the amount, one row per case. `n=` may be omitted; if given, it must
+  be 1.
+- SQL totals: `y = SUM(amount)`, `n = COUNT(*)` and `sum_sq = SUM(amount * amount)`. This
+  is the `Σ y²/n` of §4.12 with n = 1. `cases=` is implied by `n`, and `max_case_y=`
+  alone gives drop-one robustness.
+
+`within_dispersion` is always estimated, or given per provider as a column. A scalar is
+refused, because no one knows φ in minutes²/minute. `fdr_min_denominator` counts cases.
+The "φ below 1" note of §4.12 does not apply: φ < 1 here means only that the amounts are
+in small units.
+
+**Limits.**
+- Amounts must be ≥ 0. Signed values, such as change scores, are refused (§6).
+- Long cases dominate φ̂, as long stays do. Cap amounts at a stated percentile first
+  where the measure's convention does.
 
 ## 5. Evidence from simulation
 
@@ -1335,7 +1391,7 @@ draws. Cells give debiased / published.
 - **With real spread, only the debiased τ̂ sees it.** On the `"estimate"` arm, a separate
   check (8 replicates per scenario) put the published τ̂ at 0.002–0.006 against a true
   0.05 on top-box, and 0 against 0.03 on bottom-box. The debiased τ̂ was 0.049–0.054 and
-  0.025–0.029. With the spread modelled, in-distribution rates fall back to the
+  0.025–0.029. With the spread modeled, in-distribution rates fall back to the
   no-effect floor (alerts 0.9–1.3%). The published chart's rates are near nominal only
   because real spread between physicians is being reported as signal.
 - **The planted physicians are caught less often** (top-box 27% → 11%), for the reason
@@ -1389,6 +1445,9 @@ The case-level row check (§4.13), on top-box survey rows with a between-physici
 - **Item-level rows hide the clustering.** qikit cannot tell items from cases when every
   row is one yes/no. It refuses `"estimate"` on such rows and documents the unit to
   pass (§4.13).
+- **Signed continuous values.** `measure="mean"` needs amounts ≥ 0, because its
+  variance grows with the mean (§4.19). Change scores and other signed values would need
+  a normal family with a common σ², which is not built.
 - **Very large expected counts.** Above λ = 10⁵ the contours and p-values switch to
   Byar's approximation, and `summary["limit_method"]` says `"byar"`. No physician-level
   measure comes near this.

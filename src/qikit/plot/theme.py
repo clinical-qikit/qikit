@@ -27,6 +27,7 @@ GRID = "#f2f2f2"     # optional grid
 # Meaning
 SIGMA = "#b13b31"    # sigma signal — muted brick
 RUNS = "#d99a2b"     # runs signal — muted amber
+WATCH = "#e3b866"    # funnel watch tier (q < fdr_watch) — paler amber, drawn open
 TARGET = "#4a7a5c"   # target — desaturated sage, kept darker than the
                      # limits so the goal line stays legible as meaning
 # NHS Making Data Count (NHSRplotthedots' defaults): special cause by direction.

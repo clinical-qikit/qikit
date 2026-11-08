@@ -1,6 +1,6 @@
 {
   "id": "g_chart_median",
-  "reference": "G chart as qicharts2 and Montgomery (p. 319) draw it: limits from the mean m = 3.43 of the geometric counts, m + 3*sqrt(m(m+1)) = 15.118, with the median (3) drawn as the centre line.",
+  "reference": "G chart as qicharts2 and Montgomery (p. 319) draw it: limits from the mean m = 3.43 of the geometric counts, m + 3*sqrt(m(m+1)) = 15.118, with the median (3) drawn as the center line.",
   "function": "qic",
   "input": {
     "y": [

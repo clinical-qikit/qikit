@@ -81,7 +81,7 @@ export interface ChartSpec {
   /**
    * Returns [ucl, lcl] — or [ucl, lcl, cl] for a chart whose center line varies per
    * point (S chart with unequal subgroup sizes, CL = c4(nᵢ)·σ̂), or [ucl, lcl, cl, ucl95,
-   * lcl95] for a chart whose limits are not centred on its line (g: limits about the
+   * lcl95] for a chart whose limits are not centered on its line (g: limits about the
    * mean, the median drawn). The third element overrides the scalar `center` above.
    */
   limits: (cl: number, y: number[], n: number[] | undefined,

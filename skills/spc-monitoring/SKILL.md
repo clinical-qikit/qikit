@@ -5,7 +5,7 @@ description: Monitor a healthcare quality measure over time (monthly mortality, 
 
 # Monitoring a measure over time with qikit.qic()
 
-`qikit.qic()` is the single source of truth for centre lines, limits and signals. Do
+`qikit.qic()` is the single source of truth for center lines, limits and signals. Do
 not compute your own limits or run rules; read them from the result.
 
 Comparing providers with each other is a different question: use `funnel()` and the
@@ -58,7 +58,7 @@ Use `multiply=100` for percentages, `multiply=1000` for a rate per 1,000.
 
 - `freeze=<k>`: limits from the first k points; later points are judged against them.
   Use this when monitoring after a stable baseline, so new data cannot move the limits.
-- `part=<k>` (or a column whose value changes between phases): a new centre line and
+- `part=<k>` (or a column whose value changes between phases): a new center line and
   limits after a known change, such as a new protocol. Only split at a change you can
   name, never to make a signal go away.
 - `exclude=<column or positions>`: points with a known special cause (a data outage),
@@ -81,7 +81,7 @@ Reporting rules:
   both special cause. Name which one fired, and when.
 - Too few crossings marks the whole series, not single points:
   `summary["crossings_signal"]`.
-- No signal means the process is stable, not that it is good. Compare the centre line
+- No signal means the process is stable, not that it is good. Compare the center line
   with the target; with `method="nhs"` report `assurance`.
 - With `part=`, describe the latest part as the current process; `summary["parts"]`
   holds each part.

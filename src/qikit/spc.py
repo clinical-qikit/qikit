@@ -7,8 +7,8 @@ spc.py — qic(): one measure over time, with control limits and signals.
     r.summary       # the rules that fired, and how the limits were set
     r.plot()        # a Plotly figure
 
-The pipeline, top to bottom: normalise the inputs, aggregate rows into subgroups by x,
-set the baseline (exclude=, freeze=), compute each part's centre line and limits
+The pipeline, top to bottom: normalize the inputs, aggregate rows into subgroups by x,
+set the baseline (exclude=, freeze=), compute each part's center line and limits
 (core/shewhart.py), find patterns (core/rules.py), and assemble the table. Comparing
 providers with each other is a funnel plot: qikit.funnel().
 """
@@ -112,7 +112,7 @@ def qic(
     Choosing the rules (method=)
     ----------------------------
     - "anhoej" (default): qicharts2's run rules, an unusually long run on one side of
-      the centre line or unusually few crossings of it (Anhøj & Olesen 2014).
+      the center line or unusually few crossings of it (Anhøj & Olesen 2014).
     - "nhs": NHS England's Making Data Count, for XmR (chart="i") boards: 7 on one side,
       7 rising or falling, 2 of 3 near a limit. Pass worse= to class each special cause
       as improving or concerning, and target= for the assurance verdict.
@@ -124,7 +124,7 @@ def qic(
     result.data, one row per point in plotted order:
 
     - x, label, y (after multiply=), n (when given; the subgroup size on xbar/s).
-    - cl, ucl, lcl: centre line and 3σ limits; ucl_95, lcl_95: the 2σ lines.
+    - cl, ucl, lcl: center line and 3σ limits; ucl_95, lcl_95: the 2σ lines.
     - signal: "outlier" beyond ucl/lcl, else "none".
     - runs_signal: the point is part of a pattern the rules found (a long run, a trend).
       Too few crossings is a property of the whole series: summary["crossings_signal"].
@@ -147,12 +147,12 @@ def qic(
     chart, method : see above.
     freeze : the baseline ends at this point (1-based): the limits come from points
         1..freeze and later points are judged against them.
-    part : split the chart into parts, each with its own centre line, limits and rules:
+    part : split the chart into parts, each with its own center line, limits and rules:
         the point(s) where each part ends (1-based, as freeze=), or a column whose value
         changes between parts (e.g. "before"/"after").
     exclude : points to leave out of the limits and the rules (drawn faded): a column of
         booleans, or 1-based positions.
-    center : a fixed centre line instead of the baseline's.
+    center : a fixed center line instead of the baseline's.
     target : a target line: a number, or a column.
     worse : "higher" or "lower": which direction is bad, for method="nhs" (improving or
         concerning special cause; assurance against target=).

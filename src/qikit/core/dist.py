@@ -211,7 +211,7 @@ def poisson_quantile_interp(p: float, lam: float) -> float:
 # the estimated between-provider variance τ². See docs/methods.md, "Adjusted limits".
 #
 # Unlike poisson_quantile_interp they never call lgamma. Each pmf is built from its
-# term ratio f(k+1)/f(k) outward from the mode, starting at 1 and normalised at the
+# term ratio f(k+1)/f(k) outward from the mode, starting at 1 and normalized at the
 # end. That has three properties worth keeping:
 #   - only + − × ÷, which IEEE rounds exactly, so the result is bit-identical across
 #     platforms and between this file and stats.ts (no libm last-ulp trap);
@@ -241,7 +241,7 @@ _WALK_CACHE_MAX = 8192
 
 def _walk_terms(ratio, start, upper, key=None):
     """
-    Unnormalised pmf terms of a unimodal distribution given only its term ratio.
+    Unnormalized pmf terms of a unimodal distribution given only its term ratio.
 
     ratio(k) = f(k+1)/f(k), evaluated on a float array of k (every ratio here is
     plain + − × ÷, so the array call rounds exactly as a scalar call would); start is
@@ -250,7 +250,7 @@ def _walk_terms(ratio, start, upper, key=None):
     f(k_lo + j), and total their plain left-to-right sum. None when the walk exceeds
     _MAX_TERMS.
 
-    Vectorised in blocks: the upward walk is a running product and the downward one
+    Vectorized in blocks: the upward walk is a running product and the downward one
     a running quotient (np.multiply/np.divide.accumulate, which are strictly
     sequential), and the stopping rule is the running peak's, so every term, the
     point the walk stops and the total are bit-identical to the scalar loop the
@@ -460,7 +460,7 @@ def binomial_cdf(k: int, m: int, theta: float, cache: bool = True) -> float:
     Binomial CDF F(k; m, θ) = P(X ≤ k), from the same lgamma-free walk as
     binomial_quantiles.
 
-    The terms are normalised by their own total, so (1 − θ)^m, which underflows
+    The terms are normalized by their own total, so (1 − θ)^m, which underflows
     for any denominator a hospital produces, is never formed. Terms dropped by the
     walk's _TAIL_EPS cut sit below 1e-16 of the mass, so a k beyond the kept support
     returns 0 or 1. NaN when the walk exceeds _MAX_TERMS.
@@ -509,9 +509,9 @@ def binomial_theta_for_cdf(k: int, m: int, p: float) -> float:
     # linear in log): one walk gives both tails and the pmf at k, and
     # dF/dθ = −(m − k)/(1 − θ)·f(k). A step that would leave the bracket bisects it.
     z = _NORMAL.inv_cdf(1.0 - p)
-    centre = k + 0.5
-    theta = (centre + z * z / 2
-             + z * math.sqrt(max(centre * (1 - centre / m), 0.0) + z * z / 4)) / (m + z * z)
+    center = k + 0.5
+    theta = (center + z * z / 2
+             + z * math.sqrt(max(center * (1 - center / m), 0.0) + z * z / 4)) / (m + z * z)
     theta = min(max(theta, 1e-12), 1.0 - 1e-12)
     lower_tail = p < 0.5
     target = math.log(p if lower_tail else 1.0 - p)

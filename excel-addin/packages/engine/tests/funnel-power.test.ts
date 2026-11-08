@@ -110,7 +110,7 @@ describe('funnel power reporting', () => {
     expect(s.power_note).toContain('proportion');
   });
 
-  test('excluded points do not colour the verdict', () => {
+  test('excluded points do not color the verdict', () => {
     expect((run({ exclude: [1] }).summary as any).n_underpowered).toBe(11);
   });
 

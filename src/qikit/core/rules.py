@@ -121,7 +121,7 @@ def _sides(y: np.ndarray, cl: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def _anhoej(y: np.ndarray, cl: np.ndarray) -> RuleResult:
     """
     A run is too long when longest_run > longest_run_max, and the series crosses its
-    centre line too rarely when n_crossings < n_crossings_min; either is a signal
+    center line too rarely when n_crossings < n_crossings_min; either is a signal
     (Anhøj & Olesen 2014). Points on the line neither break nor extend a run. Only the
     points of a too-long run are marked: too few crossings is a property of the series,
     reported in the summary.

@@ -24,7 +24,7 @@ compared and what was found.
 Both `qic()` and `funnel()` take `data=` first, then keyword arguments naming columns.
 These names mean the same thing in both:
 
-- `center=`: a fixed centre line (`1.0` for O/E against the risk model).
+- `center=`: a fixed center line (`1.0` for O/E against the risk model).
 - `worse="higher"|"lower"`: which direction is bad.
 - `exclude=`: points or providers left out of the model, still drawn.
 - `facets=`: one column or a list; one chart per combination; the columns lead `.data`.
@@ -42,7 +42,8 @@ replacement; read the message and apply it.
   `method="anhoej"` (default, qicharts2) or `method="nhs"` with `chart="i"` and
   `worse=` for NHS Making Data Count.
 - **Funnels:** `measure="oe"` (y=observed, n=expected), `"proportion"` (events, cases)
-  or `"rate"` (events, exposure). Length of stay in days needs stay-level rows and
+  `"rate"` (events, exposure) or `"mean"` (a per-case amount such as minutes or cost,
+  one row per case; never rescale it to O/E). Length of stay in days needs stay-level rows and
   `within_dispersion="estimate"`. Keep `tau_method="spiegelhalter"` (the default)
   unless the user asks for CQC/SHMI (`"cqc"`, `"shmi"`) or for the stated chance-flag
   rate to hold (`"winsorized"`).
@@ -59,7 +60,7 @@ replacement; read the message and apply it.
 ```
 qikit/
   __init__.py      public exports
-  spc.py           qic(): normalise -> aggregate by x -> baseline -> limits -> rules -> table
+  spc.py           qic(): normalize -> aggregate by x -> baseline -> limits -> rules -> table
   funnel.py        funnel(), funnel_sensitivity(): sums per unit -> dispersion -> contours
                    -> p/q values -> tiers -> shrinkage and robustness -> table
   results.py       SPCResult, FunnelResult, ParetoResult, BChartResult
@@ -67,7 +68,7 @@ qikit/
   extras.py        paretochart(), bchart()
   doe.py           design(), analyze()
   core/            pure numpy, no pandas or plotly; mirrored by the TypeScript engine
-    shewhart.py    centre lines and 3-sigma limits per chart type
+    shewhart.py    center lines and 3-sigma limits per chart type
     rules.py       run and zone rules by method (anhoej, ihi, nhs, weco, nelson)
     contours.py    exact and mixture funnel contours
     dispersion.py  phi and tau^2 estimators (spiegelhalter, winsorized, ml, cqc, shmi)

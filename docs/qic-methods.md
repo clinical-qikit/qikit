@@ -1,6 +1,6 @@
 # qic(): methods and conformance
 
-This document records how `qic()` computes centre lines, limits and signals, which
+This document records how `qic()` computes center lines, limits and signals, which
 published source each choice follows, and every place it departs from that source. It
 is the time-series counterpart of [methods.md](methods.md), which covers funnels.
 
@@ -14,7 +14,7 @@ in the test's `DEPARTURES` table and in §4 below.
 
 `src/qikit/spc.py` runs these steps in order:
 
-1. **Normalise.** Columns or sequences become one frame. `n=` divides `y` on every
+1. **Normalize.** Columns or sequences become one frame. `n=` divides `y` on every
    chart, as in qicharts2, so an i chart of a rate is `chart="i", y=events, n=cases`.
 2. **Aggregate.** Rows that share an `x` become one subgroup: numerators and
    denominators summed, raw values combined by `agg_fun=`. Numeric and date `x` are
@@ -27,11 +27,11 @@ in the test's `DEPARTURES` table and in §4 below.
 5. **Rules.** `core/rules.py`, per part, by `method=`.
 6. **Table.** `result.data` and `result.summary`.
 
-## 2. Centre lines and limits
+## 2. Center lines and limits
 
 σ̂ is estimated from the baseline points of each part.
 
-| Chart | Centre line | σ̂ | Source |
+| Chart | Center line | σ̂ | Source |
 |---|---|---|---|
 | `run` | median | none | [1] |
 | `i` | mean | screened MR̄/d₂ (MR above 3.267·MR̄ dropped, then MR̄ recomputed) | [1, 2] |
@@ -67,7 +67,7 @@ find patterns and mark the points that form them in `runs_signal`.
 
 ### 3.1 `"anhoej"` (default)
 
-Anhøj and Olesen's rules [6], as qicharts2 implements them. Points on the centre line
+Anhøj and Olesen's rules [6], as qicharts2 implements them. Points on the center line
 are not useful and are skipped.
 
 - **Longest run.** A signal when the longest run on one side is longer than
@@ -78,7 +78,7 @@ are not useful and are skipped.
 
 `summary` reports `n_useful`, `longest_run`, `longest_run_max`, `n_crossings`,
 `n_crossings_min`, `longest_run_signal` and `crossings_signal`. Too few crossings is a
-property of the whole series, so the plot can colour every point (`runs_highlight=`).
+property of the whole series, so the plot can color every point (`runs_highlight=`).
 
 **Sensitivity.** Before 1.0 qikit used floor(log₂ n) + 3 with "at least", which flags
 runs one or two points shorter. Simulated with the median from the same data, false
@@ -138,7 +138,7 @@ Each is deliberate and listed in `tests/test_reference.py`.
 - **xbar with unequal subgroups.** qikit uses ±3σ̂/√nᵢ with the unbiased
   σ̂ = Sp/c₄(d + 1), d the pooled degrees of freedom. qicharts2 uses A₃(nᵢ)·Sp, which
   corrects with c₄(nᵢ). The two differ by a fraction of a percent.
-- **s with unequal subgroups.** qikit's centre line is c₄(nᵢ)·σ̂, the expected sᵢ, so it
+- **s with unequal subgroups.** qikit's center line is c₄(nᵢ)·σ̂, the expected sᵢ, so it
   moves with nᵢ. qicharts2 draws a flat CL = Sp with B₃/B₄(nᵢ) limits. With equal
   subgroups the two agree.
 - **A moving range across a part boundary** is NaN in qikit, so one part's spread never
@@ -166,7 +166,7 @@ Each change below moves results on some data. The CHANGELOG has the full list.
 4. Laney DB. Improved control charts for attributes. *Quality Engineering*
    2002;14(4):531–537.
 5. NHS-R Community. NHSRplotthedots: draw XmR charts for NHS England's Making Data Count
-   programme (R package). https://github.com/nhs-r-community/NHSRplotthedots
+   program (R package). https://github.com/nhs-r-community/NHSRplotthedots
 6. Anhøj J, Olesen AV. Run charts revisited: a simulation study of run chart rules for
    detection of non-random variation in health care processes. *PLoS ONE*
    2014;9(11):e113825.

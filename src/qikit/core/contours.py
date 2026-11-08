@@ -94,7 +94,7 @@ def _poisson_funnel_pair(
     """
     Poisson funnel limits at one probability contour, on the rate (or O/E) scale.
 
-    With nᵢ the denominator and θ₀ the center line, the count of events is modelled
+    With nᵢ the denominator and θ₀ the center line, the count of events is modeled
     Poisson(λᵢ = θ₀·nᵢ); the limit is that distribution's quantile divided back
     through nᵢ [1, A.2.1]. For an O/E chart nᵢ is the expected events Eᵢ; for a u
     funnel it is the exposure, which [1, A.2.3] treats the same way. Dividing by nᵢ is
@@ -139,7 +139,7 @@ def _binomial_funnel_pair(
     Asymmetric about the center line, as the Poisson pair is, and for the same reason:
     a physician with 30 patients at a 10% event rate has room for 9 events above
     expected but only 3 below. A non-integer denominator (ν = n/φ under
-    within_dispersion) is interpolated between its whole neighbours
+    within_dispersion) is interpolated between its whole neighbors
     (fractional_binomial_pair).
     """
     e = np.asarray(n, dtype=float)
@@ -197,7 +197,7 @@ def beta_params(cl: float, tau2: float) -> tuple[float, float] | None:
 #
 # Under within_dispersion=φ a proportion's model sees ν = n/φ effective cases, which is
 # rarely a whole number, and no binomial has a fractional size. Each quantity below is
-# interpolated linearly in ν between the whole neighbours m₀ = ⌊ν⌋ and m₁ = m₀ + 1, at
+# interpolated linearly in ν between the whole neighbors m₀ = ⌊ν⌋ and m₁ = m₀ + 1, at
 # the same proportion p:
 #
 #     T(p; ν) = (1 − w)·T_m₀(p·m₀) + w·T_m₁(p·m₁),   w = ν − m₀,
@@ -434,16 +434,16 @@ def _transformed_pair(
     """
     The CQC and SHMI contours: T(θ₀) ± z·√(sᵢ² + τ²) on the transformed scale T, mapped back
     (FunnelPlotR's limits, with one correction): √ and arcsine limits are squared back to
-    the y scale, as the method intends; FunnelPlotR's CQC limits for a standardised ratio
+    the y scale, as the method intends; FunnelPlotR's CQC limits for a standardized ratio
     are drawn on the √ scale itself and are about half as wide (docs/methods.md §4.17).
     """
     from .dispersion import from_scale, scale_sd, to_scale
 
     e = np.asarray(n, dtype=float)
     s = scale_sd(scale, cl, np.where(e > 0, e, np.nan))
-    centre = float(to_scale(scale, cl))
+    center = float(to_scale(scale, cl))
     half = z * np.sqrt(s * s + tau2)
-    return from_scale(scale, centre + half), from_scale(scale, centre - half)
+    return from_scale(scale, center + half), from_scale(scale, center - half)
 
 
 @dataclass(frozen=True)

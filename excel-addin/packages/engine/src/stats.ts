@@ -170,7 +170,7 @@ export function poissonQuantileInterp(p: number, lam: number): number {
 // ---------------------------------------------------------------------------
 //
 // Twins of the same-named functions in dist.py, which explains the method: each pmf
-// is built from its term ratio f(k+1)/f(k) outward from the mode and normalised at the
+// is built from its term ratio f(k+1)/f(k) outward from the mode and normalized at the
 // end, using only + − × ÷. That makes these bit-identical to the Python side and free
 // of lgamma cancellation as τ² → 0. Keep the operation order exactly as there.
 
@@ -181,7 +181,7 @@ const TAIL_EPS = 1e-20;
 const MAX_TERMS = 100_000;
 
 /**
- * Unnormalised pmf terms from a term ratio, as [kLo, terms, total]. Twin of
+ * Unnormalized pmf terms from a term ratio, as [kLo, terms, total]. Twin of
  * _walk_terms; null when the walk exceeds MAX_TERMS.
  */
 function walkTerms(
@@ -286,7 +286,7 @@ export function binomialQuantiles(
 
 /**
  * Binomial CDF F(k; m, θ) = P(X ≤ k) from the same lgamma-free walk as
- * binomialQuantiles. Twin of binomial_cdf in dist.py: normalised by the terms' own
+ * binomialQuantiles. Twin of binomial_cdf in dist.py: normalized by the terms' own
  * total, so (1 − θ)^m, which underflows at hospital volumes, is never formed.
  */
 export function binomialCdf(k: number, m: number, theta: number): number {

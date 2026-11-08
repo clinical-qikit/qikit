@@ -71,7 +71,7 @@ qic_case("qicharts2_run_cdi", c(cdi_in[c("x", "y")], chart = "run"),
          "Run chart of monthly C. difficile infections, 36 points; Anhoej rules.")
 qic_case("qicharts2_run_cdi_part", c(cdi_in[c("x", "y")], chart = "run", part = 24),
          function() qic(month, n, data = cdi, part = 24, return.data = TRUE),
-         "Run chart split after point 24: centre line and rules recomputed per part.")
+         "Run chart split after point 24: center line and rules recomputed per part.")
 qic_case("qicharts2_i_cdi_freeze", c(cdi_in[c("x", "y")], chart = "i", freeze = 24),
          function() qic(month, n, data = cdi, chart = "i", freeze = 24, return.data = TRUE),
          "I chart with limits frozen on the first 24 points.")
@@ -121,7 +121,7 @@ deaths <- which(ord$death)
 g_y <- diff(c(0, deaths)) - 1
 qic_case("qicharts2_g_cabg", list(x = seq_along(g_y), y = g_y, chart = "g"),
          function() qic(g_y, chart = "g", return.data = TRUE),
-         "G chart: surgeries between deaths. Limits from the mean, centre line the median.")
+         "G chart: surgeries between deaths. Limits from the mean, center line the median.")
 t_y <- as.numeric(diff(ord$date[deaths]))
 t_y <- t_y[t_y > 0]
 qic_case("qicharts2_t_cabg", list(x = seq_along(t_y), y = t_y, chart = "t"),
