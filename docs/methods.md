@@ -552,6 +552,13 @@ discovery rate Q exactly when q < Q. Each chart, and each facet, is adjusted on 
 - **Caption.** A figure without a caption of its own states the rule that colored its
   points: the exact test and its levels, or the FDR levels and that the curves are then
   for reference only.
+- **Coloring by q on a `"limits"` chart.** The two tests disagree most at the inner
+  contour: a point just beyond the 95% line passes that line's exact test, but among
+  hundreds of providers its q can be 0.3. `.plot(color_by="fdr")` colors the points by the `"fdr"`
+  tiers at `fdr_levels` while the result, its `signal` column and the drawn contours
+  stay `"limits"`, so a figure can match an action list built from `q_value`.
+  `fdr_watch=` adds a looser, display-only tier (open diamonds). The caption then states
+  the q rule.
 - **Hover.** It shows each point's p and q.
 - **Detectability.** `min_detectable` describes the drawn outer contour, which under
   `"limits"` is the test itself. Under `"fdr"` what a point needs depends on every other

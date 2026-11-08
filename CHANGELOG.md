@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`color_by="fdr"` on `FunnelResult.plot()`:** colors the points by their q-value
+  tiers (outlier q < `fdr_levels[0]`, alert q < `fdr_levels[1]`) on a `signal="limits"`
+  result. The `signal` column and the drawn 95% and 99.8% lines are unchanged; the
+  legend and caption state the q rule. A figure can now match an action list built
+  from `q_value` without recoloring traces by name.
+  - `fdr_watch=` (e.g. `0.20`) adds a pale, open-diamond watch tier for q below it, on
+    the figure only. It has a `watch` role in `styles=`.
+  - README, methods §4.11 and the provider-funnels skill now say that under
+    `signal="limits"` a point beyond the 95% line can have a large q-value.
+  - Python only; the Excel add-in does not draw funnels.
+
 ## 1.1.0 (2026-11-01)
 
 ### Added

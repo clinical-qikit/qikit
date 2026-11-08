@@ -7,6 +7,7 @@ house style is one constant: styles=[HOUSE, {...}]):
     data          the series line and routine points (color, width, name, opacity)
     outlier       points beyond the outer limits (color, name)
     alert         funnel points beyond the inner contour only (color, name)
+    watch         funnel points with q < fdr_watch, below the alert tier (color, name)
     runs          points in a pattern the rules found (color, name)
     improving, concerning, neutral
                   method="nhs" special causes, by direction (color, name)
@@ -29,7 +30,7 @@ _LINE_ATTRS = ("color", "width", "dash", "visible", "name")
 _POINT_ATTRS = ("color", "name")
 STYLE_ROLES: dict[str, tuple[str, ...]] = {
     "data": ("color", "width", "name", "opacity"),
-    "outlier": _POINT_ATTRS, "alert": _POINT_ATTRS, "runs": _POINT_ATTRS,
+    "outlier": _POINT_ATTRS, "alert": _POINT_ATTRS, "watch": _POINT_ATTRS, "runs": _POINT_ATTRS,
     "improving": _POINT_ATTRS, "concerning": _POINT_ATTRS, "neutral": _POINT_ATTRS,
     "cl": _LINE_ATTRS, "ucl": _LINE_ATTRS, "lcl": _LINE_ATTRS,
     "ucl_95": _LINE_ATTRS, "lcl_95": _LINE_ATTRS, "target": _LINE_ATTRS,
@@ -49,6 +50,8 @@ DASHES = ("solid", "dot", "dash", "longdash", "dashdot", "longdashdot")
 RUNS_HIGHLIGHT = ("localized", "all", "none")
 # Which flagged points get a text label: qic has outliers only; a funnel also alerts.
 LABEL_SIGNALS = (None, "outlier", "alert", "both")
+# What colors a funnel's points: its signal column, or its q-value tiers whatever signal= was.
+COLOR_BY = ("signal", "fdr")
 
 
 def merge_styles(layers: list | tuple) -> dict[str, dict]:

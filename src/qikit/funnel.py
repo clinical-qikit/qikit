@@ -139,6 +139,7 @@ def funnel(
     |   about                                            |   max_case_y=, max_case_n= from SQL    |
     | a measure where only one direction is bad          | worse="higher" (or "lower")            |
     | hundreds of providers, and want few false alarms   | signal="fdr"                           |
+    | flags from the lines, figure showing the q tiers   | .plot(color_by="fdr")                  |
     | many very-low-volume providers diluting the        | fdr_min_denominator= (a volume floor   |
     |   signal="fdr" step                                |   for the FDR step only)               |
     | the spread between providers known from earlier    | tau=<that value> (a number, or one per |
@@ -259,7 +260,9 @@ def funnel(
         makes p-values one-sided.
     signal : "limits" (default): outlier beyond the outer contour, alert beyond the
         inner one, so the flags match the drawn lines. "fdr": outlier when
-        q < fdr_levels[0], alert when q < fdr_levels[1].
+        q < fdr_levels[0], alert when q < fdr_levels[1]. Under "limits" a point beyond
+        the 95% line can still have a large q_value; .plot(color_by="fdr") draws the
+        q tiers without changing the signal column.
     limits : (outer, inner) contour coverage, default (0.998, 0.95).
     fdr_levels : (outlier, alert) false discovery rates for signal="fdr".
     benchmark : a goal drawn beside the funnel; needs worse= (methods §4.18).

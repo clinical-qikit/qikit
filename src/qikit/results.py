@@ -154,6 +154,10 @@ class FunnelResult(_Serializable):
         caption, xlab, ylab, label_signals ("outlier", "alert", "both"), styles (restyle
         by role), x_log, x_range, y_range, show_legend, show_x_labels, width, height, and
         nrow, ncol, scales for facets. An unset caption states the flag rule.
+
+        color_by="fdr" colors the points by their q-value tiers (fdr_levels) on a
+        signal="limits" result, leaving its signal column and the drawn limits as they
+        are; fdr_watch=0.20 adds a pale watch tier for q below it.
         """
         _require_plotly()
         from .plot.charts import plot_funnel

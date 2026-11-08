@@ -109,7 +109,10 @@ before reporting anything.
 
 - `worse="higher"` for mortality, readmission, LOS, infections; `worse="lower"` for
   satisfaction or top-box. Leave `None` only when both directions matter.
-- `signal="limits"` (default): flags match the drawn lines (exact test).
+- `signal="limits"` (default): flags match the drawn lines (exact test). Among hundreds
+  of providers a point beyond the 95% line can have a large `q_value`; to keep these
+  flags but draw the q tiers, plot with `color_by="fdr"` (and `fdr_watch=0.20` for a
+  watch tier).
 - `signal="fdr"`: when there are hundreds of providers and false alarms are costly.
   Many very-low-volume providers? Add `fdr_min_denominator=<E>`. It sets a volume floor
   for the FDR step only; those providers keep a `p_value` and still flag under
@@ -197,7 +200,7 @@ p_value_drop1, flag_survives_drop1, fragility` (plus `effective_denominator` und
 `benchmark_group` with `benchmark=`; the `facets=` columns first; and any `hover=`
 columns).
 
-Display options (`title=`, `styles=`, `label_signals=`, `x_log=`, sizes) go to
+Display options (`title=`, `styles=`, `label_signals=`, `color_by=`, `x_log=`, sizes) go to
 `r.plot()`, not to `funnel()`.
 
 Full reference: `help(qikit.funnel)`. Methods: `docs/methods.md`; CQC and SHMI in

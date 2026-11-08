@@ -118,6 +118,7 @@ including where qikit departs from the paper.
 | **Survey items**, scored per item (HCAHPS composites) | one row per survey (`y` = items "Always", `n` = items answered), `measure="proportion"`, `within_dispersion="estimate"` |
 | A measure where only one direction is bad | `worse="higher"` (mortality) or `worse="lower"` (top-box) |
 | Hundreds of providers, and few false alarms matter more than the drawn lines | `signal="fdr"` |
+| Flags from the drawn lines, but the figure should show the FDR action list | `signal="limits"` and `.plot(color_by="fdr")` |
 | Many very-low-volume providers diluting the FDR step | `fdr_min_denominator=` (a volume floor for the FDR step only) |
 | To rank flagged providers for action | sort by `eb_excess`, not `raw_excess` |
 | To reproduce a CQC or NHS SHMI funnel | `tau_method="cqc"` or `"shmi"` |
@@ -194,7 +195,9 @@ interval always agree.
   About 0.1% of average providers land beyond each 99.8% line by chance, and 2.5% beyond
   each 95% line. `summary["expected_false_flags"]` counts that for your chart. With 1,000
   providers on a one-sided chart it is about 1 outlier and 24 alerts, so "35 alerts" is
-  read against that.
+  read against that. A point beyond the 95% line can therefore have a large `q_value`.
+  For an action list use `signal="fdr"` or `q_value`; to keep `signal="limits"` but draw
+  the points by their q tiers, use `.plot(color_by="fdr")` (below).
 - **`"fdr"`**: outlier when `q_value < 0.05`, alert when `q_value < 0.10`
   (`fdr_levels=`). At most that share of each tier is expected to be false, however many
   providers there are. The flags then no longer match the drawn lines, and the caption
@@ -359,6 +362,8 @@ r.plot(
     label_signals="outlier",
     width=1000, height=560,
 )
+
+r.plot(color_by="fdr", fdr_watch=0.20)   # points by q tier; the lines stay the 95%/99.8% limits
 ```
 
 - **Defaults for a projector:** contours at 3.5:1 contrast, the 95% line dashed, points
@@ -366,7 +371,11 @@ r.plot(
   diamonds, so the tier never depends on color alone.
 - **Axes and caption:** the y axis is fitted to the providers and the narrow end of the
   funnel, not its low-volume flare. An unset caption states the flag rule.
-- **`styles=`** restyles by role: `data`, `outlier`, `alert`, `runs`, `improving`,
+- **Color by q:** `r.plot(color_by="fdr")` colors points by their q tiers (`fdr_levels`)
+  on a `signal="limits"` result, so the figure matches a `q_value` action list while
+  `r.data["signal"]` and the drawn lines stay as they are. `fdr_watch=0.20` adds a pale
+  open-diamond watch tier for q < 0.20, on the figure only.
+- **`styles=`** restyles by role: `data`, `outlier`, `alert`, `watch`, `runs`, `improving`,
   `concerning`, `neutral`, `cl`, `ucl`, `lcl`, `ucl_95`, `lcl_95`, `target`, the groups
   `limits` and `limits_95`, `end_labels` and `font`. A list of dicts is merged in order,
   so a house style is one constant.

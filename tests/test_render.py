@@ -14,7 +14,7 @@ import pytest
 
 from qikit import funnel, qic
 from qikit.plot.charts import _log_ticks, _signal_label_offsets
-from qikit.plot.theme import CONCERNING, IMPROVING, NORMAL, RUNS, SIGMA
+from qikit.plot.theme import CONCERNING, IMPROVING, NORMAL, RUNS, SIGMA, WATCH
 
 # Hardcoded on purpose: these pin the palette against accidental drift.
 SIGMA_RED = "#b13b31"
@@ -604,6 +604,76 @@ class TestLegend:
         fig = funnel(df, y="o", n="e", measure="oe", facets="site").plot()
         assert sum(1 for t in fig.data if t.name == "Center line" and t.showlegend) == 1
         assert sum(1 for t in fig.data if t.name == "Provider" and t.showlegend) == 1
+
+
+class TestColorByFdr:
+    """color_by="fdr": q-value tiers drawn over a signal="limits" result (Dr A, Dr J are
+    beyond the 95% line with q = 0.107, Dr G is beyond it with q = 0.082)."""
+
+    def test_points_follow_q_not_the_lines(self):
+        r = _oe()
+        assert list(r.data["signal"][[0, 6, 9]]) == ["alert"] * 3
+        colors = _colors(r.plot(color_by="fdr"))
+        assert colors[0] == colors[9] == NORMAL
+        assert colors[6] == RUNS and colors[8] == SIGMA
+        assert list(r.data["signal"][[0, 6, 9]]) == ["alert"] * 3  # the result is unchanged
+
+    def test_legend_and_caption_state_the_q_rule(self):
+        fig = _oe().plot(color_by="fdr")
+        assert _trace(fig, "Outlier (q < 0.05)") is not None
+        assert _trace(fig, "Alert (q < 0.1)") is not None
+        assert _trace(fig, "Alert (beyond 95%)") is None
+        assert _trace(fig, "95% limits") is not None
+        caption = _captions(fig)[0]
+        assert caption.startswith("Outlier: q < 0.05; alert: q < 0.1 (")
+        assert "not adjusted for multiple comparisons" in caption
+
+    def test_labels_follow_the_drawn_tiers(self):
+        fig = _oe(label=NAMES).plot(color_by="fdr", label_signals="both")
+        assert sorted(a.text for a in _signal_annotations(fig)) == ["Dr G", "Dr I"]
+
+    def test_same_as_default_on_an_fdr_result(self):
+        r = _oe(signal="fdr")
+        assert _colors(r.plot(color_by="fdr")) == _colors(r.plot())
+
+    def test_watch_tier(self):
+        fig = _oe().plot(color_by="fdr", fdr_watch=0.2)
+        data = fig.data[0]
+        assert data.marker.color[0] == data.marker.color[9] == WATCH
+        assert data.marker.symbol[0] == "diamond-open" and data.marker.line.width[0] > 0
+        assert data.marker.color[6] == RUNS
+        entry = _trace(fig, "Watch (q < 0.2)")
+        assert entry is not None and entry.marker.symbol == "diamond-open"
+        assert "alert: q < 0.1; watch: q < 0.2 (" in _captions(fig)[0]
+        worse = _oe(worse="higher", signal="fdr").plot(fdr_watch=0.9)
+        assert _trace(worse, "Worse than expected: watch (q < 0.9)") is not None
+
+    def test_watch_restyles(self):
+        fig = _oe().plot(color_by="fdr", fdr_watch=0.2,
+                         styles={"watch": {"color": "#123456", "name": "Review"}})
+        assert fig.data[0].marker.color[0] == "#123456"
+        assert _trace(fig, "Review") is not None
+
+    @pytest.mark.parametrize("opts, match", [
+        (dict(color_by="q"), "color_by"),
+        (dict(fdr_watch=0.2), "color_by='fdr'"),
+        (dict(color_by="fdr", fdr_watch=0.1), "fdr_watch"),
+        (dict(color_by="fdr", fdr_watch=1.0), "fdr_watch"),
+        (dict(color_by="fdr", fdr_watch="0.2"), "fdr_watch"),
+    ])
+    def test_rejects(self, opts, match):
+        with pytest.raises(ValueError, match=match):
+            _oe().plot(**opts)
+
+    def test_facets_use_each_panels_q(self):
+        df = pd.DataFrame({"o": Y * 2, "e": E * 2, "site": ["A"] * 10 + ["B"] * 10})
+        r = funnel(df, y="o", n="e", measure="oe", center=1.0, overdispersion=False,
+                   facets="site")
+        q = r.data["q_value"].to_numpy()
+        expected = [SIGMA if v < 0.05 else RUNS if v < 0.10 else NORMAL for v in q]
+        fig = r.plot(color_by="fdr")
+        drawn = [c for t in fig.data if t.name == "data" for c in t.marker.color]
+        assert drawn == expected
 
 
 class TestOtherCharts:

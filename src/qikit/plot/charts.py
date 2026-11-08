@@ -25,11 +25,11 @@ from plotly.subplots import make_subplots
 
 from ..core.pvalues import signal_thresholds
 from .options import (
-    LABEL_SIGNALS, RUNS_HIGHLIGHT, check_choice, validate_range, validate_styles,
+    COLOR_BY, LABEL_SIGNALS, RUNS_HIGHLIGHT, check_choice, validate_range, validate_styles,
 )
 from .theme import (
     AXIS, CL, CONTOUR, CONCERNING, GRID, IMPROVING, LIMIT, NEUTRAL, NORMAL, RUNS, SIGMA,
-    TARGET, TEXT, TEXT_FAINT, TEXT_MUTED, WARN, apply_tufte_theme,
+    TARGET, TEXT, TEXT_FAINT, TEXT_MUTED, WARN, WATCH, apply_tufte_theme,
 )
 
 
@@ -49,6 +49,7 @@ class Drawing:
     side: str = "both"
     signal: str = "limits"
     fdr_levels: tuple = (0.05, 0.10)
+    fdr_watch: float | None = None
     n_tested: int = 0
     signals: bool = False
     percent: bool = False
@@ -69,7 +70,8 @@ _FUNNEL_OPTIONS = dict(
     title="", subtitle=None, caption=None, xlab=None, ylab=None, label_signals=None,
     styles=None, x_log=False, x_range=None, y_range=None, show_legend=True,
     show_x_labels=True, show_labels=False, width=None, height=None, nrow=None, ncol=None,
-    scales="fixed", decimals=None, point_size=1.5, y_percent=None,
+    scales="fixed", decimals=None, point_size=1.5, y_percent=None, color_by="signal",
+    fdr_watch=None,
 )
 
 
@@ -141,6 +143,11 @@ def plot_funnel(result, **given) -> go.Figure:
     opts = _options(given, _FUNNEL_OPTIONS, "funnel")
     d, meta, s = result.data, result._meta, result.summary
     facets = meta.get("facets", [])
+    check_choice("color_by", opts["color_by"], COLOR_BY)
+    signal = meta.get("signal", "limits")
+    fdr_levels = tuple(meta.get("fdr_levels", (0.05, 0.10)))
+    by_q = opts["color_by"] == "fdr" or signal == "fdr"
+    watch_at = _check_fdr_watch(opts["fdr_watch"], by_q, fdr_levels)
     axis = "effective_denominator" if "effective_denominator" in d else "denominator"
     volume = d[axis].to_numpy(dtype=float)
     # With every denominator equal there is no volume to spread the providers over:
@@ -165,6 +172,16 @@ def plot_funnel(result, **given) -> go.Figure:
     })
     for col in meta.get("hover", []):
         frame[col] = d[col].to_numpy()
+    recolor = by_q and signal != "fdr"
+    q = d["q_value"].to_numpy(dtype=float)
+    with np.errstate(invalid="ignore"):
+        if recolor:
+            # The tiers signal="fdr" gives (funnel.py), drawn over a signal="limits" result;
+            # a provider with no q-value (excluded, below fdr_min_denominator) stays routine.
+            frame["outlier"] = q < fdr_levels[0]
+            frame["alert"] = (q < fdr_levels[1]) & ~(q < fdr_levels[0])
+        if watch_at is not None:
+            frame["watch"] = (q < watch_at) & ~(q < fdr_levels[1])
     if "benchmark" in d:
         frame["target"] = d["benchmark"].to_numpy(dtype=float)  # drawn with the target role
         name = "ABC" if "benchmark_group" in d else "Benchmark"
@@ -201,9 +218,9 @@ def plot_funnel(result, **given) -> go.Figure:
             _funnel_xlab(meta, axis) if by_volume else "Provider"),
         ylab=opts["ylab"] if opts["ylab"] is not None else _funnel_ylab(meta),
         curve=curve, levels=tuple(meta.get("limits", (0.998, 0.95))),
-        side=meta.get("side", "both"), signal=meta.get("signal", "limits"),
-        fdr_levels=tuple(meta.get("fdr_levels", (0.05, 0.10))),
-        n_tested=int(s.get("n_tested", 0)), signals=bool(s.get("n_outlier", 0)),
+        side=meta.get("side", "both"), signal="fdr" if by_q else signal,
+        fdr_levels=fdr_levels, fdr_watch=watch_at, n_tested=int(s.get("n_tested", 0)),
+        signals=bool(frame["outlier"].any()) if recolor else bool(s.get("n_outlier", 0)),
         percent=(measure == "proportion" and meta.get("multiply", 1.0) == 1.0)
         if opts["y_percent"] is None else opts["y_percent"],
         warnings=warnings, hover=list(meta.get("hover", [])), measure=measure,
@@ -212,6 +229,21 @@ def plot_funnel(result, **given) -> go.Figure:
             "x_order": None, "x_format": None, "x_angle": None, "y_neg": True,
             "y_expand": None, "show_grid": False, "flip": False, "by_volume": by_volume}
     return _render(drawing, opts)
+
+
+def _check_fdr_watch(value, by_q: bool, fdr_levels: tuple) -> float | None:
+    """fdr_watch=: a q-value cut looser than the alert tier, on a chart colored by q."""
+    if value is None:
+        return None
+    if not by_q:
+        raise ValueError("fdr_watch= draws a tier of q-values; color the points by them with "
+                         "color_by='fdr' (or fit with signal='fdr').")
+    ok = (isinstance(value, (int, float)) and not isinstance(value, bool)
+          and fdr_levels[1] < value < 1.0)
+    if not ok:
+        raise ValueError(f"fdr_watch must be a number above the alert level {fdr_levels[1]:g} "
+                         f"and below 1, e.g. 0.20. Got {value!r}.")
+    return float(value)
 
 
 def _display(labels, keys) -> list[str]:
@@ -300,6 +332,7 @@ def _resolve_styles(styles: Any, drawing: Drawing) -> dict[str, dict]:
         "data": {"color": NORMAL, "width": 1, "name": "data", "opacity": 0.85 if funnel else 1.0},
         "outlier": {"color": SIGMA, "name": None},
         "alert": {"color": RUNS, "name": None},
+        "watch": {"color": WATCH, "name": None},
         "runs": {"color": RUNS, "name": None},
         "improving": {"color": IMPROVING, "name": None},
         "concerning": {"color": CONCERNING, "name": None},
@@ -325,12 +358,18 @@ def _line(style: dict) -> dict:
     return out
 
 
+# Every signal changes the marker as well as the color; the watch tier is drawn open.
+_SYMBOLS = {"runs": "diamond", "alert": "diamond", "watch": "diamond-open"}
+
+
 def _point_roles(frame: pd.DataFrame) -> list[str | None]:
     """
     The role that colors each point: an outlier first, then a Making Data Count reading
-    (improving, concerning, neutral) where there is one, then an alert or a run.
+    (improving, concerning, neutral) where there is one, then an alert, a funnel's watch
+    tier, or a run.
     """
     variation = frame["variation"].to_numpy() if "variation" in frame else None
+    watch = frame["watch"].to_numpy(dtype=bool) if "watch" in frame else np.zeros(len(frame), bool)
     roles: list[str | None] = []
     for i, (o, a, r) in enumerate(zip(frame["outlier"], frame["alert"], frame["run"])):
         v = variation[i] if variation is not None else None
@@ -340,6 +379,8 @@ def _point_roles(frame: pd.DataFrame) -> list[str | None]:
             roles.append("outlier")
         elif a:
             roles.append("alert")
+        elif watch[i]:
+            roles.append("watch")
         elif r:
             roles.append("runs")
         else:
@@ -429,9 +470,9 @@ def _add_panel(fig, drawing: Drawing, df: pd.DataFrame, curve, opts, row, col, l
 
     roles = _point_roles(df)
     colors = [st[r]["color"] if r else st["data"]["color"] for r in roles]
-    symbols = ["diamond" if r in ("runs", "alert") else "circle" for r in roles]
+    symbols = [_SYMBOLS.get(r or "", "circle") for r in roles]
     base = opts["point_size"] * 6
-    sizes = [base * 1.3 if r else base for r in roles]
+    sizes = [base * 1.3 if r and r != "watch" else base for r in roles]
     excluded = df["excluded"].to_numpy(dtype=bool)
     opacities = [0.35 if ex else st["data"]["opacity"] for ex in excluded]
 
@@ -460,8 +501,9 @@ def _add_panel(fig, drawing: Drawing, df: pd.DataFrame, curve, opts, row, col, l
     fig.add_trace(go.Scatter(
         x=x, y=y, mode=mode,
         line=dict(color=st["data"]["color"], width=st["data"]["width"]),
-        marker=dict(color=colors, symbol=symbols, size=sizes, line=dict(width=0),
-                    opacity=opacities),
+        marker=dict(color=colors, symbol=symbols, size=sizes, opacity=opacities,
+                    # An open marker is all outline: give the watch tier's a stroke.
+                    line=dict(width=[1.5 if r == "watch" else 0 for r in roles], color=colors)),
         name=st["data"]["name"], text=text, customdata=customdata,
         hovertemplate=hovertemplate, connectgaps=False, cliponaxis=False, zorder=2,
         **legend_kw("data", entry=False),
@@ -788,7 +830,8 @@ def _add_legend_entries(fig, drawing: Drawing, opts) -> None:
         names = {"outlier": "Beyond UCL/LCL", "runs": "Run signal"}
     elif drawing.signal == "fdr":
         q0, q1 = drawing.fdr_levels
-        names = {"outlier": f"{worse}outlier (q < {q0:g})", "alert": f"{worse}alert (q < {q1:g})"}
+        names = {"outlier": f"{worse}outlier (q < {q0:g})", "alert": f"{worse}alert (q < {q1:g})",
+                 "watch": f"{worse}watch (q < {drawing.fdr_watch:g})" if drawing.fdr_watch else ""}
     else:
         names = {"outlier": f"{worse}outlier (beyond {_pct(drawing.levels[0])})",
                  "alert": f"{worse}alert (beyond {_pct(drawing.levels[1])})"}
@@ -802,14 +845,16 @@ def _add_legend_entries(fig, drawing: Drawing, opts) -> None:
                              marker=dict(color=st["data"]["color"], symbol="circle", size=size),
                              name=series, legendgroup="data", showlegend=True,
                              hoverinfo="skip", legendrank=1))
-    for role in ("outlier", "alert", "runs", "improving", "concerning", "neutral"):
+    for role in ("outlier", "alert", "watch", "runs", "improving", "concerning", "neutral"):
         if not np.any((roles == role) & drawn):
             continue
         name = st[role]["name"] or names[role]
+        watch = role == "watch"
         fig.add_trace(go.Scatter(
             x=[None], y=[None], mode="markers",
-            marker=dict(color=st[role]["color"], size=size * 1.3,
-                        symbol="diamond" if role in ("runs", "alert") else "circle"),
+            marker=dict(color=st[role]["color"], size=size if watch else size * 1.3,
+                        symbol=_SYMBOLS.get(role, "circle"),
+                        line=dict(width=1.5 if watch else 0, color=st[role]["color"])),
             name=name[0].upper() + name[1:], showlegend=True, hoverinfo="skip",
         ))
     if not drawing.funnel:
@@ -855,7 +900,8 @@ def _signal_caption(drawing: Drawing) -> str | None:
     q0, q1 = drawing.fdr_levels
     faceted = len(set(drawing.frame["panel"])) > 1
     scope = "within each panel" if faceted else f"across {drawing.n_tested} providers"
-    return (f"Outlier: q < {q0:g}; alert: q < {q1:g} (Benjamini-Hochberg false discovery "
+    watch = f"; watch: q < {drawing.fdr_watch:g}" if drawing.fdr_watch else ""
+    return (f"Outlier: q < {q0:g}; alert: q < {q1:g}{watch} (Benjamini-Hochberg false discovery "
             f"rate {scope}, {tail} p-values). The curves show the {_pct(lv[0])} and "
             f"{_pct(lv[1])} limits, not adjusted for multiple comparisons.")
 
