@@ -276,7 +276,7 @@ class TestQicIsTimeOrdered:
             qic(y=OBS, chart="i", title="x")
 
     def test_other_unknown_arguments_keep_pythons_error(self):
-        with pytest.raises(TypeError, match="^qic\\(\\) got an unexpected keyword argument 'bogus'$"):
+        with pytest.raises(TypeError, match="^qic\\(\\) got an unexpected keyword argument 'bogus'\\.$"):
             qic(y=OBS, n=EXP, chart="u", bogus=1)
 
 

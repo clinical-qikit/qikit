@@ -72,6 +72,9 @@ print(r)                                   # what fired, in words
 r.data[r.data.signal == "outlier"]         # points beyond the 3-sigma limits
 r.data[r.data.runs_signal]                 # points in a run or trend
 r.summary                                  # rules fired, limits, by_facet
+r.summary["notes"]                         # sentences to show the reader verbatim
+r.brief()                                  # verdict, notes and flagged points only
+r.to_table()                               # fixed columns, to write to a table
 fig = r.plot(title="H&P within 24 hours")  # Plotly; st.plotly_chart(fig)
 ```
 

@@ -17,10 +17,11 @@ method and every departure from Spiegelhalter (2005).
 
 from __future__ import annotations
 
+import inspect
 import math
 import warnings
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -34,6 +35,7 @@ from .core.dist import beta_quantile, beta_tails, gamma_quantile, gamma_tails
 from .core.power import UNDERPOWERED_RATIO, point_power
 from .core.pvalues import bh_q_values, funnel_p_values, signal_thresholds
 from .results import FunnelResult
+from .schema import FUNNEL_COLUMNS
 from .validate import (
     WORSE, _did_you_mean, check_choice, check_column, check_facet_names, check_levels,
     check_number, numbers, reject_removed, split_facets,
@@ -50,14 +52,7 @@ DEFAULT_FDR_LEVELS = (0.05, 0.10)
 _SIDES = {None: "both", "higher": "above", "lower": "below"}
 
 # Column names funnel() writes to result.data; hover= columns must avoid them.
-_COLUMNS = (
-    "unit", "label", "y", "numerator", "denominator", "effective_denominator", "cl",
-    "lower_outlier", "upper_outlier", "lower_alert", "upper_alert",
-    "p_value", "q_value", "signal", "direction", "min_detectable", "ci_lower", "ci_upper",
-    "excluded", "raw_excess", "reliability", "eb_rate", "eb_excess", "prob_worse",
-    "p_value_drop1", "flag_survives_drop1", "fragility", "benchmark", "benchmark_group",
-    "meets_benchmark", "eb_low", "eb_high", "estimate_flag",
-)
+_COLUMNS = tuple(c.name for c in FUNNEL_COLUMNS)
 
 # Internal working columns on the normalized frame.
 _UNIT, _Y, _N, _LABEL, _EXCL = "__unit", "__y", "__n", "__label", "__exclude"
@@ -91,7 +86,7 @@ def funnel(
     *,
     y: Any,
     n: Any = None,
-    measure: str,
+    measure: Literal["oe", "proportion", "rate", "mean"],
     unit: Any = None,
     label: Any = None,
     hover: Any = None,
@@ -99,20 +94,20 @@ def funnel(
     exclude: Any = None,
     center: float | None = None,
     overdispersion: bool | None = None,
-    compare_to: str | None = None,
+    compare_to: Literal["peers", "model"] | None = None,
     within_dispersion: float | str | None = None,
-    tau_method: str = DEFAULT_TAU_METHOD,
+    tau_method: Literal["spiegelhalter", "winsorized", "ml", "cqc", "shmi"] = DEFAULT_TAU_METHOD,
     tau: float | dict | None = None,
     cases: str | None = None,
     sum_sq: str | None = None,
     max_case_y: str | None = None,
     max_case_n: str | None = None,
     fdr_min_denominator: float | None = None,
-    worse: str | None = None,
-    signal: str = "limits",
+    worse: Literal["higher", "lower"] | None = None,
+    signal: Literal["limits", "fdr"] = "limits",
     limits: tuple[float, float] = DEFAULT_LEVELS,
     fdr_levels: tuple[float, float] = DEFAULT_FDR_LEVELS,
-    benchmark: str | None = None,
+    benchmark: Literal["abc", "eb"] | None = None,
     benchmark_share: float = 0.10,
     multiply: float = 1.0,
     interval: float = 0.95,
@@ -342,9 +337,15 @@ def funnel(
     Display options (title, axis labels, styles, x_log, ...) are arguments of
     result.plot(); result.plot(kind="caterpillar") draws the shrunk estimates with
     their intervals instead; result.limits() gives the contours at any denominators.
+    result.to_table() is .data with every possible column in a fixed order (see
+    qikit.schema("funnel")), for a database table; result.brief() is the counts, the
+    notes and only the flagged providers; result.facet_summary() is one summary row per
+    facet.
     """
     if removed:
-        reject_removed("funnel", removed, _RENAMED, _DISPLAY, other=("chart", "method", "freeze", "part"))
+        reject_removed("funnel", removed, _RENAMED, _DISPLAY,
+                       other=("chart", "method", "freeze", "part"),
+                       known=tuple(inspect.signature(funnel).parameters))
     st = _settings(
         measure=measure, overdispersion=overdispersion, tau_method=tau_method, tau=tau,
         worse=worse, signal=signal, limits=limits, fdr_levels=fdr_levels,
@@ -352,7 +353,7 @@ def funnel(
         benchmark=benchmark, benchmark_share=benchmark_share, compare_to=compare_to,
         interval=interval,
     )
-    mean = measure == "mean"
+    mean = st.measure == "mean"            # as check_choice read it ("Mean" is "mean")
     if mean:
         n, cases, max_case_n, within_dispersion = _mean_inputs(
             data, n, cases, sum_sq, max_case_y, max_case_n, within_dispersion)
@@ -493,13 +494,14 @@ def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits
               fdr_levels, fdr_min, multiply, center, facets, benchmark=None,
               benchmark_share=0.10, limit_method="exact", compare_to=None,
               interval=0.95) -> _Settings:
-    check_choice("measure", measure, MEASURES)
+    measure = check_choice("measure", measure, MEASURES)
+    compare_to = check_choice("compare_to", compare_to, COMPARE_TO)
     center, overdispersion = _compare_to(compare_to, measure, center, overdispersion)
-    check_choice("worse", worse, WORSE)
-    check_choice("signal", signal, SIGNALS)
-    check_choice("tau_method", tau_method, TAU_METHODS)
-    check_choice("limit_method", limit_method, _LIMIT_METHODS)
-    check_choice("benchmark", benchmark, BENCHMARKS)
+    worse = check_choice("worse", worse, WORSE)
+    signal = check_choice("signal", signal, SIGNALS)
+    tau_method = check_choice("tau_method", tau_method, TAU_METHODS)
+    limit_method = check_choice("limit_method", limit_method, _LIMIT_METHODS)
+    benchmark = check_choice("benchmark", benchmark, BENCHMARKS)
     if benchmark is not None and worse is None:
         raise ValueError(
             f"benchmark={benchmark!r} needs worse='higher' or 'lower': the benchmark is what "
@@ -539,7 +541,6 @@ def _compare_to(compare_to, measure, center, overdispersion) -> tuple[Any, bool]
     (center, overdispersion) resolved from compare_to=. Settings that agree with it may be
     passed too; one that contradicts it is an error naming the fix (methods §2, §4.2).
     """
-    check_choice("compare_to", compare_to, COMPARE_TO)
     if compare_to is None:
         return center, True if overdispersion is None else bool(overdispersion)
     if compare_to == "peers":
@@ -1476,7 +1477,7 @@ def funnel_sensitivity(
             "compare_to='model' allows no spread, so every run would be the same chart. Run "
             "funnel(..., compare_to='model') alone, or use compare_to='peers' here."
         )
-    runs = {f"signal_{m}": funnel(data, tau_method=m, **kwargs) for m in tau_methods}
+    runs = {f"signal_{m}": funnel(data, **{"tau_method": m, **kwargs}) for m in tau_methods}
     if unadjusted:
         plain = {k: v for k, v in kwargs.items() if k != "compare_to"}
         runs["signal_unadjusted"] = funnel(data, overdispersion=False, **plain)

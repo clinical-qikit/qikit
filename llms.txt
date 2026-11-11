@@ -1,12 +1,12 @@
 # clinical-qikit
 
-> SPC charts and funnel plots for healthcare quality, in Python. qic() charts one measure over time; funnel() compares providers with their peers. Both return a result with .data (a table), .summary (a dict) and .plot() (a Plotly figure, optional extra). Core needs only numpy and pandas.
+> SPC charts and funnel plots for healthcare quality, in Python. qic() charts one measure over time; funnel() compares providers with their peers. Both return a result with .brief() (what was found, about 1 KB), .to_table() (fixed columns for a database; qikit.schema() lists them), .data and .summary (everything), and .plot() (a Plotly figure, optional extra). Core needs only numpy and pandas.
 
 Import as `qikit` (`pip install clinical-qikit`, or `clinical-qikit[plot]` for figures).
 
 ## Start here
 
-- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, the shared vocabulary, the funnel decision recipe (peers vs model with compare_to=, within_dispersion, limits vs FDR, fixed tau, scorecard-wide FDR), the module map, and invariants not to break. Shipped inside the package.
+- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, how to read a result (brief, to_table, facet_summary), the shared vocabulary, the funnel decision recipe (peers vs model with compare_to=, within_dispersion, limits vs FDR, fixed tau, scorecard-wide FDR), the module map, and invariants not to break. Shipped inside the package.
 - [README.md](README.md): overview, decision tables, result columns.
 
 ## Methods

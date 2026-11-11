@@ -8,8 +8,9 @@ Two questions, two functions, one vocabulary:
     qic(df, x="month", y="deaths", n="admissions", chart="p")     # one measure over time
     funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon")  # providers compared
 
-Each returns a result whose .data is a table (ready to write back to a database),
-whose .summary says what was found, and whose .plot() draws a Plotly figure. Start with
+Each returns a result: .brief() says what was found in a few lines, .to_table() is the
+table to write back to a database (qikit.schema() lists its columns), .data and
+.summary hold everything, and .plot() draws a Plotly figure. Start with
 help(qikit.qic) or help(qikit.funnel): each opens with a table of which settings fit
 which data. AGENTS.md (shipped with the package) maps the modules; docs/methods.md and
 docs/qic-methods.md record every method and each departure from its source.
@@ -22,11 +23,12 @@ from .doe import ExperimentDesign, ExperimentResult, analyze, design
 from .extras import bchart, paretochart
 from .funnel import funnel, funnel_sensitivity
 from .results import BChartResult, FunnelResult, ParetoResult, SPCResult
+from .schema import schema
 from .spc import qic
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 __all__ = [
-    "qic", "funnel", "funnel_sensitivity", "SPCResult", "FunnelResult",
+    "qic", "funnel", "funnel_sensitivity", "schema", "SPCResult", "FunnelResult",
     "paretochart", "bchart", "ParetoResult", "BChartResult",
     "design", "analyze", "ExperimentDesign", "ExperimentResult", "__version__",
 ]

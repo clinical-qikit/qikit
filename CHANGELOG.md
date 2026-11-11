@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.3.0 (2026-11-10)
+
+A predictable, compact surface for pipelines and agents. Nothing is removed.
+
+### Added
+
+- **`qikit.schema("qic" | "funnel")`:** every column `result.data` can hold, with its
+  type, whether every call produces it, and its meaning. It is now the single source of
+  the column lists.
+- **`result.to_table()`** on `qic()` and `funnel()` results: `.data` with every schema
+  column, in schema order and with fixed types (nullable booleans and integers, strings
+  as objects), empty where the call did not produce it; the `facets=` columns first and
+  the `hover=` columns last. The shape a database table or a Snowpark `RETURNS TABLE`
+  clause needs, whatever options the call used.
+- **`result.brief(digits=4, limit=25)`:** what was found as a small JSON-safe dict: the
+  verdict or counts, the notes, and only the flagged points (the most recent) or
+  providers (outliers first, then by p-value). About 1 KB where `to_json()` is tens.
+- **`result.facet_summary()`:** the summary as a table, one row per facet, with the
+  same columns faceted or not.
+- **`to_dict(digits=)` and `to_json(digits=)`:** round every number to that many
+  significant figures. Default unchanged.
+- **Choices ignore case and surrounding spaces** (`measure="OE"`, `signal=" FDR "`),
+  and a misspelt choice or keyword suggests the closest: `measure must be one of ...,
+  got 'proportions'. Did you mean 'proportion'?`; `qic() got an unexpected keyword
+  argument 'charts'. Did you mean 'chart'?`.
+- **The signatures spell out the choices** as `Literal` types (`chart`, `method`,
+  `measure`, `worse`, `signal`, `tau_method`, `benchmark`, `compare_to`, `agg_fun`), so
+  `help()`, editors and type checkers show them.
+
+### Fixed
+
+- `to_json()` raised on Python `date` values in `x` and `Decimal` unit ids, as Snowpark
+  returns DATE and NUMBER columns. Dates serialize as ISO text, Decimals as numbers.
+- A faceted `qic()` summary lacked the top-level `runs_signal`.
+- `qic()`'s docstring did not document the `special_cause` column.
+
 ## 1.2.1 (2026-11-10)
 
 Messy input no longer becomes a silent wrong answer.

@@ -14,10 +14,30 @@ data and documents every result column.
 | Which factors matter in an experiment? | `design(...)`, `analyze(...)` | `ExperimentDesign`, `ExperimentResult` |
 
 The chart results (`SPCResult`, `FunnelResult`, `ParetoResult`, `BChartResult`) have
-`.data` (a DataFrame, the thing to write back to a table), `.summary` (a dict; `notes`
-holds sentences ready to show a reader), `.plot(**options)` (a Plotly figure; needs
-`clinical-qikit[plot]`), `.to_dict()` and `.to_json()`. `print(result)` says what was
-compared and what was found.
+`.data` (a DataFrame), `.summary` (a dict; `notes` holds sentences ready to show a
+reader), `.plot(**options)` (a Plotly figure; needs `clinical-qikit[plot]`),
+`.to_dict()` and `.to_json()`. `print(result)` says what was compared and what was found.
+
+## Reading a result
+
+Start with the smallest thing that answers the question:
+
+| You want | Call | You get |
+|---|---|---|
+| what was found, to read or reason over | `r.brief()` | a small JSON-safe dict: verdict or counts, notes, and only the flagged rows |
+| rows to write to a table (fixed columns) | `r.to_table()` | `.data` with every column of `qikit.schema(...)`, same order and types on every call |
+| one line per facet for a scorecard | `r.facet_summary()` | a DataFrame, one row per facet, same columns faceted or not |
+| every number | `r.data`, `r.summary` | the full table and dict |
+| everything as JSON, smaller | `r.to_json(digits=4)` | numbers at 4 significant figures |
+
+`r.brief()` is about 1 KB where `r.to_json()` is tens of KB: read it first, and open
+`.data` only for the providers or points it names. `.data` holds only the columns the
+call produced (`label` with `label=`, `benchmark` with `benchmark=`), so write
+`r.to_table()` to a database, not `r.data`. `qikit.schema("qic")` and
+`qikit.schema("funnel")` list every column with its type and meaning.
+
+Choices are read without regard to case (`"OE"` is read as `"oe"`), and a misspelt choice,
+keyword or column name raises with the closest match: read the message and apply it.
 
 ## Shared vocabulary
 

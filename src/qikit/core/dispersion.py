@@ -28,13 +28,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from statistics import NormalDist
+from typing import Final
 
 import numpy as np
 
 from .contours import beta_params
 
 TAU_METHODS = ("spiegelhalter", "winsorized", "ml", "cqc", "shmi")
-DEFAULT_TAU_METHOD = "spiegelhalter"
+DEFAULT_TAU_METHOD: Final = "spiegelhalter"
 # The two methods FunnelPlotR implements, which draw normal limits on a transformed scale.
 TRANSFORMED_METHODS = ("cqc", "shmi")
 

@@ -15,8 +15,9 @@ providers with each other is a funnel plot: qikit.funnel().
 
 from __future__ import annotations
 
+import inspect
 import math
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ import pandas as pd
 from .core.rules import METHODS, ZONE_METHODS, apply_rules
 from .core.shewhart import CHARTS, RATE_CHARTS, SUBGROUP_CHARTS, T_POWER, shewhart
 from .results import SPCResult
+from .schema import QIC_COLUMNS
 from .validate import (
     WORSE, check_choice, check_column, check_facet_names, is_dates, numbers, reject_removed,
     split_facets,
@@ -36,10 +38,7 @@ MIN_POINTS = 12
 MIN_LIMIT_POINTS = 20
 
 # Columns qic() writes to result.data; facet and hover columns cannot reuse them.
-OUTPUT_COLUMNS = (
-    "x", "label", "y", "n", "cl", "ucl", "lcl", "ucl_95", "lcl_95", "signal", "runs_signal",
-    "variation", "special_cause", "part", "baseline", "excluded", "target", "notes",
-)
+OUTPUT_COLUMNS = tuple(c.name for c in QIC_COLUMNS)
 
 AGG_FUNS = ("mean", "median", "sum")
 PERIODS = {"day": "D", "week": "W", "month": "MS", "quarter": "QS", "year": "YS"}
@@ -72,15 +71,15 @@ def qic(
     x: Any = None,
     y: Any,
     n: Any = None,
-    chart: str = "run",
-    method: str = "anhoej",
+    chart: Literal["run", "i", "mr", "xbar", "s", "t", "p", "pp", "c", "u", "up", "g"] = "run",
+    method: Literal["anhoej", "ihi", "nhs", "weco", "nelson"] = "anhoej",
     freeze: int | None = None,
     part: Any = None,
     exclude: Any = None,
     center: float | None = None,
     target: Any = None,
-    worse: str | None = None,
-    agg_fun: str = "mean",
+    worse: Literal["higher", "lower"] | None = None,
+    agg_fun: Literal["mean", "median", "sum"] = "mean",
     x_period: str | None = None,
     multiply: float = 1.0,
     facets: str | list[str] | None = None,
@@ -138,7 +137,8 @@ def qic(
     - runs_signal: the point is part of a pattern the rules found (a long run, a trend).
       Too few crossings is a property of the whole series: summary["crossings_signal"].
     - variation (method="nhs"): "improving", "concerning", "neutral" (no worse=) or
-      "common", Making Data Count's reading of each point.
+      "common", Making Data Count's reading of each point; special_cause: the rule that
+      made it so ("" for common cause).
     - part, baseline (used to set the limits), excluded, target, notes, hover columns,
       and one column per facets= column.
 
@@ -179,11 +179,14 @@ def qic(
         columns; notes : annotations per point (a column or sequence).
 
     Display options (title, axis labels, styles, ...) are arguments of result.plot().
+    result.to_table() is .data with every possible column in a fixed order (see
+    qikit.schema("qic")), for a database table; result.brief() is the verdict, the notes
+    and only the flagged points, small enough to read at a glance.
     """
     if removed:
-        reject_removed("qic", removed, _RENAMED, _DISPLAY, _FUNNEL_ONLY, _GONE)
-    chart = check_choice("chart", chart.lower().strip() if isinstance(chart, str) else chart,
-                         CHARTS, hint=_chart_hint(chart))
+        reject_removed("qic", removed, _RENAMED, _DISPLAY, _FUNNEL_ONLY, _GONE,
+                       known=tuple(inspect.signature(qic).parameters))
+    chart = check_choice("chart", chart, CHARTS, hint=_chart_hint(chart))
     method = check_choice("method", method, METHODS)
     worse = check_choice("worse", worse, WORSE)
     agg_fun = check_choice("agg_fun", agg_fun, AGG_FUNS)
@@ -226,6 +229,7 @@ def qic(
             "n_obs": sum(s["n_obs"] for s in by_facet.values()),
             "signals": any(s["signals"] for s in by_facet.values()),
             "n_outlier": sum(s["n_outlier"] for s in by_facet.values()),
+            "runs_signal": any(s["runs_signal"] for s in by_facet.values()),
             "by_facet": by_facet,
             "provisional": any(s["provisional"] for s in by_facet.values()),
             "notes": [f"{name}: {note}" for name, s in by_facet.items() for note in s["notes"]],
@@ -241,6 +245,7 @@ def qic(
 
 
 def _chart_hint(chart: Any) -> str:
+    chart = chart.strip().lower() if isinstance(chart, str) else chart
     if chart in ("oe", "oep"):
         return (" Comparing providers' O/E is a funnel plot: qikit.funnel(..., measure='oe'). "
                 "A monthly O/E series is qic(chart='u', y=observed, n=expected).")

@@ -16,9 +16,18 @@ WORSE = (None, "higher", "lower")
 
 
 def check_choice(name: str, value: Any, valid: tuple, hint: str = "") -> Any:
-    """value if it is one of valid, else a ValueError listing them."""
+    """
+    value if it is one of valid, else a ValueError listing them and the closest. Text
+    is read without regard to case or surrounding spaces ("OE", " fdr "), and the
+    canonical spelling returned: use the return value.
+    """
+    if isinstance(value, str) and value not in valid:
+        value_ = value.strip().lower()
+        if value_ in valid:
+            return value_
     if value not in valid:
-        raise ValueError(f"{name} must be one of {valid}, got {value!r}.{hint}")
+        near = _did_you_mean(value, valid) if isinstance(value, str) else ""
+        raise ValueError(f"{name} must be one of {valid}, got {value!r}.{near}{hint}")
     return value
 
 
@@ -129,11 +138,12 @@ def check_number(name: str, value: Any, minimum: float = 0.0, strict: bool = Fal
 
 def reject_removed(
     fn: str, removed: dict[str, Any], renamed: dict[str, str], display: tuple,
-    other: tuple = (), extra: dict[str, str] | None = None,
+    other: tuple = (), extra: dict[str, str] | None = None, known: tuple = (),
 ) -> None:
     """
     A TypeError for keyword arguments a function does not take, naming where each went:
-    a 1.0 rename, a display option that moved to plot(), or another function's argument.
+    a 1.0 rename, a display option that moved to plot(), or another function's argument;
+    for any other name, the closest of the arguments it does take (known).
     """
     reasons = []
     for name in removed:
@@ -147,5 +157,6 @@ def reject_removed(
             other_fn = "funnel" if fn == "qic" else "qic"
             reasons.append(f"{name}=: it is an argument of {other_fn}()")
         else:
-            raise TypeError(f"{fn}() got an unexpected keyword argument {name!r}")
+            raise TypeError(f"{fn}() got an unexpected keyword argument {name!r}."
+                            f"{_did_you_mean(name, known)}")
     raise TypeError(f"{fn}() does not take " + "; ".join(reasons) + ".")
