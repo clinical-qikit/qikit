@@ -128,6 +128,37 @@ default method, answers the same question with a formula rather than a table.
 The Western Electric zone rules [8] and Nelson's eight tests [9], less the point beyond
 3σ, which is `signal`. Both need limits, so they do not apply to a run chart.
 
+### 3.5 Short series: `provisional` and the notes
+
+A chart of a few points cannot show that a process is stable, so qikit says so in words.
+It never changes `signal`, `runs_signal` or the limits.
+
+| Baseline points | Charts | What qikit does |
+|---|---|---|
+| fewer than 12 | all | `summary["provisional"]` is True, a note says the series is too short to judge, and `print(result)` reads "No signal so far" in place of "looks stable" |
+| 12 to 19 | those with control limits (not `"run"`) | a note calls the limits provisional; `provisional` stays False |
+| 20 or more | all | nothing |
+
+The count is of the points that set the current center line: the baseline points of the
+last part. `freeze=10` therefore leaves a chart provisional however many points follow,
+and so does a new part (`part=`) that is still short.
+
+**Where the numbers come from.** They are rules of thumb, set as the constants
+`MIN_POINTS` and `MIN_LIMIT_POINTS` in `spc.py`, and published guidance does not agree
+on one figure:
+
+- **20** is the usual figure for control limits from a stable baseline (Provost and
+  Murray [3]; Montgomery [2] asks for 20 to 25 subgroups).
+- **12 is qikit's own choice.** It lies between the roughly 10 points at which run-chart
+  guidance sets a baseline median (Perla, Provost and Murray [10]) and the 15 that
+  Making Data Count [7] asks for before drawing process limits. A team reporting under
+  Making Data Count should read 12 to 14 points as too few for limits, which the
+  12-to-19 note already says.
+
+The run rules give the practical reason for caution (§3.1): at n = 20 they have 8% power
+to see a 1 SD shift in the last half of the series, so no signal on a short series says
+little.
+
 ## 4. Departures from qicharts2
 
 Each is deliberate and listed in `tests/test_reference.py`.
@@ -174,3 +205,5 @@ Each change below moves results on some data. The CHANGELOG has the full list.
 8. Western Electric. *Statistical Quality Control Handbook*. 1956.
 9. Nelson LS. The Shewhart control chart: tests for special causes. *Journal of Quality
    Technology* 1984;16:237–239.
+10. Perla RJ, Provost LP, Murray SK. The run chart: a simple analytical tool for learning
+    from variation in healthcare processes. *BMJ Quality & Safety* 2011;20(1):46–51.
