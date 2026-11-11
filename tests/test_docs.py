@@ -20,7 +20,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from qikit import analyze, bchart, design, funnel, funnel_sensitivity, paretochart, qic
+from qikit import (
+    analyze, bchart, design, funnel, funnel_rollup, funnel_sensitivity, paretochart, qic,
+)
 from qikit.core.dispersion import TAU_METHODS
 from qikit.core.rules import METHODS
 from qikit.core.shewhart import CHARTS
@@ -44,9 +46,11 @@ def _params(fn) -> set[str]:
 QIC = _params(qic)
 FUNNEL = _params(funnel)
 SENSITIVITY = _params(funnel_sensitivity) | FUNNEL
+ROLLUP = _params(funnel_rollup) | FUNNEL - {"unit"}
+MIN_DENOMINATOR = {"reliability"}
 SPC_PLOT = set(_SPC_OPTIONS)
 FUNNEL_PLOT = set(_FUNNEL_OPTIONS) | set(_CATERPILLAR_OPTIONS) | {"kind"}
-EVERY_NAME = (QIC | FUNNEL | SENSITIVITY | SPC_PLOT | FUNNEL_PLOT | _params(paretochart)
+EVERY_NAME = (QIC | FUNNEL | SENSITIVITY | ROLLUP | SPC_PLOT | FUNNEL_PLOT | _params(paretochart)
               | _params(bchart) | _params(design) | _params(analyze))
 
 # Arguments methods.md describes as planned, not yet built.
@@ -171,7 +175,8 @@ def _doc_ids(paths) -> list:
 @pytest.mark.parametrize("path", _doc_ids(DOCS))
 def test_code_examples_parse_and_use_real_arguments(path):
     allowed = {"qic": QIC, "funnel": FUNNEL, "qikit_funnel": FUNNEL,
-               "funnel_sensitivity": SENSITIVITY}
+               "funnel_sensitivity": SENSITIVITY, "funnel_rollup": ROLLUP,
+               "min_denominator": MIN_DENOMINATOR}
     problems = []
     for block in _python_blocks(_text(path)):
         tree = ast.parse(block)  # a doc example that does not parse is itself a defect

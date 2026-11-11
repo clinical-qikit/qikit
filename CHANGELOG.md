@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.0 (2026-11-11)
+
+Minimum denominators from a reliability target. Additive; no result changes.
+
+### Added
+
+- **`result.min_denominator(reliability=0.7)`** on `funnel()` results: the denominator
+  at which a provider's `reliability` reaches a target (one or several), in the units
+  of `n=`, with its range from the 95% interval for τ, the number of providers at or
+  above and below it (`n_above`, `n_below`), the volume they hold, and each row as a
+  sentence (`note`). It agrees exactly with the `reliability` column. When the data
+  show no spread between providers there is no floor, and the result says so.
+- **`funnel_rollup(data, units=[...], reliability=0.7, ...)`:** the same table for each
+  level of a hierarchy (physician, group, hospital), each fitted separately, for
+  deciding the level at which small providers are rolled up.
+- **`summary["estimate_tau_ci"]`:** the profile-likelihood 95% interval for the spread
+  the estimate columns use (`estimate_tau`). `None` when `tau=` is given.
+- **`skills/minimum-denominators/SKILL.md`** and a "Minimum denominator recipe" in
+  `AGENTS.md`: what an agent asks (measure, level, peer group, use, period), calls and
+  reports when asked for a minimum denominator or a rollup level.
+
 ## 1.3.0 (2026-11-10)
 
 Messy input no longer becomes a silent wrong answer, and results gain a predictable,

@@ -233,7 +233,8 @@ def funnel(
     tau_estimated, tau_ci ("ml"), compare_to, center_gap, center_gap_p and tau_pooled
     (the fixed-center gap check, methods §4.2.1; None unless center= is fixed with
     overdispersion=True and tau estimated), reference (what the estimate columns are
-    judged against) and estimate_tau (the spread of their prior), count_model, limit_method, p_value_method,
+    judged against), estimate_tau (the spread of their prior) and estimate_tau_ci (its
+    95% interval, None when tau= is given), count_model, limit_method, p_value_method,
     within_dispersion and its source, dispersion_shape, underpowered, n_underpowered,
     min_detectable_median, n_filtered, n_fragile, n_rows_dropped (rows missing y, n or
     unit, left out of the sums), notes (sentences to show readers), and
@@ -803,6 +804,7 @@ def _one_funnel(rows, st: _Settings, within: Within, tau_fixed, aggregated: bool
         notes.append(note)
     summary.update(_center_gap(st, fit, source, disp.scale, notes))
     summary["estimate_tau"] = math.sqrt(prior.tau2)
+    summary["estimate_tau_ci"] = prior.tau_ci
     if (st.overdispersion or prior.model) and not prior.available:
         notes.append(
             "Shrunk estimates with a range are unavailable: the funnel finds no measurable "
@@ -822,6 +824,7 @@ def _one_funnel(rows, st: _Settings, within: Within, tau_fixed, aggregated: bool
     model = {
         "family": family, "cl": float(cl), "tau2": used, "scale": scale,
         "levels": st.limits, "limit_method": st.limit_method, "multiply": m,
+        "prior": prior,
         "phi": None if within.phi_units is not None else within.phi,
         "axis": table["effective_denominator" if within.phi_units is not None
                       else "denominator"].to_numpy(dtype=float),
@@ -1290,6 +1293,63 @@ def funnel_sensitivity(
                               else out["unit"]].to_numpy()
     cols = list(runs)
     out["consistent"] = out[cols].nunique(axis=1) == 1
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Minimum denominators by reporting level
+# ---------------------------------------------------------------------------
+
+def funnel_rollup(
+    data: pd.DataFrame | None = None,
+    *,
+    units: Any = None,
+    reliability: Any = 0.7,
+    **kwargs: Any,
+) -> pd.DataFrame:
+    """
+    At which level of a hierarchy can this measure be reported reliably?
+
+    Runs funnel(data, unit=<level>, **kwargs) once per column in units (for example
+    ["physician", "group", "department", "hospital"], finest first) and returns each
+    level's result.min_denominator(reliability) rows under a leading `level` column:
+    the minimum denominator at that level, its range, and how many units are above and
+    below it (n_above, n_below) with the volume they hold. Read down the table for the
+    finest level at which enough units, and enough of the volume, clear the floor; units
+    below it are the ones to roll up.
+
+    Each level is its own fit, because the spread between groups is not the spread
+    between physicians: a coarser level has more volume per unit but usually less
+    spread, so its floor is often higher. A level where the data show no spread has no
+    floor at all (note says so), however large its units.
+
+    data must have one row per case, or per unit of the finest level or finer; funnel()
+    sums the rows within each unit. For days, means and surveys pass case-level rows, as
+    for funnel(). reliability is one target or several (see
+    FunnelResult.min_denominator). label= and hover= are left out: they describe one
+    level. .attrs["notes"] holds every level's cautions, prefixed with the level.
+    """
+    if "unit" in kwargs:
+        raise ValueError("funnel_rollup() sets unit= itself, once per level; name the "
+                         "levels to compare with units=, e.g. units=['physician', 'group'].")
+    if not isinstance(data, pd.DataFrame):
+        raise ValueError("funnel_rollup() needs data= as a DataFrame whose columns name "
+                         "each level, e.g. units=['physician', 'group'].")
+    levels = [units] if isinstance(units, str) else list(units or [])
+    if not levels:
+        raise ValueError("units= needs the columns naming each level to compare, finest "
+                         "first, e.g. units=['physician', 'group', 'hospital'].")
+    for level in levels:
+        check_column(data, "units", level, required=True)
+    options = {k: v for k, v in kwargs.items() if k not in ("label", "hover")}
+    frames, notes = [], []
+    for level in levels:
+        table = funnel(data, unit=level, **options).min_denominator(reliability)
+        notes += [f"{level}: {note}" for note in table.attrs["notes"]]
+        table.insert(0, "level", level)
+        frames.append(table)
+    out = pd.concat(frames, ignore_index=True)
+    out.attrs["notes"] = notes
     return out
 
 

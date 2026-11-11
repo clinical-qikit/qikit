@@ -10,13 +10,15 @@ own mixture model (docs/methods.md §4.14, §4.16):
 
 on effective counts (y/φ out of n/φ), with c the prior's center and τ² its variance.
 
-    fit_prior()      the prior: its center, its spread, and the reference to judge against
-    shrink()         reliability, posterior mean, interval and P(worse) per provider
-    estimate_flag()  where each interval lies against the reference
+    fit_prior()        the prior: its center, its spread, and the reference to judge against
+    shrink()           reliability, posterior mean, interval and P(worse) per provider
+    min_denominator()  the denominator at which reliability reaches a target
+    estimate_flag()    where each interval lies against the reference
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -39,6 +41,8 @@ class Prior:
     model: bool           # against the risk model: pooled prior, judged against 1.0
     params: tuple | None  # (α, β) of the beta prior on a proportion, else None
     binomial: bool = False
+    # Profile-likelihood 95% interval for τ (not τ²), when τ was estimated here.
+    tau_ci: tuple[float, float] | None = None
 
     @property
     def available(self) -> bool:
@@ -76,12 +80,15 @@ def fit_prior(cl: float, ratio: np.ndarray, n_model: np.ndarray, mask: np.ndarra
         center, reference = pooled(ratio, n_model, ok), 1.0
     else:
         center, reference = cl, cl
+    tau_ci = None
     if tau_fixed is not None:
         tau2 = float(tau_fixed) if model else natural_tau2(scale, cl, tau2_chart)
     elif not spread or ok.sum() < 2:
         tau2 = 0.0
     else:
-        tau2 = tau2_ml(center, ratio, n_model, ok, family)[0]
+        tau2, ci = tau2_ml(center, ratio, n_model, ok, family)
+        if np.isfinite(ci[0]):
+            tau_ci = (float(ci[0]), float(ci[1]))
         # An estimate that would leave every provider's reliability below
         # MIN_RELIABILITY is no measurable spread: ML returns such values from the
         # numerical noise beside τ = 0, and their priors (a + b in the millions on a
@@ -91,7 +98,8 @@ def fit_prior(cl: float, ratio: np.ndarray, n_model: np.ndarray, mask: np.ndarra
         if tau2 > 0 and tau2 / (tau2 + v / n_max) < MIN_RELIABILITY:
             tau2 = 0.0
     params = beta_params(center, tau2) if binomial and tau2 > 0 else None
-    return Prior(float(center), float(tau2), float(reference), model, params, binomial)
+    return Prior(float(center), float(tau2), float(reference), model, params, binomial,
+                 tau_ci)
 
 
 class Shrunk(NamedTuple):
@@ -123,6 +131,28 @@ def shrink(prior: Prior, y: np.ndarray, n_model: np.ndarray, coverage: float,
         estimate = b * y + (1.0 - b) * c
     low, high, prob = _posterior(prior, y * n_model, n_model, coverage, lower_is_worse)
     return Shrunk(b, estimate, low, high, prob)
+
+
+def min_denominator(prior: Prior, target: float, tau2: float | None = None) -> float:
+    """
+    The denominator (as the model sees it, n/φ) at which a provider's reliability
+    reaches target: shrink()'s weight solved for n (methods §4.14). In both families
+    B = n/(n + k), so n = k·target/(1 − target), with k = θ₀/τ² on counts and
+    k = α + β = θ₀(1 − θ₀)/τ² − 1 on proportions (θ₀(1 − θ₀)/τ² where no beta has that
+    spread, as shrink() does). inf when τ² = 0: with no spread between providers no
+    volume makes a score reliable. tau2 evaluates it at another spread, for the ends of
+    the interval for τ.
+    """
+    t2 = prior.tau2 if tau2 is None else tau2
+    if not (t2 > 0):
+        return math.inf
+    c = prior.center
+    if prior.binomial:
+        v = c * (1.0 - c) / t2
+        k = v - 1.0 if v > 1.0 else v
+    else:
+        k = c / t2
+    return k * target / (1.0 - target)
 
 
 def _posterior(prior: Prior, o_eff, n_eff, coverage: float, lower_is_worse: bool):

@@ -6,7 +6,7 @@ Import as `qikit` (`pip install clinical-qikit`, or `clinical-qikit[plot]` for f
 
 ## Start here
 
-- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, how to read a result (brief, to_table, facet_summary), the shared vocabulary, the funnel decision recipe (peers vs model with compare_to=, within_dispersion, limits vs FDR, fixed tau, scorecard-wide FDR), the module map, and invariants not to break. Shipped inside the package.
+- [AGENTS.md](src/qikit/AGENTS.md): which function answers which question, how to read a result (brief, to_table, facet_summary), the shared vocabulary, the funnel decision recipe (peers vs model with compare_to=, within_dispersion, limits vs FDR, fixed tau, scorecard-wide FDR), the minimum denominator recipe (min_denominator() and funnel_rollup(): what to ask, what to report), the module map, and invariants not to break. Shipped inside the package.
 - [README.md](README.md): overview, decision tables, result columns.
 
 ## Methods
@@ -26,6 +26,7 @@ Import as `qikit` (`pip install clinical-qikit`, or `clinical-qikit[plot]` for f
 
 - [skills/spc-monitoring/SKILL.md](skills/spc-monitoring/SKILL.md): monitoring a measure over time with qic().
 - [skills/provider-funnels/SKILL.md](skills/provider-funnels/SKILL.md): comparing physicians or hospitals with funnel().
+- [skills/minimum-denominators/SKILL.md](skills/minimum-denominators/SKILL.md): recommending a minimum denominator for a measure from a reliability target with funnel().min_denominator(), and choosing a rollup level with funnel_rollup().
 
 ## Optional
 
