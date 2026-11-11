@@ -498,9 +498,12 @@ r.plot(color_by="fdr", fdr_watch=0.20)   # points by q tier; the lines stay the 
 
 ## In Snowflake
 
-`qic(...).data` and `funnel(...).data` are the tables a pipeline writes back. With
-`facets=` a list of columns, one call covers every measure and service line, and the
-facet columns stay in the output, so the result joins back to the source table.
+`qic(...).to_table()` and `funnel(...).to_table()` are the tables a pipeline writes
+back: every column of `qikit.schema("qic")` or `qikit.schema("funnel")`, in the same
+order and with the same types on every call (`.data` holds only the columns that call
+produced). With `facets=` a list of columns, one call covers every measure and service
+line, and the facet columns stay in the output, so the result joins back to the source
+table. `.facet_summary()` is one summary row per facet.
 [docs/snowflake.md](docs/snowflake.md) has a stored procedure and a UDTF that add limits
 to a pre-aggregated metrics table, packaging steps, and Streamlit in Snowflake notes.
 
@@ -521,7 +524,13 @@ to a pre-aggregated metrics table, packaging steps, and Streamlit in Snowflake n
 - **Skills** for Snowflake Cortex Code or any agent that loads them:
   [`skills/spc-monitoring/SKILL.md`](skills/spc-monitoring/SKILL.md) and
   [`skills/provider-funnels/SKILL.md`](skills/provider-funnels/SKILL.md).
-- **Errors name the fix,** and removed arguments name their replacement.
+- **`result.brief()`** is what was found in about 1 KB of JSON-safe dict: the verdict
+  or counts, the notes, and only the flagged points or providers. `result.to_json()` is
+  everything; `to_json(digits=4)` rounds it.
+- **Errors name the fix:** a misspelt choice, keyword or column name suggests the
+  closest match, choices ignore case, and removed arguments name their replacement.
+- **Messy input is refused or reported, never guessed at:** a missing value is not a
+  zero, and text that is not a number is an error.
 
 ## Excel add-in
 

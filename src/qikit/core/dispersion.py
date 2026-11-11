@@ -28,13 +28,15 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from statistics import NormalDist
+from typing import Final
 
 import numpy as np
 
 from .contours import beta_params
+from .dist import beta_tails
 
 TAU_METHODS = ("spiegelhalter", "winsorized", "ml", "cqc", "shmi")
-DEFAULT_TAU_METHOD = "spiegelhalter"
+DEFAULT_TAU_METHOD: Final = "spiegelhalter"
 # The two methods FunnelPlotR implements, which draw normal limits on a transformed scale.
 TRANSFORMED_METHODS = ("cqc", "shmi")
 
@@ -482,3 +484,29 @@ def natural_tau2(scale: str, cl: float, tau2: float) -> float:
     if scale == "arcsine":
         return 4.0 * cl * (1.0 - cl) * tau2
     return cl * cl * tau2
+
+
+def pooled(ratio: np.ndarray, n_model: np.ndarray, mask: np.ndarray) -> float:
+    """θ₀ = Σyᵢnᵢ/Σnᵢ over the providers tested (ΣO/ΣE on O/E)."""
+    y_base = np.where(mask, ratio, np.nan)
+    n_base = np.where(mask, n_model, np.nan)
+    total_n = float(np.nansum(n_base))
+    return float(np.nansum(y_base * n_base)) / total_n if total_n else math.nan
+
+
+def center_gap_p_value(pooled_value: float, cl: float, y: np.ndarray, n: np.ndarray) -> float:
+    """
+    Two-sided p-value for the pooled value Σnᵢyᵢ/Σnᵢ against a fixed center: a weighted
+    mean with its robust (sandwich) variance K/(K − 1)·Σnᵢ²(yᵢ − ȳ)²/(Σnᵢ)², referred to
+    t on K − 1 degrees of freedom. The observed scatter carries chance, within-case
+    clumping and real spread between providers alike, so no τ̂ (biased low at small K
+    under the published estimator) enters the test (methods §4.2.1).
+    """
+    k = len(y)
+    total = float(n.sum())
+    se2 = k / (k - 1) * float(np.sum(n * n * (y - pooled_value) ** 2)) / total ** 2
+    if not se2 > 0:
+        return 1.0 if pooled_value == cl else 0.0
+    t2 = (pooled_value - cl) ** 2 / se2
+    df = k - 1
+    return beta_tails(df / (df + t2), df / 2.0, 0.5)[0]

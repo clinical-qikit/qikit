@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .results import BChartResult, ParetoResult
+from .validate import check_column, check_number, numbers
 
 
 def paretochart(x: Any, data: pd.DataFrame | None = None, use_na: bool = False) -> ParetoResult:
@@ -19,8 +20,7 @@ def paretochart(x: Any, data: pd.DataFrame | None = None, use_na: bool = False) 
     Returns columns category, count, cum_sum, cum_percent.
     """
     if data is not None and isinstance(x, str):
-        if x not in data.columns:
-            raise ValueError(f"x={x!r} is not a column of data.")
+        check_column(data, "x", x)
         vals = data[x]
     else:
         vals = pd.Series(x)
@@ -34,24 +34,36 @@ def paretochart(x: Any, data: pd.DataFrame | None = None, use_na: bool = False) 
 
 def bchart(
     x: Any, target: float | None = None, baseline: int | None = None,
-    or_ratio: float = 2.0, limit: float = 3.5,
+    or_ratio: float = 2.0, limit: float = 3.5, data: pd.DataFrame | None = None,
 ) -> BChartResult:
     """
     Bernoulli CUSUM for case-by-case binary outcomes (Neuburger et al. 2017; qicharts2's
     bchart): one cumulative sum looking for the odds of failure rising by or_ratio,
     another for it falling by the same factor, each signalling at limit.
 
-    x : 0/1 outcomes in time order (1 = the event, e.g. a complication).
+    x : 0/1 outcomes in time order (1 = the event, e.g. a complication): a sequence, or
+        with data= a column name. A missing outcome leaves both sums where they were.
     target : the expected event probability p0. Or baseline=k: p0 is the event rate of
         the first k cases. With neither, p0 is the rate over all cases.
     Returns columns x (case number), y, cusum_up, cusum_down, signal_up, signal_down,
     limit; summary target, or_ratio, limit, signal_up, signal_down.
     """
-    x_arr = np.asarray(x, dtype=float)
+    if data is not None and isinstance(x, str):
+        check_column(data, "x", x)
+        x = data[x]
+    x_arr = numbers("x", x)
     n = len(x_arr)
+    if np.any(np.isfinite(x_arr) & (x_arr != 0) & (x_arr != 1)):
+        raise ValueError("x= must be 0/1 outcomes (1 = the event), one per case. For counts "
+                         "or rates over time use qic().")
+    check_number("or_ratio", or_ratio, 0.0, strict=True)
+    check_number("limit", limit, 0.0, strict=True)
     if target is not None and baseline is not None:
         raise ValueError("Pass target= (a probability) or baseline= (a number of cases), not both.")
     if baseline is not None:
+        if isinstance(baseline, bool) or not isinstance(baseline, (int, np.integer)) \
+                or not 1 <= baseline <= n:
+            raise ValueError(f"baseline= is a number of cases between 1 and {n}, got {baseline!r}.")
         p0 = float(np.nanmean(x_arr[:int(baseline)]))
     elif target is not None:
         p0 = float(target)

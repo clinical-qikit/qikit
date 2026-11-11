@@ -193,6 +193,9 @@ print(r)                                   # summary in words: counts, chance, n
 flags = r.data[r.data.signal != "none"]    # signal is "outlier" or "alert"
 r.summary["expected_false_flags"]          # flags expected by chance in each tier
 r.summary["notes"]                         # sentences to show the reader verbatim
+r.brief()                                  # counts, notes and flagged providers only
+r.to_table()                               # fixed columns, to write to a table
+r.facet_summary()                          # one summary row per facet
 fig = r.plot()                             # Plotly; st.plotly_chart(fig) in Streamlit
 ```
 

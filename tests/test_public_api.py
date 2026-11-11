@@ -44,7 +44,7 @@ def test_import_does_not_load_plotly():
 
 
 def test_version_and_exports():
-    assert qikit.__version__ == "1.2.0"
+    assert qikit.__version__ == "1.3.0"
     for name in ("qic", "funnel", "funnel_sensitivity", "SPCResult", "FunnelResult"):
         assert name in qikit.__all__
 
@@ -178,7 +178,7 @@ class TestQicValidation:
         (dict(freeze=4, part=2), "cannot be combined"),
         (dict(part=[5, 3]), "must increase"),
         (dict(chart="run", method="weco"), "has no limits"),
-        (dict(multiply=0), "multiply must be a positive number"),
+        (dict(multiply=0), "multiply must be a number > 0"),
     ])
     def test_errors_name_the_fix(self, kw, match):
         with pytest.raises(ValueError, match=match):

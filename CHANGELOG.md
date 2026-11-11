@@ -1,5 +1,86 @@
 # Changelog
 
+## 1.3.0 (2026-11-10)
+
+Messy input no longer becomes a silent wrong answer, and results gain a predictable,
+compact surface for pipelines and agents. Nothing is removed.
+
+### Added
+
+- **`qikit.schema("qic" | "funnel")`:** every column `result.data` can hold, with its
+  type, whether every call produces it, and its meaning. It is now the single source of
+  the column lists.
+- **`result.to_table()`** on `qic()` and `funnel()` results: `.data` with every schema
+  column, in schema order and with fixed types (nullable booleans and integers, strings
+  as objects), empty where the call did not produce it; the `facets=` columns first and
+  the `hover=` columns last. The shape a database table or a Snowpark `RETURNS TABLE`
+  clause needs, whatever options the call used.
+- **`result.brief(digits=4, limit=25)`:** what was found as a small JSON-safe dict: the
+  verdict or counts, the notes, and only the flagged points (the most recent) or
+  providers (outliers first, then by p-value). About 1 KB where `to_json()` is tens.
+- **`result.facet_summary()`:** the summary as a table, one row per facet, with the
+  same columns faceted or not.
+- **`to_dict(digits=)` and `to_json(digits=)`:** round every number to that many
+  significant figures. Default unchanged.
+- **Choices ignore case and surrounding spaces** (`measure="OE"`, `signal=" FDR "`),
+  and a misspelt choice or keyword suggests the closest: `measure must be one of ...,
+  got 'proportions'. Did you mean 'proportion'?`; `qic() got an unexpected keyword
+  argument 'charts'. Did you mean 'chart'?`.
+- **The signatures spell out the choices** as `Literal` types (`chart`, `method`,
+  `measure`, `worse`, `signal`, `tau_method`, `benchmark`, `compare_to`, `agg_fun`), so
+  `help()`, editors and type checkers show them.
+- **`bchart(x, ..., data=)`** takes a column name, as `paretochart()` does. It now
+  refuses values that are not 0/1 and a `baseline=` outside the cases, in place of a
+  confusing error or a silent pass.
+- `print()` of a `paretochart()` or `bchart()` result says what was found.
+- **`qic()` `summary["notes"]` and `summary["provisional"]`:** sentences to show a
+  reader (fewer than 12 baseline points, control limits from fewer than 20, points with
+  no value, a frozen baseline), as `funnel()` already had; `provisional` is True under
+  12 baseline points. Faceted, the notes are prefixed by facet. `print(result)` shows
+  them.
+- **Column-name errors list the columns and suggest the closest**, ignoring case, in
+  `qic()`, `funnel()` and `paretochart()`: `y='deaths' is not a column of data. Did you
+  mean 'DEATHS'?`. `funnel()`'s message changes from "must name a column of data".
+
+### Fixed
+
+- **`funnel()` read a missing value as zero.** A provider whose `y` was missing was
+  summed to 0 events and could be flagged a low outlier. A row missing `y`, `n` or
+  `unit` is now left out of the sums and counted in the new
+  `summary["n_rows_dropped"]`, with a note; a provider with no complete row is listed
+  with no value and is not tested. A missing denominator no longer raises "events but a
+  zero denominator", and rows with a missing `unit` are no longer dropped unannounced.
+- **`qic()` charted Python `date` objects in row order.** Snowpark's `to_pandas()`
+  returns a DATE column as `datetime.date` objects, which were treated as text and left
+  unsorted, so limits and run rules were computed on shuffled time. They are now sorted
+  like any other date, and `.data["x"]` keeps the `date` objects.
+- **`qic()` turned text that is not a number into a gap.** `"x"` or `"n/a"` in `y`,
+  `n` or `target` now raises a `ValueError` showing the values; `funnel()` and
+  `bchart()` give the same message in place of a raw numpy error. None, NaN, blank
+  text, numeric text and Decimals are read as before.
+- **A handful of points was called stable.** `print(qic(y=[5]))` no longer says "the
+  process looks stable".
+
+- `to_json()` raised on Python `date` values in `x` and `Decimal` unit ids, as Snowpark
+  returns DATE and NUMBER columns. Dates serialize as ISO text, Decimals as numbers.
+- A faceted `qic()` summary lacked the top-level `runs_signal`.
+- `qic()`'s docstring did not document the `special_cause` column.
+
+### Changed
+
+Every `funnel()` result is unchanged, bit for bit.
+
+- **The pure maths moved out of `funnel.py` into `core/`:** `core/shrinkage.py` (the
+  prior, shrunk estimates, posterior intervals and P(worse), now one pass instead of
+  two), `core/benchmark.py` (the achievable benchmark and minimum sufficient
+  denominator), and the pooled center and fixed-center gap test into
+  `core/dispersion.py`. The `within_dispersion` readers, which work on pandas rows, are
+  in the new `within.py`. `funnel.py` goes from 1,790 lines to about 1,400, and its
+  helpers take one fitted-model object instead of nine to eleven arguments.
+- Warnings are attributed to the caller's line wherever in the package they arise.
+- `multiply=` in `qic()` and `tau=` in `funnel()` share one number check; `qic()`'s
+  message is now "multiply must be a number > 0".
+
 ## 1.2.0 (2026-11-08)
 
 ### Added

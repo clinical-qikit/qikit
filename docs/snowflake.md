@@ -110,7 +110,7 @@ class QicP:
     @vectorized(input=pd.DataFrame)
     def end_partition(self, df):
         df.columns = ["MONTH", "NUM", "DEN"]
-        d = qic(df, x="MONTH", y="NUM", n="DEN", chart="p").data
+        d = qic(df, x="MONTH", y="NUM", n="DEN", chart="p").to_table()
         return d[["x", "y", "cl", "ucl", "lcl", "signal", "runs_signal"]]
 $$;
 
@@ -122,8 +122,12 @@ FROM QI.METRICS.MONTHLY m,
 
 **Keep the returned columns fixed.** `RETURNS TABLE` needs a stable schema, and some of
 `.data`'s columns appear only with the option that makes them (`part` with `part=`,
-`variation` with `method="nhs"`, `target` with `target=`). Select the columns the UDTF
-declares, as above.
+`variation` with `method="nhs"`, `target` with `target=`). `.to_table()` returns every
+column of `qikit.schema("qic")` (or `"funnel"`) on every call, in the same order and
+with the same types, empty where the call did not produce it: after the `facets=`
+columns and before the `hover=` columns. Return it whole, or select from it as above;
+`qikit.schema()` gives the names and types for the `RETURNS TABLE` clause. Booleans and
+`fragility` use pandas' nullable types, so an empty value is NULL.
 
 **Rows come back one per subgroup.** `qic()` aggregates rows that share an `x`, so a
 partition with two rows for one month returns one. Aggregate in SQL first if the

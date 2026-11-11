@@ -15,8 +15,9 @@ providers with each other is a funnel plot: qikit.funnel().
 
 from __future__ import annotations
 
+import inspect
 import math
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -24,15 +25,20 @@ import pandas as pd
 from .core.rules import METHODS, ZONE_METHODS, apply_rules
 from .core.shewhart import CHARTS, RATE_CHARTS, SUBGROUP_CHARTS, T_POWER, shewhart
 from .results import SPCResult
+from .schema import QIC_COLUMNS
 from .validate import (
-    WORSE, check_choice, check_column, check_facet_names, reject_removed, split_facets,
+    WORSE, check_choice, check_column, check_facet_names, check_number, is_dates, numbers,
+    reject_removed, split_facets,
 )
 
+# Rules of thumb for how much a short series can say: fewer baseline points than
+# MIN_POINTS cannot show whether a process is stable, and control limits from fewer than
+# MIN_LIMIT_POINTS are trial limits (as in Provost & Murray, The Health Care Data Guide).
+MIN_POINTS = 12
+MIN_LIMIT_POINTS = 20
+
 # Columns qic() writes to result.data; facet and hover columns cannot reuse them.
-OUTPUT_COLUMNS = (
-    "x", "label", "y", "n", "cl", "ucl", "lcl", "ucl_95", "lcl_95", "signal", "runs_signal",
-    "variation", "special_cause", "part", "baseline", "excluded", "target", "notes",
-)
+OUTPUT_COLUMNS = tuple(c.name for c in QIC_COLUMNS)
 
 AGG_FUNS = ("mean", "median", "sum")
 PERIODS = {"day": "D", "week": "W", "month": "MS", "quarter": "QS", "year": "YS"}
@@ -65,15 +71,15 @@ def qic(
     x: Any = None,
     y: Any,
     n: Any = None,
-    chart: str = "run",
-    method: str = "anhoej",
+    chart: Literal["run", "i", "mr", "xbar", "s", "t", "p", "pp", "c", "u", "up", "g"] = "run",
+    method: Literal["anhoej", "ihi", "nhs", "weco", "nelson"] = "anhoej",
     freeze: int | None = None,
     part: Any = None,
     exclude: Any = None,
     center: float | None = None,
     target: Any = None,
-    worse: str | None = None,
-    agg_fun: str = "mean",
+    worse: Literal["higher", "lower"] | None = None,
+    agg_fun: Literal["mean", "median", "sum"] = "mean",
     x_period: str | None = None,
     multiply: float = 1.0,
     facets: str | list[str] | None = None,
@@ -106,8 +112,10 @@ def qic(
 
     With data=, x=, y=, n= name columns, and rows sharing an x are aggregated into one
     subgroup: events and denominators summed, raw values averaged (agg_fun=). x is
-    sorted when it is a number or a date; text x keeps its order. Without data=, they
-    are sequences, one value per point.
+    sorted when it is a number or a date (a datetime column, or Python date objects as
+    Snowpark returns them); text x keeps its order, so parse text dates first. Without
+    data=, they are sequences, one value per point. A missing y (None, NaN, blank) is a
+    gap in the chart; text that is not a number is an error.
 
     Choosing the rules (method=)
     ----------------------------
@@ -129,7 +137,8 @@ def qic(
     - runs_signal: the point is part of a pattern the rules found (a long run, a trend).
       Too few crossings is a property of the whole series: summary["crossings_signal"].
     - variation (method="nhs"): "improving", "concerning", "neutral" (no worse=) or
-      "common", Making Data Count's reading of each point.
+      "common", Making Data Count's reading of each point; special_cause: the rule that
+      made it so ("" for common cause).
     - part, baseline (used to set the limits), excluded, target, notes, hover columns,
       and one column per facets= column.
 
@@ -137,7 +146,10 @@ def qic(
     method's own keys (anhoej: n_useful, longest_run, longest_run_max, n_crossings,
     n_crossings_min, longest_run_signal, crossings_signal; others: rules_fired), sigma_z
     (pp/up), parts (one dict per part; the top level describes the last part, the
-    current process), variation and assurance (method="nhs"), and by_facet.
+    current process), variation and assurance (method="nhs"), by_facet, and:
+    notes, sentences to show a reader (too few points, trial limits, gaps, a frozen
+    baseline; prefixed by facet when faceted), and provisional, True when fewer than 12
+    points set the center line, so "no signal" is not yet "stable".
 
     Parameters
     ----------
@@ -167,20 +179,21 @@ def qic(
         columns; notes : annotations per point (a column or sequence).
 
     Display options (title, axis labels, styles, ...) are arguments of result.plot().
+    result.to_table() is .data with every possible column in a fixed order (see
+    qikit.schema("qic")), for a database table; result.brief() is the verdict, the notes
+    and only the flagged points, small enough to read at a glance.
     """
     if removed:
-        reject_removed("qic", removed, _RENAMED, _DISPLAY, _FUNNEL_ONLY, _GONE)
-    chart = check_choice("chart", chart.lower().strip() if isinstance(chart, str) else chart,
-                         CHARTS, hint=_chart_hint(chart))
+        reject_removed("qic", removed, _RENAMED, _DISPLAY, _FUNNEL_ONLY, _GONE,
+                       known=tuple(inspect.signature(qic).parameters))
+    chart = check_choice("chart", chart, CHARTS, hint=_chart_hint(chart))
     method = check_choice("method", method, METHODS)
     worse = check_choice("worse", worse, WORSE)
     agg_fun = check_choice("agg_fun", agg_fun, AGG_FUNS)
     if freeze is not None and part is not None:
         raise ValueError("freeze= and part= cannot be combined: freeze sets one baseline "
                          "for the whole series, part= gives each part its own.")
-    if not (isinstance(multiply, (int, float)) and not isinstance(multiply, bool)
-            and math.isfinite(multiply) and multiply > 0):
-        raise ValueError(f"multiply must be a positive number, got {multiply!r}.")
+    check_number("multiply", multiply, 0.0, strict=True)
     if method in ZONE_METHODS and chart == "run":
         raise ValueError(
             f"method={method!r} reads the 1 and 2 sigma zones, and a run chart has no limits. "
@@ -214,7 +227,10 @@ def qic(
             "n_obs": sum(s["n_obs"] for s in by_facet.values()),
             "signals": any(s["signals"] for s in by_facet.values()),
             "n_outlier": sum(s["n_outlier"] for s in by_facet.values()),
+            "runs_signal": any(s["runs_signal"] for s in by_facet.values()),
             "by_facet": by_facet,
+            "provisional": any(s["provisional"] for s in by_facet.values()),
+            "notes": [f"{name}: {note}" for name, s in by_facet.items() for note in s["notes"]],
         }
     meta = {
         "facets": facet_cols, "worse": worse, "hover": hover_names,
@@ -227,6 +243,7 @@ def qic(
 
 
 def _chart_hint(chart: Any) -> str:
+    chart = chart.strip().lower() if isinstance(chart, str) else chart
     if chart in ("oe", "oep"):
         return (" Comparing providers' O/E is a funnel plot: qikit.funnel(..., measure='oe'). "
                 "A monthly O/E series is qic(chart='u', y=observed, n=expected).")
@@ -249,7 +266,7 @@ def _normalize(data, x, y, n, label, hover, notes, exclude, part, target, facets
     if data is None:
         if any(isinstance(v, str) for v in (x, y, n, label, notes, facets)):
             raise ValueError("Column names need data=: pass data=df, or pass sequences.")
-        y_arr = np.asarray(y, dtype=float) if y is not None else np.array([])
+        y_arr = numbers("y", y) if y is not None else np.array([])
         k = len(y_arr)
         frame = pd.DataFrame({_Y: y_arr})
         frame[_X] = list(x) if x is not None else list(range(1, k + 1))
@@ -258,7 +275,7 @@ def _normalize(data, x, y, n, label, hover, notes, exclude, part, target, facets
             if values is not None:
                 if np.ndim(values) == 0:  # one value for every point
                     values = [values] * k
-                vals = np.asarray(values, dtype=float) if col == _N else list(values)
+                vals = numbers("n", values) if col == _N else list(values)
                 if len(vals) != k:
                     raise ValueError(f"{name}= has {len(vals)} values, but y= has {k}.")
                 frame[col] = vals
@@ -277,12 +294,11 @@ def _normalize(data, x, y, n, label, hover, notes, exclude, part, target, facets
             check_column(data, name, col)
         for col in split_facets(facets):
             check_column(data, "facets", col)
-        frame = pd.DataFrame({_Y: pd.to_numeric(data[y], errors="coerce").to_numpy(dtype=float)},
-                             index=data.index)
+        frame = pd.DataFrame({_Y: numbers("y", data[y])}, index=data.index)
         frame[_X] = data[x].to_numpy() if isinstance(x, str) else (
             list(x) if x is not None else np.arange(1, len(data) + 1))
         if n is not None:
-            frame[_N] = pd.to_numeric(data[n], errors="coerce").to_numpy(dtype=float)
+            frame[_N] = numbers("n", data[n])
         for col, values, name in ((_LABEL, label, "label"), (_NOTES, notes, "notes")):
             if values is not None:
                 frame[col] = _column_or_sequence(data, name, values)
@@ -298,7 +314,7 @@ def _normalize(data, x, y, n, label, hover, notes, exclude, part, target, facets
             frame[_PART] = data[part].to_numpy()
         if isinstance(target, str):
             check_column(data, "target", target)
-            frame[_TARGET] = pd.to_numeric(data[target], errors="coerce").to_numpy(dtype=float)
+            frame[_TARGET] = numbers("target", data[target])
         elif target is not None and np.ndim(target) == 1:
             frame[_TARGET] = _column_or_sequence(data, "target", target).astype(float)
         frame = frame.reset_index(drop=True)
@@ -369,6 +385,7 @@ def _chart(frame: pd.DataFrame, s: dict) -> tuple[pd.DataFrame, dict[str, Any]]:
         f = _position(s["freeze"], k, "freeze")
         baseline[f:] = False
     ends = _part_ends(pts, s["part"], k)
+    n_missing = int(np.isnan(y).sum())
 
     if chart == "mr":
         if k < 2:
@@ -475,7 +492,32 @@ def _chart(frame: pd.DataFrame, s: dict) -> tuple[pd.DataFrame, dict[str, Any]]:
         summary["variation"] = str(table["variation"].iloc[-1])
         summary["special_cause"] = str(cause[-1])
         summary["assurance"] = _assurance(target, columns, s["worse"])
+    summary["provisional"] = last["n_baseline"] < MIN_POINTS
+    summary["notes"] = _notes(chart, last["n_baseline"], n_missing, s["freeze"])
     return table, summary
+
+
+def _notes(chart: str, n_baseline: int, n_missing: int, freeze: int | None) -> list[str]:
+    """The reader-facing sentences: what limits how far this chart can be trusted."""
+    notes = []
+    if n_baseline < MIN_POINTS:
+        notes.append(
+            f"Only {n_baseline} point(s) set the center line: too few to judge whether the "
+            f"process is stable. Collect at least {MIN_POINTS} before reading this chart as "
+            f"stable or as changed."
+        )
+    elif chart != "run" and n_baseline < MIN_LIMIT_POINTS:
+        notes.append(
+            f"The control limits rest on {n_baseline} points: treat them as provisional "
+            f"until there are {MIN_LIMIT_POINTS} or more."
+        )
+    if n_missing:
+        notes.append(f"{n_missing} point(s) have no value (a missing y= or n=) and show "
+                     f"as gaps in the chart.")
+    if freeze is not None:
+        notes.append(f"The center line and limits come from the first {freeze} points "
+                     f"(freeze=); later points are judged against them.")
+    return notes
 
 
 def _aggregate(frame: pd.DataFrame, s: dict) -> pd.DataFrame:
@@ -521,7 +563,9 @@ def _aggregate(frame: pd.DataFrame, s: dict) -> pd.DataFrame:
 
 
 def _sortable(x: pd.Series) -> bool:
-    return bool(pd.api.types.is_numeric_dtype(x) or pd.api.types.is_datetime64_any_dtype(x))
+    """Numbers and dates have an order of their own; text keeps the order it came in."""
+    return bool(pd.api.types.is_numeric_dtype(x) or pd.api.types.is_datetime64_any_dtype(x)
+                or is_dates(x))
 
 
 def _sorted(frame: pd.DataFrame) -> pd.DataFrame:

@@ -230,7 +230,7 @@ class TestInputs:
         (dict(signal="exact"), "signal must be one of"),
         (dict(signal="fdr", fdr_levels=(0.1, 0.05)), "fdr_levels"),
         (dict(limits=(0.95, 0.998)), "limits"),
-        (dict(unit="nope"), "must name a column"),
+        (dict(unit="nope"), "is not a column of data"),
         (dict(hover="y"), "hover="),
     ])
     def test_errors(self, kw, match):
@@ -276,7 +276,7 @@ class TestQicIsTimeOrdered:
             qic(y=OBS, chart="i", title="x")
 
     def test_other_unknown_arguments_keep_pythons_error(self):
-        with pytest.raises(TypeError, match="^qic\\(\\) got an unexpected keyword argument 'bogus'$"):
+        with pytest.raises(TypeError, match="^qic\\(\\) got an unexpected keyword argument 'bogus'\\.$"):
             qic(y=OBS, n=EXP, chart="u", bogus=1)
 
 

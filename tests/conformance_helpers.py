@@ -157,7 +157,9 @@ def _engine_series(chart, x, y, n, data, cl, exclude, multiply, method, freeze, 
             out[col] = d[col]
     if chart == "mr":
         out = out.iloc[1:].reset_index(drop=True)
-    s = dict(r.summary)
+    # notes and provisional are the front door's words to a reader, not engine numbers,
+    # so they stay out of the fixtures the TypeScript engine conforms to.
+    s = {k: v for k, v in r.summary.items() if k not in ("notes", "provisional")}
     if "rules_fired" in s:
         s["shift_signal"] = any(name.startswith("shift") for name in s["rules_fired"])
         s["trend_signal"] = any(name.startswith("trend") for name in s["rules_fired"])

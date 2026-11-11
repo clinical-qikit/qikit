@@ -17,51 +17,45 @@ method and every departure from Spiegelhalter (2005).
 
 from __future__ import annotations
 
+import inspect
 import math
-import warnings
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
-from .core.contours import DEFAULT_LEVELS, beta_params, funnel_contours
+from .core.benchmark import abc, msd
+from .core.contours import DEFAULT_LEVELS, funnel_contours
 from .core.dispersion import (
-    DEFAULT_TAU_METHOD, TAU_METHODS, dispersion_shape, natural_tau2,
-    overdispersion, tau2_ml, transform_scale,
+    DEFAULT_TAU_METHOD, TAU_METHODS, center_gap_p_value, dispersion_shape, natural_tau2,
+    overdispersion, pooled, tau2_ml, transform_scale,
 )
-from .core.dist import beta_quantile, beta_tails, gamma_quantile, gamma_tails
 from .core.power import UNDERPOWERED_RATIO, point_power
 from .core.pvalues import bh_q_values, funnel_p_values, signal_thresholds
+from .core.shrinkage import Prior, estimate_flag, fit_prior, shrink
 from .results import FunnelResult
+from .schema import FUNNEL_COLUMNS
 from .validate import (
-    WORSE, check_choice, check_facet_names, check_levels, check_number, reject_removed,
-    split_facets,
+    WORSE, _did_you_mean, check_choice, check_column, check_facet_names, check_levels,
+    check_number, numbers, reject_removed, split_facets, warn,
 )
+from .within import Within, check_aggregated, within
 
 MEASURES = ("oe", "proportion", "rate", "mean")
 SIGNALS = ("limits", "fdr")
 BENCHMARKS = (None, "abc", "eb")
 COMPARE_TO = (None, "peers", "model")
-# A provider holding fewer cases than the minimum sufficient denominator could reach
-# 100% by chance at this one-sided level (Kiefe 1998, Table 3; methods §4.18).
-_MSD_ALPHA = 0.025
 DEFAULT_FDR_LEVELS = (0.05, 0.10)
 _SIDES = {None: "both", "higher": "above", "lower": "below"}
 
 # Column names funnel() writes to result.data; hover= columns must avoid them.
-_COLUMNS = (
-    "unit", "label", "y", "numerator", "denominator", "effective_denominator", "cl",
-    "lower_outlier", "upper_outlier", "lower_alert", "upper_alert",
-    "p_value", "q_value", "signal", "direction", "min_detectable", "ci_lower", "ci_upper",
-    "excluded", "raw_excess", "reliability", "eb_rate", "eb_excess", "prob_worse",
-    "p_value_drop1", "flag_survives_drop1", "fragility", "benchmark", "benchmark_group",
-    "meets_benchmark", "eb_low", "eb_high", "estimate_flag",
-)
+_COLUMNS = tuple(c.name for c in FUNNEL_COLUMNS)
 
 # Internal working columns on the normalized frame.
 _UNIT, _Y, _N, _LABEL, _EXCL = "__unit", "__y", "__n", "__label", "__exclude"
 _CASES, _SS, _MAXY, _MAXN, _PHI = "__cases", "__sum_sq", "__max_y", "__max_n", "__phi"
+_DROP = "__dropped"
 
 # fragility scans at most this many of a unit's worst cases (methods §4.15).
 _FRAGILITY_MAX = 50
@@ -90,7 +84,7 @@ def funnel(
     *,
     y: Any,
     n: Any = None,
-    measure: str,
+    measure: Literal["oe", "proportion", "rate", "mean"],
     unit: Any = None,
     label: Any = None,
     hover: Any = None,
@@ -98,20 +92,20 @@ def funnel(
     exclude: Any = None,
     center: float | None = None,
     overdispersion: bool | None = None,
-    compare_to: str | None = None,
+    compare_to: Literal["peers", "model"] | None = None,
     within_dispersion: float | str | None = None,
-    tau_method: str = DEFAULT_TAU_METHOD,
+    tau_method: Literal["spiegelhalter", "winsorized", "ml", "cqc", "shmi"] = DEFAULT_TAU_METHOD,
     tau: float | dict | None = None,
     cases: str | None = None,
     sum_sq: str | None = None,
     max_case_y: str | None = None,
     max_case_n: str | None = None,
     fdr_min_denominator: float | None = None,
-    worse: str | None = None,
-    signal: str = "limits",
+    worse: Literal["higher", "lower"] | None = None,
+    signal: Literal["limits", "fdr"] = "limits",
     limits: tuple[float, float] = DEFAULT_LEVELS,
     fdr_levels: tuple[float, float] = DEFAULT_FDR_LEVELS,
-    benchmark: str | None = None,
+    benchmark: Literal["abc", "eb"] | None = None,
     benchmark_share: float = 0.10,
     multiply: float = 1.0,
     interval: float = 0.95,
@@ -241,7 +235,8 @@ def funnel(
     overdispersion=True and tau estimated), reference (what the estimate columns are
     judged against) and estimate_tau (the spread of their prior), count_model, limit_method, p_value_method,
     within_dispersion and its source, dispersion_shape, underpowered, n_underpowered,
-    min_detectable_median, n_filtered, n_fragile, notes (sentences to show readers), and
+    min_detectable_median, n_filtered, n_fragile, n_rows_dropped (rows missing y, n or
+    unit, left out of the sums), notes (sentences to show readers), and
     with benchmark=, benchmark: a dict of method, share and value, and under "abc" also
     providers, coverage (their share of the denominator), group_denominator (median,
     min, max), msd (minimum sufficient denominator), n_below_msd and without_small.
@@ -253,6 +248,9 @@ def funnel(
     ----------
     data : DataFrame of providers, or of cases (stay- or survey-level rows) to be summed
         per unit. Without data=, y, n, unit, label are sequences and hover a dict.
+        A row missing y, n or unit is left out of the sums and counted in
+        summary["n_rows_dropped"], never read as zero; a provider with no complete row
+        is listed with no value and not tested. Text that is not a number is an error.
     y, n : columns (or sequences): the numerator and denominator. Under measure="mean",
         y is the amount and n the case count: 1 per row (the default when n is
         omitted) or each provider's COUNT(*) alongside sum_sq=.
@@ -337,9 +335,15 @@ def funnel(
     Display options (title, axis labels, styles, x_log, ...) are arguments of
     result.plot(); result.plot(kind="caterpillar") draws the shrunk estimates with
     their intervals instead; result.limits() gives the contours at any denominators.
+    result.to_table() is .data with every possible column in a fixed order (see
+    qikit.schema("funnel")), for a database table; result.brief() is the counts, the
+    notes and only the flagged providers; result.facet_summary() is one summary row per
+    facet.
     """
     if removed:
-        reject_removed("funnel", removed, _RENAMED, _DISPLAY, other=("chart", "method", "freeze", "part"))
+        reject_removed("funnel", removed, _RENAMED, _DISPLAY,
+                       other=("chart", "method", "freeze", "part"),
+                       known=tuple(inspect.signature(funnel).parameters))
     st = _settings(
         measure=measure, overdispersion=overdispersion, tau_method=tau_method, tau=tau,
         worse=worse, signal=signal, limits=limits, fdr_levels=fdr_levels,
@@ -347,7 +351,7 @@ def funnel(
         benchmark=benchmark, benchmark_share=benchmark_share, compare_to=compare_to,
         interval=interval,
     )
-    mean = measure == "mean"
+    mean = st.measure == "mean"            # as check_choice read it ("Mean" is "mean")
     if mean:
         n, cases, max_case_n, within_dispersion = _mean_inputs(
             data, n, cases, sum_sq, max_case_y, max_case_n, within_dispersion)
@@ -488,13 +492,14 @@ def _settings(*, measure, overdispersion, tau_method, tau, worse, signal, limits
               fdr_levels, fdr_min, multiply, center, facets, benchmark=None,
               benchmark_share=0.10, limit_method="exact", compare_to=None,
               interval=0.95) -> _Settings:
-    check_choice("measure", measure, MEASURES)
+    measure = check_choice("measure", measure, MEASURES)
+    compare_to = check_choice("compare_to", compare_to, COMPARE_TO)
     center, overdispersion = _compare_to(compare_to, measure, center, overdispersion)
-    check_choice("worse", worse, WORSE)
-    check_choice("signal", signal, SIGNALS)
-    check_choice("tau_method", tau_method, TAU_METHODS)
-    check_choice("limit_method", limit_method, _LIMIT_METHODS)
-    check_choice("benchmark", benchmark, BENCHMARKS)
+    worse = check_choice("worse", worse, WORSE)
+    signal = check_choice("signal", signal, SIGNALS)
+    tau_method = check_choice("tau_method", tau_method, TAU_METHODS)
+    limit_method = check_choice("limit_method", limit_method, _LIMIT_METHODS)
+    benchmark = check_choice("benchmark", benchmark, BENCHMARKS)
     if benchmark is not None and worse is None:
         raise ValueError(
             f"benchmark={benchmark!r} needs worse='higher' or 'lower': the benchmark is what "
@@ -534,7 +539,6 @@ def _compare_to(compare_to, measure, center, overdispersion) -> tuple[Any, bool]
     (center, overdispersion) resolved from compare_to=. Settings that agree with it may be
     passed too; one that contradicts it is an error naming the fix (methods §2, §4.2).
     """
-    check_choice("compare_to", compare_to, COMPARE_TO)
     if compare_to is None:
         return center, True if overdispersion is None else bool(overdispersion)
     if compare_to == "peers":
@@ -588,8 +592,8 @@ def _tau_fixed(tau: Any, facets: Any, overdispersion: bool, model: bool = False)
     if isinstance(tau, dict):
         if not split_facets(facets):
             raise ValueError("tau= as a dict (one value per facet) needs facets=.")
-        return {fv: _tau_number(v, f"[{fv!r}]") ** 2 for fv, v in tau.items()}
-    return _tau_number(tau, "") ** 2
+        return {fv: check_number(f"tau=[{fv!r}]", v) ** 2 for fv, v in tau.items()}
+    return check_number("tau=", tau) ** 2
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +603,7 @@ def _tau_fixed(tau: Any, facets: Any, overdispersion: bool, model: bool = False)
 def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_column, names):
     """Every facet's funnel, and the result that holds them."""
     if aggregated:
-        _check_aggregated(frame, st.facets)
+        check_aggregated(frame, st.facets)
     keys = list(st.facets)
     if keys:
         groups = [((k if isinstance(k, tuple) else (k,)), rows)
@@ -607,11 +611,17 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
     else:
         groups = [((), frame)]
     tables, by_facet, models = [], {}, {}
+    lost: dict[Any, int] = {}
     for key, rows in groups:
         name = " / ".join(str(v) for v in key) if key else None
-        within = _within(rows, st, within_dispersion, aggregated, phi_column)
+        dropped = int(rows[_DROP].sum())
+        rows = rows[rows[_UNIT].notna()]
+        if rows.empty:                       # a facet whose every row lacks a unit
+            lost[name] = dropped
+            continue
+        phi = within(rows, st.measure, within_dispersion, aggregated, phi_column)
         tau_fixed = _facet_value(st.tau_fixed, key, name)
-        table, summary, model = _one_funnel(rows, st, within, tau_fixed, aggregated)
+        table, summary, model = _one_funnel(rows, st, phi, tau_fixed, aggregated, dropped)
         model["key"] = key
         for i, (col, val) in enumerate(zip(keys, key)):
             table.insert(i, col, val)
@@ -630,8 +640,11 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
     else:
         totals = {k: sum(f[k] for f in by_facet.values())
                   for k in ("n_providers", "n_tested", "n_outlier", "n_alert", "n_filtered",
-                            "n_fragile")}
+                            "n_fragile", "n_rows_dropped")}
+        totals["n_rows_dropped"] += sum(lost.values())
         notes = [f"{fv}: {note}" for fv, f in by_facet.items() for note in f["notes"]]
+        notes += [f"{fv}: all {k} row(s) are missing unit=, so this facet has no chart."
+                  for fv, k in lost.items()]
         summary = {**settings, **totals, "by_facet": by_facet, "notes": notes}
     meta = {
         "facets": keys, "hover": list(st.hover), "worse": st.worse, "side": st.side,
@@ -644,24 +657,15 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
 
 
 @dataclass(frozen=True)
-class _Within:
-    phi: float                      # the scalar φ the model divides by (1 under a column)
-    phi_units: dict | None          # {unit: φᵢ} under a within_dispersion column
-    source: str                     # default | supplied | estimated | column
-    check: tuple | None             # the case-level clustering check (φ̂, p), or None
-
-
-def _within(rows, st: _Settings, within_dispersion, aggregated, phi_column) -> _Within:
-    """Within-case dispersion for one facet; excluded providers never enter the estimate."""
-    kept = rows[~rows[_EXCL]] if _EXCL in rows else rows
-    if phi_column is not None:
-        return _Within(1.0, _unit_phi(rows, phi_column), "column", None)
-    if within_dispersion == "estimate":
-        return _Within(_estimate_within(kept, st.measure, aggregated), None, "estimated", None)
-    phi = float(within_dispersion)
-    if phi != 1.0:
-        return _Within(phi, None, "supplied", None)
-    return _Within(1.0, None, "default", _within_check(kept, st.measure, aggregated))
+class _Fit:
+    """One facet's fitted model: what every step after the limits reads."""
+    family: str            # "poisson" or "binomial"
+    cl: float              # the center line θ₀
+    ratio: np.ndarray      # each provider's value, numerator / denominator
+    n_model: np.ndarray    # the denominator the model sees (÷ φ)
+    mask: np.ndarray       # providers in the model (not excluded)
+    tau2: float            # the spread the limits allow for (0 without the allowance)
+    scale: str             # the scale that τ² is on
 
 
 def _facet_value(value, key: tuple, name: str | None):
@@ -674,11 +678,13 @@ def _facet_value(value, key: tuple, name: str | None):
     raise ValueError(f"tau= as a dict needs one value per facet; missing {name!r}.")
 
 
-def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: bool):
+def _one_funnel(rows, st: _Settings, within: Within, tau_fixed, aggregated: bool,
+                dropped: int = 0):
     """One facet: (public table, summary, model for limits())."""
     family, _binomial = st.family, st.measure == "proportion"
     units = rows.groupby(_UNIT, sort=False)
-    agg = pd.DataFrame({_Y: units[_Y].sum(), _N: units[_N].sum()})
+    # min_count=1: a provider with no complete row sums to missing, not to zero.
+    agg = pd.DataFrame({_Y: units[_Y].sum(min_count=1), _N: units[_N].sum(min_count=1)})
     for col in (_LABEL, *st.hover, _MAXY, _MAXN):
         if col in rows:
             agg[col] = units[col].first()
@@ -686,7 +692,9 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     phi_u = (np.array([within.phi_units[u] for u in agg.index], dtype=float)
              if within.phi_units is not None else np.full(len(agg), within.phi))
     num, den = agg[_Y].to_numpy(dtype=float), agg[_N].to_numpy(dtype=float)
-    n_model = den if within.phi_units is None and within.phi == 1.0 else den / phi_u
+    empty = np.isnan(den)                    # no complete row: drawn nowhere, untested
+    volume = np.where(empty, 0.0, den)
+    n_model = volume if within.phi_units is None and within.phi == 1.0 else volume / phi_u
     order = np.argsort(n_model, kind="stable")
     agg, num, den, n_model, phi_u = agg.iloc[order], num[order], den[order], n_model[order], phi_u[order]
     excluded = agg[_EXCL].to_numpy(dtype=bool)
@@ -697,7 +705,7 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     tested = np.where(excluded, np.nan, ratio)
 
     # The center line and the spread between providers.
-    cl = st.center if st.center is not None else _pooled(ratio, n_model, mask)
+    cl = st.center if st.center is not None else pooled(ratio, n_model, mask)
     estimator = "winsorized" if st.tau_method == "ml" else st.tau_method
     disp = overdispersion(estimator, family, cl, ratio, n_model, mask, st.center is not None)
     tau_ci = None
@@ -710,6 +718,7 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
         tau2, source = disp.tau2, "estimated"
     used = tau2 if st.overdispersion else 0.0
     scale = disp.scale if used > 0 else "natural"
+    fit = _Fit(family, float(cl), ratio, n_model, mask, used, scale)
 
     # Contours, tests and tiers.
     lim = funnel_contours(family, cl, n_model, used, st.limits, st.limit_method, scale)
@@ -748,9 +757,12 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     table["excluded"] = excluded
     for col in st.hover:
         table[col] = agg[col].to_numpy()
-    prior = _prior(st, cl, ratio, n_model, mask, family, used, scale, tau_fixed, disp)
-    _add_shrinkage(table, st, cl, prior, n_model)
-    fragile = _add_robustness(table, rows, agg, st, cl, used, scale, n_model, phi_u, aggregated)
+    model_question = st.question == "model"
+    prior = fit_prior(cl, ratio, n_model, mask, family, model=model_question,
+                      spread=st.overdispersion or model_question, tau_fixed=tau_fixed,
+                      tau2_chart=used, scale=scale)
+    _add_estimates(table, st, fit, prior)
+    fragile = _add_robustness(table, rows, agg, st, fit, phi_u, aggregated)
 
     summary = {
         "n_providers": int(len(table)),
@@ -772,6 +784,7 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
         "within_dispersion_source": within.source,
         "n_filtered": int(np.sum(filtered)),
         "n_fragile": fragile,
+        "n_rows_dropped": dropped,
         "reference": prior.reference * m,
     }
     if st.measure == "mean":
@@ -781,8 +794,14 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     notes: list[str] = []
     if st.compare_to is not None:
         notes.append(_QUESTION[st.compare_to])
-    summary.update(_center_gap(st, cl, ratio, n_model, mask, family, tau2, source,
-                               disp.scale, notes))
+    if dropped:
+        note = (f"{dropped} row(s) were missing y=, n= or unit= and were left out: they "
+                f"are not counted as zero.")
+        if empty.any():
+            note += (f" {int(empty.sum())} provider(s) have no complete row and are listed "
+                     f"untested, with no value.")
+        notes.append(note)
+    summary.update(_center_gap(st, fit, source, disp.scale, notes))
     summary["estimate_tau"] = math.sqrt(prior.tau2)
     if (st.overdispersion or prior.model) and not prior.available:
         notes.append(
@@ -792,11 +811,11 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
             "peer group."
         )
     if st.benchmark is not None:
-        _add_benchmark(table, summary, notes, st, num, den, n_model, ratio, cl, excluded)
+        _add_benchmark(table, summary, notes, st, fit, num, den, excluded)
     summary.update({"dispersion_shape": None, "within_dispersion_hint": None,
                     "within_dispersion_hint_source": None, "underpowered": None,
                     "n_underpowered": None, "min_detectable_median": None})
-    summary.update(_shape(cl, ratio, n_model, mask, family, within, st.measure, notes))
+    summary.update(_shape(fit, within, st.measure, notes))
     summary.update(_power(st.measure, det, cl, excluded, notes))
     _notes(summary, st, notes)
     summary["notes"] = notes
@@ -829,34 +848,35 @@ _GAP_MAX_P = 0.001
 _GAP_MIN_WIDEN = 1.10
 
 
-def _center_gap(st: _Settings, cl, ratio, n_model, mask, family, tau2, source, scale,
-                notes) -> dict:
+def _center_gap(st: _Settings, fit: _Fit, source: str, tau_scale: str, notes) -> dict:
     """
     center_gap, center_gap_p, tau_pooled; and the warning when a fixed center line under
-    overdispersion=True has τ̂ absorbing a system-wide gap (methods §4.2.1).
+    overdispersion=True has τ̂ absorbing a system-wide gap (methods §4.2.1). tau_scale is
+    the scale tau_method estimates on, whether or not this period found any spread.
     """
     out: dict[str, Any] = {"center_gap": None, "center_gap_p": None, "tau_pooled": None}
     if not (st.center_user_fixed and st.overdispersion and source == "estimated"):
         return out
-    ok = mask & np.isfinite(ratio) & (n_model > 0)
+    cl, ratio, n_model, family = fit.cl, fit.ratio, fit.n_model, fit.family
+    ok = fit.mask & np.isfinite(ratio) & (n_model > 0)
     if ok.sum() < 2:
         return out
-    pooled = _pooled(ratio, n_model, ok)
+    center = pooled(ratio, n_model, ok)
     if st.tau_method == "ml":
-        tau2_p, _ = tau2_ml(pooled, ratio, n_model, ok, family)
+        tau2_p, _ = tau2_ml(center, ratio, n_model, ok, family)
     else:
-        tau2_p = overdispersion(st.tau_method, family, pooled, ratio, n_model, ok).tau2
-    nat_fixed = natural_tau2(scale, cl, tau2)
-    nat_pooled = natural_tau2(scale, pooled, tau2_p)
+        tau2_p = overdispersion(st.tau_method, family, center, ratio, n_model, ok).tau2
+    nat_fixed = natural_tau2(tau_scale, cl, fit.tau2)
+    nat_pooled = natural_tau2(tau_scale, center, tau2_p)
     binomial = family == "binomial"
 
     def var(theta):
         return theta * (1.0 - theta) if binomial else theta
 
-    p = _gap_p_value(pooled, cl, ratio[ok], n_model[ok])
+    p = center_gap_p_value(center, cl, ratio[ok], n_model[ok])
     v_med = var(cl) / float(np.median(n_model[ok]))
     widen = math.sqrt((v_med + nat_fixed) / (v_med + nat_pooled))
-    gap = pooled / cl - 1.0
+    gap = center / cl - 1.0
     out.update({"center_gap": gap, "center_gap_p": p, "tau_pooled": math.sqrt(tau2_p)})
     if p < _GAP_MAX_P and widen >= _GAP_MIN_WIDEN:
         fix = ("for 'worse than the risk model?' use compare_to='model'"
@@ -864,36 +884,20 @@ def _center_gap(st: _Settings, cl, ratio, n_model, mask, family, tau2, source, s
                f"for 'different from the target?' pass overdispersion=False with "
                f"center={cl:g}")
         note = (f"The spread between providers is absorbing a {gap:+.0%} system-wide gap "
-                f"between the providers' pooled value ({pooled:.3g}) and center={cl:g}, "
+                f"between the providers' pooled value ({center:.3g}) and center={cl:g}, "
                 f"which widens every limit (by about {widen - 1:.0%} at the median "
                 f"volume). For 'unusual among peers?' leave center unset; {fix}.")
         notes.append(note)
-        warnings.warn(note, UserWarning, stacklevel=4)
+        warn(note)
     return out
 
 
-def _gap_p_value(pooled: float, cl: float, y: np.ndarray, n: np.ndarray) -> float:
-    """
-    Two-sided p-value for the pooled value Σnᵢyᵢ/Σnᵢ against a fixed center: a weighted
-    mean with its robust (sandwich) variance K/(K − 1)·Σnᵢ²(yᵢ − ȳ)²/(Σnᵢ)², referred to
-    t on K − 1 degrees of freedom. The observed scatter carries chance, within-case
-    clumping and real spread between providers alike, so no τ̂ (biased low at small K
-    under the published estimator) enters the test (methods §4.2.1).
-    """
-    k = len(y)
-    total = float(n.sum())
-    se2 = k / (k - 1) * float(np.sum(n * n * (y - pooled) ** 2)) / total ** 2
-    if not se2 > 0:
-        return 1.0 if pooled == cl else 0.0
-    t2 = (pooled - cl) ** 2 / se2
-    df = k - 1
-    return beta_tails(df / (df + t2), df / 2.0, 0.5)[0]
-
-
-def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, ratio, cl,
+def _add_benchmark(table, summary, notes, st: _Settings, fit: _Fit, num, den,
                    excluded) -> None:
     """The benchmark= columns, summary keys and notes for one facet (methods §4.18)."""
     m, share = st.multiply, st.benchmark_share
+    cl, ratio, n_model = fit.cl, fit.ratio, fit.n_model
+    how = dict(proportion=st.measure == "proportion", lower_is_worse=st.worse == "lower")
     eligible = ~excluded & np.isfinite(num) & (den > 0)
     if st.benchmark == "eb":
         eb = table["eb_rate"].to_numpy(dtype=float) / m
@@ -904,10 +908,10 @@ def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, rati
             notes.append("The funnel finds no spread between providers, so every shrunk "
                          "estimate equals the center line and so does the benchmark.")
     else:
-        value, group = _abc(st, share, num, den, n_model, cl, eligible)
-        msd = _msd(st, cl)
-        small = eligible & (n_model < msd)
-        without, _ = _abc(st, share, num, den, n_model, cl, eligible & ~small)
+        value, group = abc(num, den, n_model, cl, eligible, share, **how)
+        floor = msd(cl, proportion=st.measure == "proportion", worse=st.worse)
+        small = eligible & (n_model < floor)
+        without, _ = abc(num, den, n_model, cl, eligible & ~small, share, **how)
         held = den[group]
         table["benchmark_group"] = group
         bench = {
@@ -917,7 +921,7 @@ def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, rati
             "group_denominator": (
                 {"median": float(np.median(held)), "min": float(held.min()),
                  "max": float(held.max())} if group.any() else None),
-            "msd": msd if math.isfinite(msd) else None,
+            "msd": floor if math.isfinite(floor) else None,
             "n_below_msd": int(small.sum()),
             "without_small": without * m,
         }
@@ -936,7 +940,7 @@ def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, rati
         if small.any() and math.isfinite(without) and abs(without - value) > 0.05 * abs(value):
             notes.append(
                 f"Without the {int(small.sum())} providers below the minimum sufficient "
-                f"denominator ({msd:.3g}) the achievable benchmark would be "
+                f"denominator ({floor:.3g}) the achievable benchmark would be "
                 f"{_two_sig(without * m)} rather than {_two_sig(value * m)}: it leans on "
                 "low-volume providers."
             )
@@ -945,64 +949,6 @@ def _add_benchmark(table, summary, notes, st: _Settings, num, den, n_model, rati
     with np.errstate(invalid="ignore"):
         meets = ratio >= value if st.worse == "lower" else ratio <= value
     table["meets_benchmark"] = meets & np.isfinite(ratio)
-
-
-def _abc(st: _Settings, share: float, num, den, n_model, cl, eligible) -> tuple[float, np.ndarray]:
-    """
-    Kiefe's achievable benchmark of care (methods §4.18): (ABC, which providers it pools).
-    The eligible providers are ranked best first by an adjusted rate that keeps one with
-    few cases from topping the list on luck, taken in that order until they hold the
-    share of the eligible denominator, together with every provider tied with the one
-    that reaches it (Weissman et al. 1999). The ABC is their pooled raw rate Σy/Σn.
-    """
-    group = np.zeros(len(num), dtype=bool)
-    if not eligible.any():
-        return math.nan, group
-    # Counts on the scale the model sees (y/φ out of n/φ under within_dispersion).
-    with np.errstate(divide="ignore", invalid="ignore"):
-        y_eff = np.where(den > 0, num * n_model / den, np.nan)
-    if st.measure == "proportion":
-        adjusted = (y_eff + 1.0) / (n_model + 2.0)          # Kiefe's APF, Beta(1, 1) prior
-    else:
-        prior_n = 1.0 / cl if cl > 0 else math.inf          # one event at the center line
-        adjusted = (y_eff + 1.0) / (n_model + prior_n)
-    rank = -adjusted if st.worse == "lower" else adjusted   # ascending: best first
-    idx = np.flatnonzero(eligible)
-    idx = idx[np.argsort(rank[idx], kind="stable")]
-    reached = np.cumsum(den[idx]) >= share * float(den[idx].sum()) * (1 - 1e-12)
-    breakpoint = rank[idx[int(np.argmax(reached))]]
-    # Everyone tied at the breakpoint joins, so the share held can run past the target.
-    chosen = idx[rank[idx] <= breakpoint + 1e-12 * abs(breakpoint)]
-    group[chosen] = True
-    return float(num[chosen].sum() / den[chosen].sum()), group
-
-
-def _msd(st: _Settings, cl: float) -> float:
-    """
-    The minimum sufficient denominator (methods §4.18): the fewest cases at which perfect
-    performance would be a one-sided 2.5% event if the provider's true rate were the
-    center line. On a proportion, the smallest N with p̄ᴺ < 0.025, p̄ the rate in the good
-    direction; it reproduces every row of Kiefe et al.'s Table 3. On a count with
-    worse="higher", the exposure at which zero events has probability e^(−θ₀n) < 0.025.
-    """
-    if st.measure == "proportion":
-        good = cl if st.worse == "lower" else 1.0 - cl
-        if good <= 0:
-            return 1.0
-        if good >= 1:
-            return math.inf
-        return float(math.floor(math.log(_MSD_ALPHA) / math.log(good)) + 1)
-    if st.worse == "higher" and cl > 0:
-        return -math.log(_MSD_ALPHA) / cl
-    return math.inf
-
-
-def _pooled(ratio, n_model, mask) -> float:
-    """θ₀ = Σyᵢnᵢ/Σnᵢ over the providers tested (ΣO/ΣE on O/E)."""
-    y_base = np.where(mask, ratio, np.nan)
-    n_base = np.where(mask, n_model, np.nan)
-    total_n = float(np.nansum(n_base))
-    return float(np.nansum(y_base * n_base)) / total_n if total_n else math.nan
 
 
 def _beyond(y, upper, lower, side: str) -> np.ndarray:
@@ -1053,9 +999,9 @@ _ROWS_MIN_PHI = 1.25
 _ROWS_MAX_P = 0.001
 
 
-def _shape(cl, ratio, n_model, mask, family, within: _Within, measure, notes) -> dict:
+def _shape(fit: _Fit, within: Within, measure, notes) -> dict:
     """dispersion_shape, its φ hint, and the clustered-counts warning (methods §4.12)."""
-    out = dispersion_shape(cl, ratio, n_model, mask, family)
+    out = dispersion_shape(fit.cl, fit.ratio, fit.n_model, fit.mask, fit.family)
     if "within_dispersion_hint" in out:
         out["within_dispersion_hint_source"] = "totals"
     check = within.check
@@ -1079,7 +1025,7 @@ def _shape(cl, ratio, n_model, mask, family, within: _Within, measure, notes) ->
                 f"about {hint:.1f} times what the count model allows at every volume, so "
                 f"small providers are over-flagged and p- and q-values are too small. {fix}")
         notes.append(note)
-        warnings.warn(note, UserWarning, stacklevel=4)
+        warn(note)
     if within.source == "estimated" and within.phi < 1.0 and measure != "mean":
         notes.append(
             f"within_dispersion was estimated at {within.phi:.2f}, below 1: single cases vary "
@@ -1188,160 +1134,39 @@ def _two_sig(x: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Shrinkage and robustness
+# Estimates and robustness
 # ---------------------------------------------------------------------------
 
-@dataclass(frozen=True)
-class _Prior:
-    """The prior the estimate columns shrink toward, and what they are judged against."""
-    center: float        # θ₀ of the prior (the chart's center line, or the pooled value)
-    tau2: float          # its variance, on the natural scale
-    reference: float     # what prob_worse and estimate_flag compare with
-    model: bool          # compare_to="model": pooled prior, judged against 1.0
-    params: tuple | None  # (α, β) of the beta prior on a proportion, else None
-    binomial: bool = False
-
-    @property
-    def available(self) -> bool:
-        """Whether the posterior intervals exist: a spread, and on a proportion a beta."""
-        return self.tau2 > 0 and not (self.binomial and self.params is None)
-
-
-# Below this reliability at the largest provider, an estimated τ counts as no spread.
-_MIN_RELIABILITY = 0.01
-
-
-def _prior(st: _Settings, cl, ratio, n_model, mask, family, used, scale, tau_fixed,
-           disp) -> _Prior:
-    """
-    The estimate columns' prior (methods §4.14): its center, its spread τ², and the
-    reference the estimates are judged against.
-
-    τ² is the maximum-likelihood estimate of the chart's own mixture model around the
-    prior's center, or tau= when given. The limits keep the chart's tau_method: the
-    published estimator understates τ, which suits a screen whose flags are reviewed,
-    but would over-shrink the estimates and leave their intervals short (95% intervals
-    cover 56-89% of true values under it, 91-95% under ML; methods §5).
-
-    The center is the chart's center line, judged against itself. Against the risk
-    model (compare_to="model", which has no spread allowance) the limits stay at 1.0
-    with no τ, but the prior is centered on the providers' pooled value, with τ̂ around
-    it; each provider is then judged against 1.0. Estimating τ around 1.0 would absorb
-    any system-wide gap into it (§4.2.1), and the pooled value is the best guess for a
-    low-volume provider in this system. A chart with neither (overdispersion=False on
-    a custom center) has no prior: nothing to shrink toward.
-    """
-    binomial = family == "binomial"
-    model = st.question == "model"
-    ok = mask & np.isfinite(ratio) & (n_model > 0)
-    if model:
-        center, reference = _pooled(ratio, n_model, ok), 1.0
-    else:
-        center, reference = cl, cl
-    if tau_fixed is not None:
-        tau2 = float(tau_fixed) if model else natural_tau2(scale, cl, used)
-    elif not (st.overdispersion or model) or ok.sum() < 2:
-        tau2 = 0.0
-    else:
-        tau2 = tau2_ml(center, ratio, n_model, ok, family)[0]
-        # An estimate that would leave every provider's reliability below
-        # _MIN_RELIABILITY is no measurable spread: ML returns such values from the
-        # numerical noise beside τ = 0, and their priors (a + b in the millions on a
-        # proportion) carry nothing but cost.
-        n_max = float(np.max(n_model[ok]))
-        v = center * (1.0 - center) if binomial else center
-        if tau2 > 0 and tau2 / (tau2 + v / n_max) < _MIN_RELIABILITY:
-            tau2 = 0.0
-    params = beta_params(center, tau2) if binomial and tau2 > 0 else None
-    return _Prior(float(center), float(tau2), float(reference), model, params, binomial)
-
-
-def _add_shrinkage(table, st: _Settings, cl: float, prior: _Prior, n_model) -> None:
+def _add_estimates(table, st: _Settings, fit: _Fit, prior: Prior) -> None:
     """
     raw_excess, reliability, eb_rate, eb_excess, prob_worse, eb_low, eb_high,
-    estimate_flag (methods §4.14). The weight is the exact conjugate posterior mean of
-    the chart's own mixture model: Poisson–gamma, B = τ²/(τ² + θ₀/n); beta-binomial,
-    B = n/(n + s), s = θ₀(1 − θ₀)/τ² − 1; both on the model's n (÷ φ). B = 0 when
-    τ² = 0: no measured spread, nothing to shrink toward. On a transformed-scale chart
-    (cqc, shmi) τ² is carried back by the delta method. θ₀ is the prior's center (the
-    center line, or under compare_to="model" the pooled value); raw_excess stays
-    against the center line, and eb_excess, prob_worse and estimate_flag against the
+    estimate_flag (core/shrinkage.py, methods §4.14). raw_excess stays against the
+    center line; eb_excess, prob_worse and estimate_flag are against the prior's
     reference (the center line, or 1.0 under compare_to="model").
     """
     sign = -1.0 if st.worse == "lower" else 1.0
-    binomial = st.measure == "proportion"
-    c, tau2, ref, params = prior.center, prior.tau2, prior.reference, prior.params
     num = table["numerator"].to_numpy(dtype=float)
     den = table["denominator"].to_numpy(dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):
         y = num / den
-        if not (tau2 > 0):
-            b = np.zeros(len(table))
-        elif params is not None:
-            b = n_model / (n_model + params[0] + params[1])
-        else:
-            b = tau2 / (tau2 + (c * (1.0 - c) if binomial else c) / n_model)
-        eb = b * y + (1.0 - b) * c
+    s = shrink(prior, y, fit.n_model, st.interval, st.worse == "lower")
     m = st.multiply
-    table["raw_excess"] = sign * (num - cl * den)
-    table["reliability"] = b
-    table["eb_rate"] = eb * m
-    table["eb_excess"] = sign * (eb - ref) * den
-    o_eff = y * n_model
-    table["prob_worse"] = _prob_worse(o_eff, n_model, c, tau2, binomial,
-                                      st.worse == "lower", params, ref)
-    low, high = _posterior_interval(o_eff, n_model, c, tau2, binomial, params, st.interval)
-    table["eb_low"], table["eb_high"] = low * m, high * m
-    table["estimate_flag"] = _estimate_flag(low, high, ref, st.worse)
+    table["raw_excess"] = sign * (num - fit.cl * den)
+    table["reliability"] = s.reliability
+    table["eb_rate"] = s.estimate * m
+    table["eb_excess"] = sign * (s.estimate - prior.reference) * den
+    table["prob_worse"] = s.prob_worse
+    table["eb_low"], table["eb_high"] = s.low * m, s.high * m
+    table["estimate_flag"] = estimate_flag(s.low, s.high, prior.reference, st.worse)
 
 
-def _posterior_interval(o_eff, n_eff, c, tau2, binomial, params, coverage):
-    """
-    Equal-tailed interval for each provider's true value from its own posterior:
-    Gamma(c²/τ² + O, rate c/τ² + E) for counts, Beta(α + Y, β + n − Y) for proportions,
-    on effective counts (y/φ out of n/φ). NaN everywhere when τ² = 0 (methods §4.14).
-    """
-    k = len(o_eff)
-    low, high = np.full(k, np.nan), np.full(k, np.nan)
-    if not (tau2 > 0) or (binomial and params is None):
-        return low, high
-    lo_p, hi_p = (1.0 - coverage) / 2.0, (1.0 + coverage) / 2.0
-    for i, (o, n) in enumerate(zip(o_eff, n_eff)):
-        if not (np.isfinite(o) and np.isfinite(n) and n > 0):
-            continue
-        if binomial:
-            a, b = params[0] + o, params[1] + n - o
-            low[i], high[i] = beta_quantile(lo_p, a, b), beta_quantile(hi_p, a, b)
-        else:
-            shape, rate = c * c / tau2 + o, c / tau2 + n
-            low[i] = gamma_quantile(lo_p, shape) / rate
-            high[i] = gamma_quantile(hi_p, shape) / rate
-    return low, high
-
-
-def _estimate_flag(low, high, ref, worse) -> np.ndarray:
-    """
-    Where the interval lies against the reference: wholly above or below it, or
-    across it ("no different"). With worse= the sides are "worse" and "better";
-    without it, "higher" and "lower". None where there is no interval.
-    """
-    up, down = ("worse", "better") if worse == "higher" else (
-        ("better", "worse") if worse == "lower" else ("higher", "lower"))
-    out = np.full(len(low), None, dtype=object)
-    ok = np.isfinite(low) & np.isfinite(high)
-    out[ok] = "no different"
-    out[ok & (low > ref)] = up
-    out[ok & (high < ref)] = down
-    return out
-
-
-def _add_robustness(table, rows, agg, st: _Settings, cl, tau2, scale, n_model, phi_u,
-                    aggregated) -> int:
+def _add_robustness(table, rows, agg, st: _Settings, fit: _Fit, phi_u, aggregated) -> int:
     """
     p_value_drop1, flag_survives_drop1, fragility (methods §4.15); returns how many flagged
     providers have fragility 1. θ₀, τ² and φ stay at their full-data values; only the
     provider's own count and denominator move, so each recomputed p-value is the chart's.
     """
+    cl, tau2, scale = fit.cl, fit.tau2, fit.scale
     k = len(table)
     p_drop: np.ndarray = np.full(k, np.nan)
     survives = pd.array([pd.NA] * k, dtype="boolean")
@@ -1450,7 +1275,7 @@ def funnel_sensitivity(
             "compare_to='model' allows no spread, so every run would be the same chart. Run "
             "funnel(..., compare_to='model') alone, or use compare_to='peers' here."
         )
-    runs = {f"signal_{m}": funnel(data, tau_method=m, **kwargs) for m in tau_methods}
+    runs = {f"signal_{m}": funnel(data, **{"tau_method": m, **kwargs}) for m in tau_methods}
     if unadjusted:
         plain = {k: v for k, v in kwargs.items() if k != "compare_to"}
         runs["signal_unadjusted"] = funnel(data, overdispersion=False, **plain)
@@ -1472,13 +1297,6 @@ def funnel_sensitivity(
 # Inputs
 # ---------------------------------------------------------------------------
 
-def _tau_number(value: Any, where: str) -> float:
-    ok = (isinstance(value, (int, float)) and not isinstance(value, bool)
-          and math.isfinite(value) and value >= 0)
-    if not ok:
-        raise ValueError(f"tau={where} must be a number >= 0, got {value!r}.")
-    return float(value)
-
 
 def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
     """
@@ -1496,8 +1314,11 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
     if data is None:
         if isinstance(y, str) or isinstance(n, str):
             raise ValueError("Without data=, y= and n= must be sequences, not column names.")
-        yv = np.asarray(y, dtype=float)
-        frame = pd.DataFrame({_Y: yv, _N: np.ones(len(yv)) if n is None else np.asarray(n, dtype=float)})
+        yv = numbers("y", y)
+        nv = np.ones(len(yv)) if n is None else numbers("n", n)
+        if len(nv) != len(yv):
+            raise ValueError(f"n= has {len(nv)} values, but y= has {len(yv)}.")
+        frame = pd.DataFrame({_Y: yv, _N: nv})
         k = len(frame)
         for col, values in ((_UNIT, unit), (_LABEL, label)):
             if values is not None:
@@ -1518,10 +1339,9 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
             raise TypeError("data= must be a pandas DataFrame.")
         for name, col in (("y", y), ("n", n), ("unit", unit), ("label", label),
                           *(("facets", f) for f in facets)):
-            if col is not None and (not isinstance(col, str) or col not in data.columns):
-                raise ValueError(f"{name}= must name a column of data, got {col!r}.")
-        frame = pd.DataFrame({_Y: data[y].to_numpy(dtype=float),
-                              _N: 1.0 if n is None else data[n].to_numpy(dtype=float)},
+            check_column(data, name, col, required=name == "y", column_only=True)
+        frame = pd.DataFrame({_Y: numbers("y", data[y]),
+                              _N: 1.0 if n is None else numbers("n", data[n])},
                              index=data.index)
         if unit is not None:
             frame[_UNIT] = data[unit].to_numpy()
@@ -1531,25 +1351,34 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
             frame[col] = data[col].to_numpy()
         hover_names = [hover] if isinstance(hover, str) else list(hover or [])
         for name in hover_names:
-            if name not in data.columns:
-                raise ValueError(f"hover= column {name!r} not found in data.")
+            check_column(data, "hover", name, column_only=True)
             if name in _COLUMNS:
                 raise ValueError(f"hover= column {name!r} collides with a column funnel() writes.")
             frame[name] = data[name].to_numpy()
         for key, col in extra.items():
+            what = {_PHI: "within_dispersion", _CASES: "cases", _SS: "sum_sq",
+                    _MAXY: "max_case_y", _MAXN: "max_case_n"}[key]
             if not isinstance(col, str) or col not in data.columns:
-                what = "within_dispersion" if key == _PHI else {
-                    _CASES: "cases", _SS: "sum_sq", _MAXY: "max_case_y", _MAXN: "max_case_n",
-                }[key]
                 raise ValueError(
                     f"{what}= must name a column of data, got {col!r}."
                     + (" A number, or 'estimate', is also accepted." if key == _PHI else "")
+                    + (_did_you_mean(col, data.columns) if isinstance(col, str) else "")
                 )
-            frame[key] = pd.to_numeric(data[col], errors="coerce").to_numpy(dtype=float)
+            frame[key] = numbers(what, data[col])
         frame = frame.reset_index(drop=True)
 
     if _UNIT not in frame.columns:
         frame[_UNIT] = np.arange(1, len(frame) + 1)
+    # A row missing its numerator, denominator or unit cannot be placed: it leaves the
+    # sums (never counting as zero events) and is counted in summary["n_rows_dropped"].
+    incomplete = (frame[_Y].isna() | frame[_N].isna() | frame[_UNIT].isna()).to_numpy()
+    frame[_DROP] = incomplete
+    frame.loc[incomplete, [_Y, _N]] = np.nan
+    if incomplete.all() and len(frame):
+        raise ValueError(
+            "No row has all of y=, n= and unit=: every row is missing at least one, so "
+            "there is nothing to compare. Check the columns passed as y=, n= and unit=."
+        )
 
     if exclude is not None:
         if isinstance(exclude, str):
@@ -1565,184 +1394,3 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
     return frame, hover_names
 
 
-def _row_phi(rows: pd.DataFrame, binomial: bool) -> tuple[float, int] | None:
-    """
-    (φ̂, N − K) from case-level rows, around each provider's own rate θ̂ⱼ = Σy/Σn, so
-    real differences between providers stay out of φ̂; those are τ²'s job.
-
-    Counts (oe, rate): φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / (θ̂ⱼnᵢⱼ) / (N − K).
-
-    Proportions: φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / nᵢⱼ / [θ̄(1 − θ̄)(N − K)], the design
-    effect of items clustered in cases, with the pooled θ̄ in the variance. Each
-    provider's own θ̂ⱼ(1 − θ̂ⱼ) there would drop every provider at 0% or 100%, common
-    at a few surveys each, and would read N/(N − K) rather than 1 on yes/no rows.
-
-    None when no unit has a second row.
-    """
-    rows = rows[(rows[_N] > 0) & np.isfinite(rows[_Y]) & np.isfinite(rows[_N])]
-    theta = rows.groupby(_UNIT)[_Y].transform("sum") / rows.groupby(_UNIT)[_N].transform("sum")
-    if not binomial:
-        usable = theta > 0
-        rows, theta = rows[usable], theta[usable]
-    df = len(rows) - rows[_UNIT].nunique()
-    if df < 1:
-        return None
-    if not binomial:
-        mu = theta * rows[_N]
-        return float(np.sum((rows[_Y] - mu) ** 2 / mu) / df), df
-    pooled = float(rows[_Y].sum() / rows[_N].sum())
-    if not (0.0 < pooled < 1.0):
-        return 1.0, df
-    resid = (rows[_Y] - theta * rows[_N]) ** 2 / rows[_N]
-    return float(np.sum(resid) / (pooled * (1.0 - pooled) * df)), df
-
-
-def _agg_phi(rows: pd.DataFrame, binomial: bool) -> tuple[float, int] | None:
-    """
-    _row_phi from one row per provider aggregated in SQL (cases=, sum_sq=). With
-    θ̂ⱼ = Yⱼ/Nⱼ the Pearson sum over a provider's cases expands to its sufficient
-    statistics, so the stays never need to leave the database:
-
-      counts:      Σᵢ (yᵢ − θ̂nᵢ)²/(θ̂nᵢ) = Σᵢ yᵢ²/nᵢ / θ̂ − Y
-      proportions: Σᵢ (yᵢ − θ̂nᵢ)²/nᵢ   = Σᵢ yᵢ²/nᵢ − θ̂·Y
-
-    on Σkⱼ − K degrees of freedom, so it equals the case-row estimate to rounding
-    (methods §4.12). None when no provider has a second case.
-    """
-    rows = rows[(rows[_N] > 0) & np.isfinite(rows[_Y]) & np.isfinite(rows[_N])]
-    theta = rows[_Y] / rows[_N]
-    if not binomial:
-        usable = theta > 0
-        rows, theta = rows[usable], theta[usable]
-    df = int(round(float(rows[_CASES].sum()))) - len(rows)
-    if df < 1:
-        return None
-    if not binomial:
-        return float(np.sum(rows[_SS] / theta - rows[_Y]) / df), df
-    pooled = float(rows[_Y].sum() / rows[_N].sum())
-    if not (0.0 < pooled < 1.0):
-        return 1.0, df
-    return float(np.sum(rows[_SS] - theta * rows[_Y]) / (pooled * (1.0 - pooled) * df)), df
-
-
-def _one_item_per_case(rows: pd.DataFrame, aggregated: bool) -> bool:
-    """Every case is a single yes/no item: n = 1 per row, or cases = n per provider."""
-    if not len(rows):
-        return False
-    if aggregated:
-        return bool(np.all(rows[_CASES] == rows[_N]))
-    return bool(np.all(rows[_N] == 1))
-
-
-def _check_aggregated(frame: pd.DataFrame, facets) -> None:
-    """cases=/sum_sq= rows must be providers: one row each, k ≥ 1, Σy²/n ≥ 0."""
-    if frame.groupby([*facets, _UNIT]).size().max() > 1:
-        raise ValueError(
-            "cases= and sum_sq= describe one provider per row, but some unit appears in "
-            "several rows. Aggregate to one row per provider (per facet) in SQL, or drop "
-            "cases=/sum_sq= and pass the case-level rows instead."
-        )
-    k = frame[_CASES].to_numpy(dtype=float)
-    if not (np.all(np.isfinite(k)) and np.all(k >= 1)):
-        raise ValueError("cases= must be a whole number of cases >= 1 on every row.")
-    ss = frame[_SS].to_numpy(dtype=float)
-    if not (np.all(np.isfinite(ss)) and np.all(ss >= 0)):
-        raise ValueError(
-            "sum_sq= must be finite and >= 0: SUM(POWER(y, 2) / n) over each provider's cases."
-        )
-
-
-def _unit_phi(frame: pd.DataFrame, column: str) -> dict:
-    """{unit: φᵢ} from a within_dispersion column (one facet's rows), validated."""
-    phi = frame[_PHI].to_numpy(dtype=float)
-    if not (np.all(np.isfinite(phi)) and np.all(phi > 0)):
-        raise ValueError(
-            f"within_dispersion column {column!r} must be a positive, finite number on every "
-            "row (each provider's phi_i; 1 means independent counts)."
-        )
-    if (frame.groupby(_UNIT)[_PHI].nunique() > 1).any():
-        raise ValueError(
-            f"within_dispersion column {column!r} varies within a provider. It is one phi_i "
-            "per provider (SUM(phi_g * e) / SUM(e) over its cases); repeat that value on "
-            "each row."
-        )
-    first = frame.groupby(_UNIT, sort=False)[_PHI].first()
-    return {u: float(v) for u, v in first.items()}
-
-
-def _estimate_within(rows: pd.DataFrame, measure: str, aggregated: bool = False) -> float:
-    """
-    within_dispersion="estimate" for one facet: φ̂ of _row_phi (or _agg_phi from
-    cases=/sum_sq=), from the providers that are not excluded.
-    """
-    binomial = measure == "proportion"
-    if binomial and _one_item_per_case(rows, aggregated):
-        raise ValueError(
-            "within_dispersion='estimate' found one item per row (every n is 1). A "
-            "row that is a single yes/no cannot show clustering, so there is nothing "
-            "to estimate. If several rows belong to one case (the questions of one "
-            "survey), sum them to one row per case: y = items meeting the measure, "
-            "n = items answered. If each row really is one independent case, leave "
-            "within_dispersion at 1."
-        )
-    found = _agg_phi(rows, binomial) if aggregated else _row_phi(rows, binomial)
-    if found is None and aggregated:
-        raise ValueError(
-            "within_dispersion='estimate' found no provider with more than one case "
-            "(cases= is 1 everywhere), so it cannot measure how much single cases "
-            "vary. Pass a known within_dispersion= number instead."
-        )
-    if found is None:
-        raise ValueError(
-            "within_dispersion='estimate' needs several rows per unit: one per case "
-            "(stay-level data, or one row per survey), so it can measure how much "
-            "single cases vary. Every unit here has one row. Pass case-level rows, "
-            "or a known within_dispersion= number instead."
-        )
-    return found[0]
-
-
-# Fewer residual degrees of freedom than this and the rows say little about clumping.
-_ROWS_MIN_DF = 30
-
-
-def _within_check(rows: pd.DataFrame, measure: str, aggregated: bool = False):
-    """
-    (φ̂, p) from one facet's case-level rows for the clustering warning, with p the
-    Pearson χ² test of φ = 1 on N − K degrees of freedom (Wilson–Hilferty); None where the
-    rows are providers, carry fewer than _ROWS_MIN_DF residual degrees of freedom, or are
-    single yes/no items, which cannot show clustering.
-    """
-    binomial = measure == "proportion"
-    if binomial and _one_item_per_case(rows, aggregated):
-        return None
-    found = _agg_phi(rows, binomial) if aggregated else _row_phi(rows, binomial)
-    if found is None or found[1] < _ROWS_MIN_DF:
-        return None
-    phi, df = found
-    h = 2.0 / (9.0 * df)
-    z = ((max(phi, 0.0)) ** (1.0 / 3.0) - (1.0 - h)) / math.sqrt(h)
-    return phi, 0.5 * math.erfc(z / math.sqrt(2.0))
-
-
-def _prob_worse(o_eff, n_eff, cl, tau2, binomial, lower, params, ref=None) -> np.ndarray:
-    """
-    P(true value worse than the reference | data) under the posterior (methods §4.16):
-    Gamma(a + O, rate b + E) with a = cl²/τ², b = cl/τ² for counts, Beta(α + Y,
-    β + n − Y) for proportions, on effective counts, cl the prior's center. The
-    reference is cl, or 1.0 under compare_to="model". NaN when τ = 0 or no beta has the
-    spread.
-    """
-    ref = cl if ref is None else ref
-    out = np.full(len(o_eff), np.nan)
-    if not (tau2 > 0) or (binomial and params is None):
-        return out
-    for i, (o, n) in enumerate(zip(o_eff, n_eff)):
-        if not (np.isfinite(o) and np.isfinite(n) and n > 0):
-            continue
-        if binomial:
-            below, above = beta_tails(ref, params[0] + o, params[1] + n - o)
-        else:
-            below, above = gamma_tails(cl * cl / tau2 + o, (cl / tau2 + n) * ref)
-        out[i] = below if lower else above
-    return out

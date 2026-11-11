@@ -10,14 +10,34 @@ data and documents every result column.
 | Which providers differ from their peers? | `funnel(data, y=, n=, measure=, unit=)` | `FunnelResult` |
 | Does a provider's flag depend on the τ model? | `funnel_sensitivity(data, ...)` | DataFrame |
 | Which categories account for most defects? | `paretochart(x, data=)` | `ParetoResult` |
-| Has a pass/fail process shifted? (CUSUM) | `bchart(x, target=)` | `BChartResult` |
+| Has a pass/fail process shifted? (CUSUM) | `bchart(x, target=, data=)` | `BChartResult` |
 | Which factors matter in an experiment? | `design(...)`, `analyze(...)` | `ExperimentDesign`, `ExperimentResult` |
 
 The chart results (`SPCResult`, `FunnelResult`, `ParetoResult`, `BChartResult`) have
-`.data` (a DataFrame, the thing to write back to a table), `.summary` (a dict; `notes`
-holds sentences ready to show a reader), `.plot(**options)` (a Plotly figure; needs
-`clinical-qikit[plot]`), `.to_dict()` and `.to_json()`. `print(result)` says what was
-compared and what was found.
+`.data` (a DataFrame), `.summary` (a dict; `notes` holds sentences ready to show a
+reader), `.plot(**options)` (a Plotly figure; needs `clinical-qikit[plot]`),
+`.to_dict()` and `.to_json()`. `print(result)` says what was compared and what was found.
+
+## Reading a result
+
+Start with the smallest thing that answers the question:
+
+| You want | Call | You get |
+|---|---|---|
+| what was found, to read or reason over | `r.brief()` | a small JSON-safe dict: verdict or counts, notes, and only the flagged rows |
+| rows to write to a table (fixed columns) | `r.to_table()` | `.data` with every column of `qikit.schema(...)`, same order and types on every call |
+| one line per facet for a scorecard | `r.facet_summary()` | a DataFrame, one row per facet, same columns faceted or not |
+| every number | `r.data`, `r.summary` | the full table and dict |
+| everything as JSON, smaller | `r.to_json(digits=4)` | numbers at 4 significant figures |
+
+`r.brief()` is about 1 KB where `r.to_json()` is tens of KB: read it first, and open
+`.data` only for the providers or points it names. `.data` holds only the columns the
+call produced (`label` with `label=`, `benchmark` with `benchmark=`), so write
+`r.to_table()` to a database, not `r.data`. `qikit.schema("qic")` and
+`qikit.schema("funnel")` list every column with its type and meaning.
+
+Choices are read without regard to case (`"OE"` is read as `"oe"`), and a misspelt choice,
+keyword or column name raises with the closest match: read the message and apply it.
 
 ## Shared vocabulary
 
@@ -31,6 +51,15 @@ These names mean the same thing in both:
 - `facets=`: one column or a list; one chart per combination; the columns lead `.data`.
 - `label=`, `hover=`, `multiply=`.
 - `signal` column: `"outlier"`, `"alert"` (funnels only), or `"none"`.
+
+Missing and malformed input, in both functions: None, NaN and blank text are missing;
+text that is not a number raises `ValueError` showing the values; a wrong column name
+raises with the columns listed and the closest match (Snowflake names are upper-case).
+`funnel()` leaves a row missing `y`, `n` or `unit` out of the sums and counts it in
+`summary["n_rows_dropped"]`; it never reads a missing value as zero. `qic()` sorts
+numbers, datetimes and Python `date` objects, and keeps text in row order.
+`qic()`'s `summary["provisional"]` is True under 12 baseline points: say "too few
+points", not "stable".
 
 Display options (title, axis labels, `styles=`, ranges, sizes) belong to `.plot()`, not
 to `qic()` or `funnel()`. A removed or renamed argument raises `TypeError` naming the
@@ -151,9 +180,11 @@ qikit/
   __init__.py      public exports
   spc.py           qic(): normalize -> aggregate by x -> baseline -> limits -> rules -> table
   funnel.py        funnel(), funnel_sensitivity(): sums per unit -> dispersion -> contours
-                   -> p/q values -> tiers -> shrinkage and robustness -> table
+                   -> p/q values -> tiers -> estimates and robustness -> table
+  within.py        within_dispersion: phi from case rows or SQL totals (pandas)
   results.py       SPCResult, FunnelResult, ParetoResult, BChartResult
-  validate.py      argument checks and messages shared by both front doors
+  schema.py        every column of result.data; schema(), and the shape of to_table()
+  validate.py      argument checks, the numeric reader and messages shared by both front doors
   extras.py        paretochart(), bchart()
   doe.py           design(), analyze()
   core/            pure numpy, no pandas or plotly; mirrored by the TypeScript engine
@@ -163,6 +194,8 @@ qikit/
     dispersion.py  phi and tau^2 estimators (spiegelhalter, winsorized, ml, cqc, shmi)
     pvalues.py     exact tails and Benjamini-Hochberg q-values
     power.py       detectability and exact intervals
+    shrinkage.py   the prior, shrunk estimates, posterior intervals, P(worse)
+    benchmark.py   achievable benchmark of care (ABC), minimum sufficient denominator
     dist.py        Poisson/binomial walks, quantiles, incomplete gamma/beta
     constants.py   d2, D4, exact c4 and derived constants
   plot/            plotly figures; imported only by .plot()
