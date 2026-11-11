@@ -1,29 +1,5 @@
 # Changelog
 
-## 1.4.0 (2026-11-10)
-
-`funnel.py` made smaller; every `funnel()` result is unchanged, bit for bit.
-
-### Changed
-
-- **The pure maths moved out of `funnel.py` into `core/`:** `core/shrinkage.py` (the
-  prior, shrunk estimates, posterior intervals and P(worse), now one pass instead of
-  two), `core/benchmark.py` (the achievable benchmark and minimum sufficient
-  denominator), and the pooled center and fixed-center gap test into
-  `core/dispersion.py`. The `within_dispersion` readers, which work on pandas rows, are
-  in the new `within.py`. `funnel.py` goes from 1,790 lines to about 1,400, and its
-  helpers take one fitted-model object instead of nine to eleven arguments.
-- Warnings are attributed to the caller's line wherever in the package they arise.
-- `multiply=` in `qic()` and `tau=` in `funnel()` share one number check; `qic()`'s
-  message is now "multiply must be a number > 0".
-
-### Added
-
-- **`bchart(x, ..., data=)`** takes a column name, as `paretochart()` does. It now
-  refuses values that are not 0/1 and a `baseline=` outside the cases, in place of a
-  confusing error or a silent pass.
-- `print()` of a `paretochart()` or `bchart()` result says what was found.
-
 ## 1.3.0 (2026-11-10)
 
 A predictable, compact surface for pipelines and agents. Nothing is removed.
@@ -52,6 +28,10 @@ A predictable, compact surface for pipelines and agents. Nothing is removed.
 - **The signatures spell out the choices** as `Literal` types (`chart`, `method`,
   `measure`, `worse`, `signal`, `tau_method`, `benchmark`, `compare_to`, `agg_fun`), so
   `help()`, editors and type checkers show them.
+- **`bchart(x, ..., data=)`** takes a column name, as `paretochart()` does. It now
+  refuses values that are not 0/1 and a `baseline=` outside the cases, in place of a
+  confusing error or a silent pass.
+- `print()` of a `paretochart()` or `bchart()` result says what was found.
 
 ### Fixed
 
@@ -59,6 +39,21 @@ A predictable, compact surface for pipelines and agents. Nothing is removed.
   returns DATE and NUMBER columns. Dates serialize as ISO text, Decimals as numbers.
 - A faceted `qic()` summary lacked the top-level `runs_signal`.
 - `qic()`'s docstring did not document the `special_cause` column.
+
+### Changed
+
+Every `funnel()` result is unchanged, bit for bit.
+
+- **The pure maths moved out of `funnel.py` into `core/`:** `core/shrinkage.py` (the
+  prior, shrunk estimates, posterior intervals and P(worse), now one pass instead of
+  two), `core/benchmark.py` (the achievable benchmark and minimum sufficient
+  denominator), and the pooled center and fixed-center gap test into
+  `core/dispersion.py`. The `within_dispersion` readers, which work on pandas rows, are
+  in the new `within.py`. `funnel.py` goes from 1,790 lines to about 1,400, and its
+  helpers take one fitted-model object instead of nine to eleven arguments.
+- Warnings are attributed to the caller's line wherever in the package they arise.
+- `multiply=` in `qic()` and `tau=` in `funnel()` share one number check; `qic()`'s
+  message is now "multiply must be a number > 0".
 
 ## 1.2.1 (2026-11-10)
 
