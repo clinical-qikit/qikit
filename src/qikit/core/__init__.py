@@ -7,6 +7,8 @@ qikit.core — the numbers, with no pandas and no plotting.
     dispersion.py  the spread between providers (φ̂, τ̂²) by each tau_method
     pvalues.py     each provider's p-value against the contours' own model, and BH
     power.py       detectability and each provider's own exact interval
+    shrinkage.py   each provider's shrunk estimate, its interval and P(worse)
+    benchmark.py   the achievable benchmark of care and its minimum denominator
     dist.py        exact quantiles and tails, built from term ratios (no scipy)
     constants.py   SPC constants (c4, A3, B3, B4, d2, D4) and normal deviates
 

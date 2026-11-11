@@ -10,7 +10,7 @@ data and documents every result column.
 | Which providers differ from their peers? | `funnel(data, y=, n=, measure=, unit=)` | `FunnelResult` |
 | Does a provider's flag depend on the τ model? | `funnel_sensitivity(data, ...)` | DataFrame |
 | Which categories account for most defects? | `paretochart(x, data=)` | `ParetoResult` |
-| Has a pass/fail process shifted? (CUSUM) | `bchart(x, target=)` | `BChartResult` |
+| Has a pass/fail process shifted? (CUSUM) | `bchart(x, target=, data=)` | `BChartResult` |
 | Which factors matter in an experiment? | `design(...)`, `analyze(...)` | `ExperimentDesign`, `ExperimentResult` |
 
 The chart results (`SPCResult`, `FunnelResult`, `ParetoResult`, `BChartResult`) have
@@ -180,9 +180,11 @@ qikit/
   __init__.py      public exports
   spc.py           qic(): normalize -> aggregate by x -> baseline -> limits -> rules -> table
   funnel.py        funnel(), funnel_sensitivity(): sums per unit -> dispersion -> contours
-                   -> p/q values -> tiers -> shrinkage and robustness -> table
+                   -> p/q values -> tiers -> estimates and robustness -> table
+  within.py        within_dispersion: phi from case rows or SQL totals (pandas)
   results.py       SPCResult, FunnelResult, ParetoResult, BChartResult
-  validate.py      argument checks and messages shared by both front doors
+  schema.py        every column of result.data; schema(), and the shape of to_table()
+  validate.py      argument checks, the numeric reader and messages shared by both front doors
   extras.py        paretochart(), bchart()
   doe.py           design(), analyze()
   core/            pure numpy, no pandas or plotly; mirrored by the TypeScript engine
@@ -192,6 +194,8 @@ qikit/
     dispersion.py  phi and tau^2 estimators (spiegelhalter, winsorized, ml, cqc, shmi)
     pvalues.py     exact tails and Benjamini-Hochberg q-values
     power.py       detectability and exact intervals
+    shrinkage.py   the prior, shrunk estimates, posterior intervals, P(worse)
+    benchmark.py   achievable benchmark of care (ABC), minimum sufficient denominator
     dist.py        Poisson/binomial walks, quantiles, incomplete gamma/beta
     constants.py   d2, D4, exact c4 and derived constants
   plot/            plotly figures; imported only by .plot()

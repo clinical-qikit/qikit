@@ -237,3 +237,43 @@ class TestQicNotes:
     def test_print_shows_the_notes(self):
         r = qic(y=np.random.default_rng(0).normal(10, 1, 30), chart="i", freeze=20)
         assert "Note: " in str(r)
+
+
+# ---------------------------------------------------------------------------
+# bchart() and paretochart()
+# ---------------------------------------------------------------------------
+
+class TestExtras:
+    def test_bchart_wants_zero_one_outcomes(self):
+        with pytest.raises(ValueError, match="0/1 outcomes"):
+            bchart([0, 1, 2, 5])
+
+    @pytest.mark.parametrize("baseline", [0, 99, 2.5, True])
+    def test_bchart_baseline_is_a_case_count_in_range(self, baseline):
+        with pytest.raises(ValueError, match="baseline= is a number of cases between 1 and 4"):
+            bchart([0, 1, 0, 1], baseline=baseline)
+
+    def test_bchart_reads_a_column_and_skips_missing(self):
+        d = pd.DataFrame({"comp": [0, 1, None, 0, 1, 1, 1, 1, 1, 1, 1, 1]})
+        r = bchart("comp", target=0.2, data=d)
+        assert len(r.data) == 12 and r.summary["signal_up"] is True
+        assert r.data["cusum_up"].iloc[2] == r.data["cusum_up"].iloc[1]
+        with pytest.raises(ValueError, match="Did you mean 'comp'"):
+            bchart("comps", data=d)
+
+    def test_print_says_what_was_found(self):
+        r = bchart([0, 1, 0, 0] + [1] * 10, target=0.2)
+        assert "Signal: more events than the target, first at case" in str(r)
+        assert str(bchart([0, 1, 0, 0, 0, 0, 1, 0], target=0.25)).endswith("No signal.")
+        text = str(paretochart(list("aaabbc")))
+        assert text.splitlines()[0] == "Pareto: 6 items in 3 categories"
+        assert "a: 3 (50% cumulative)" in text
+
+
+def test_a_warning_points_at_the_callers_line():
+    """Not at a line inside qikit, however deep the warning arose."""
+    f = _providers(60)
+    f["obs"] = f["obs"] * 1.5
+    with pytest.warns(UserWarning, match="absorbing") as caught:
+        funnel(f, y="obs", n="exp", measure="oe", unit="doc", center=1.0)
+    assert caught[0].filename == __file__

@@ -27,8 +27,8 @@ from .core.shewhart import CHARTS, RATE_CHARTS, SUBGROUP_CHARTS, T_POWER, shewha
 from .results import SPCResult
 from .schema import QIC_COLUMNS
 from .validate import (
-    WORSE, check_choice, check_column, check_facet_names, is_dates, numbers, reject_removed,
-    split_facets,
+    WORSE, check_choice, check_column, check_facet_names, check_number, is_dates, numbers,
+    reject_removed, split_facets,
 )
 
 # Rules of thumb for how much a short series can say: fewer baseline points than
@@ -193,9 +193,7 @@ def qic(
     if freeze is not None and part is not None:
         raise ValueError("freeze= and part= cannot be combined: freeze sets one baseline "
                          "for the whole series, part= gives each part its own.")
-    if not (isinstance(multiply, (int, float)) and not isinstance(multiply, bool)
-            and math.isfinite(multiply) and multiply > 0):
-        raise ValueError(f"multiply must be a positive number, got {multiply!r}.")
+    check_number("multiply", multiply, 0.0, strict=True)
     if method in ZONE_METHODS and chart == "run":
         raise ValueError(
             f"method={method!r} reads the 1 and 2 sigma zones, and a run chart has no limits. "

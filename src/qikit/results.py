@@ -463,6 +463,15 @@ class ParetoResult(_Serializable):
     def __repr__(self) -> str:
         return f"ParetoResult(n_categories={len(self.data)})"
 
+    def __str__(self) -> str:
+        d = self.data
+        lines = [f"Pareto: {int(d['count'].sum())} items in {len(d)} categories"]
+        lines += [f"  {row.category}: {row.count} ({row.cum_percent:.0f}% cumulative)"
+                  for row in d.head(5).itertuples()]
+        if len(d) > 5:
+            lines.append(f"  and {len(d) - 5} more")
+        return "\n".join(lines)
+
 
 @dataclass(frozen=True)
 class BChartResult(_Serializable):
@@ -478,3 +487,16 @@ class BChartResult(_Serializable):
 
     def __repr__(self) -> str:
         return f"BChartResult(n_obs={len(self.data)}, target={self.summary.get('target', math.nan):.3f})"
+
+    def __str__(self) -> str:
+        s, d = self.summary, self.data
+        lines = [f"Bernoulli CUSUM, {len(d)} cases, target probability {s['target']:.3g}, "
+                 f"looking for the odds changing {s['or_ratio']:g}-fold"]
+        for name, word in (("signal_up", "more"), ("signal_down", "fewer")):
+            at = d.loc[d[name], "x"].tolist()
+            if at:
+                lines.append(f"Signal: {word} events than the target, first at case {at[0]}"
+                             + (f" ({len(at)} signals)" if len(at) > 1 else "") + ".")
+        if len(lines) == 1:
+            lines.append("No signal.")
+        return "\n".join(lines)

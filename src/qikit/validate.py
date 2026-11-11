@@ -7,6 +7,8 @@ from __future__ import annotations
 import datetime
 import difflib
 import math
+import sys
+import warnings
 from typing import Any
 
 import numpy as np
@@ -134,6 +136,17 @@ def check_number(name: str, value: Any, minimum: float = 0.0, strict: bool = Fal
         bound = f"> {minimum:g}" if strict else f">= {minimum:g}"
         raise ValueError(f"{name} must be a number {bound}, got {value!r}.")
     return float(value)
+
+
+def warn(message: str) -> None:
+    """
+    A UserWarning shown against the caller's own line: the first frame outside qikit,
+    however deep inside the package the warning arose.
+    """
+    frame, level = sys._getframe(1), 2
+    while frame.f_back is not None and frame.f_globals.get("__name__", "").startswith("qikit"):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(message, UserWarning, stacklevel=level)
 
 
 def reject_removed(

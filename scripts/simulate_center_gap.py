@@ -31,7 +31,7 @@ import pandas as pd
 
 from qikit import funnel
 from qikit.core.dispersion import overdispersion, tau2_ml
-from qikit.funnel import _center_gap, _settings
+from qikit.funnel import _center_gap, _Fit, _settings
 
 KS = (20, 50, 200, 1000)
 VOLUMES = {"physician": (5.0, 50.0), "hospital": (50.0, 500.0)}
@@ -82,8 +82,8 @@ def guard(y, n, measure, center, phi, method):
     notes: list[str] = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        out = _center_gap(st, center, ratio, n_model, mask, family, tau2, "estimated",
-                          disp.scale, notes)
+        fit = _Fit(family, center, ratio, n_model, mask, tau2, disp.scale)
+        out = _center_gap(st, fit, "estimated", disp.scale, notes)
     return {**out, "tau": float(np.sqrt(tau2)), "notes": notes}
 
 
