@@ -230,7 +230,7 @@ class TestInputs:
         (dict(signal="exact"), "signal must be one of"),
         (dict(signal="fdr", fdr_levels=(0.1, 0.05)), "fdr_levels"),
         (dict(limits=(0.95, 0.998)), "limits"),
-        (dict(unit="nope"), "must name a column"),
+        (dict(unit="nope"), "is not a column of data"),
         (dict(hover="y"), "hover="),
     ])
     def test_errors(self, kw, match):

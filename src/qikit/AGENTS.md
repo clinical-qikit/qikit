@@ -32,6 +32,15 @@ These names mean the same thing in both:
 - `label=`, `hover=`, `multiply=`.
 - `signal` column: `"outlier"`, `"alert"` (funnels only), or `"none"`.
 
+Missing and malformed input, in both functions: None, NaN and blank text are missing;
+text that is not a number raises `ValueError` showing the values; a wrong column name
+raises with the columns listed and the closest match (Snowflake names are upper-case).
+`funnel()` leaves a row missing `y`, `n` or `unit` out of the sums and counts it in
+`summary["n_rows_dropped"]`; it never reads a missing value as zero. `qic()` sorts
+numbers, datetimes and Python `date` objects, and keeps text in row order.
+`qic()`'s `summary["provisional"]` is True under 12 baseline points: say "too few
+points", not "stable".
+
 Display options (title, axis labels, `styles=`, ranges, sizes) belong to `.plot()`, not
 to `qic()` or `funnel()`. A removed or renamed argument raises `TypeError` naming the
 replacement; read the message and apply it.

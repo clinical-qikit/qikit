@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.2.1 (2026-11-10)
+
+Messy input no longer becomes a silent wrong answer.
+
+### Fixed
+
+- **`funnel()` read a missing value as zero.** A provider whose `y` was missing was
+  summed to 0 events and could be flagged a low outlier. A row missing `y`, `n` or
+  `unit` is now left out of the sums and counted in the new
+  `summary["n_rows_dropped"]`, with a note; a provider with no complete row is listed
+  with no value and is not tested. A missing denominator no longer raises "events but a
+  zero denominator", and rows with a missing `unit` are no longer dropped unannounced.
+- **`qic()` charted Python `date` objects in row order.** Snowpark's `to_pandas()`
+  returns a DATE column as `datetime.date` objects, which were treated as text and left
+  unsorted, so limits and run rules were computed on shuffled time. They are now sorted
+  like any other date, and `.data["x"]` keeps the `date` objects.
+- **`qic()` turned text that is not a number into a gap.** `"x"` or `"n/a"` in `y`,
+  `n` or `target` now raises a `ValueError` showing the values; `funnel()` and
+  `bchart()` give the same message in place of a raw numpy error. None, NaN, blank
+  text, numeric text and Decimals are read as before.
+- **A handful of points was called stable.** `print(qic(y=[5]))` no longer says "the
+  process looks stable".
+
+### Added
+
+- **`qic()` `summary["notes"]` and `summary["provisional"]`:** sentences to show a
+  reader (fewer than 12 baseline points, control limits from fewer than 20, points with
+  no value, a frozen baseline), as `funnel()` already had; `provisional` is True under
+  12 baseline points. Faceted, the notes are prefixed by facet. `print(result)` shows
+  them.
+- **Column-name errors list the columns and suggest the closest**, ignoring case, in
+  `qic()`, `funnel()` and `paretochart()`: `y='deaths' is not a column of data. Did you
+  mean 'DEATHS'?`. `funnel()`'s message changes from "must name a column of data".
+
 ## 1.2.0 (2026-11-08)
 
 ### Added

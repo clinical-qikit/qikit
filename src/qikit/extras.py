@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .results import BChartResult, ParetoResult
+from .validate import check_column, numbers
 
 
 def paretochart(x: Any, data: pd.DataFrame | None = None, use_na: bool = False) -> ParetoResult:
@@ -19,8 +20,7 @@ def paretochart(x: Any, data: pd.DataFrame | None = None, use_na: bool = False) 
     Returns columns category, count, cum_sum, cum_percent.
     """
     if data is not None and isinstance(x, str):
-        if x not in data.columns:
-            raise ValueError(f"x={x!r} is not a column of data.")
+        check_column(data, "x", x)
         vals = data[x]
     else:
         vals = pd.Series(x)
@@ -47,7 +47,7 @@ def bchart(
     Returns columns x (case number), y, cusum_up, cusum_down, signal_up, signal_down,
     limit; summary target, or_ratio, limit, signal_up, signal_down.
     """
-    x_arr = np.asarray(x, dtype=float)
+    x_arr = numbers("x", x)
     n = len(x_arr)
     if target is not None and baseline is not None:
         raise ValueError("Pass target= (a probability) or baseline= (a number of cases), not both.")

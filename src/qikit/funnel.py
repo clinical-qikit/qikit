@@ -35,8 +35,8 @@ from .core.power import UNDERPOWERED_RATIO, point_power
 from .core.pvalues import bh_q_values, funnel_p_values, signal_thresholds
 from .results import FunnelResult
 from .validate import (
-    WORSE, check_choice, check_facet_names, check_levels, check_number, reject_removed,
-    split_facets,
+    WORSE, _did_you_mean, check_choice, check_column, check_facet_names, check_levels,
+    check_number, numbers, reject_removed, split_facets,
 )
 
 MEASURES = ("oe", "proportion", "rate", "mean")
@@ -62,6 +62,7 @@ _COLUMNS = (
 # Internal working columns on the normalized frame.
 _UNIT, _Y, _N, _LABEL, _EXCL = "__unit", "__y", "__n", "__label", "__exclude"
 _CASES, _SS, _MAXY, _MAXN, _PHI = "__cases", "__sum_sq", "__max_y", "__max_n", "__phi"
+_DROP = "__dropped"
 
 # fragility scans at most this many of a unit's worst cases (methods §4.15).
 _FRAGILITY_MAX = 50
@@ -241,7 +242,8 @@ def funnel(
     overdispersion=True and tau estimated), reference (what the estimate columns are
     judged against) and estimate_tau (the spread of their prior), count_model, limit_method, p_value_method,
     within_dispersion and its source, dispersion_shape, underpowered, n_underpowered,
-    min_detectable_median, n_filtered, n_fragile, notes (sentences to show readers), and
+    min_detectable_median, n_filtered, n_fragile, n_rows_dropped (rows missing y, n or
+    unit, left out of the sums), notes (sentences to show readers), and
     with benchmark=, benchmark: a dict of method, share and value, and under "abc" also
     providers, coverage (their share of the denominator), group_denominator (median,
     min, max), msd (minimum sufficient denominator), n_below_msd and without_small.
@@ -253,6 +255,9 @@ def funnel(
     ----------
     data : DataFrame of providers, or of cases (stay- or survey-level rows) to be summed
         per unit. Without data=, y, n, unit, label are sequences and hover a dict.
+        A row missing y, n or unit is left out of the sums and counted in
+        summary["n_rows_dropped"], never read as zero; a provider with no complete row
+        is listed with no value and not tested. Text that is not a number is an error.
     y, n : columns (or sequences): the numerator and denominator. Under measure="mean",
         y is the amount and n the case count: 1 per row (the default when n is
         omitted) or each provider's COUNT(*) alongside sum_sq=.
@@ -607,11 +612,17 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
     else:
         groups = [((), frame)]
     tables, by_facet, models = [], {}, {}
+    lost: dict[Any, int] = {}
     for key, rows in groups:
         name = " / ".join(str(v) for v in key) if key else None
+        dropped = int(rows[_DROP].sum())
+        rows = rows[rows[_UNIT].notna()]
+        if rows.empty:                       # a facet whose every row lacks a unit
+            lost[name] = dropped
+            continue
         within = _within(rows, st, within_dispersion, aggregated, phi_column)
         tau_fixed = _facet_value(st.tau_fixed, key, name)
-        table, summary, model = _one_funnel(rows, st, within, tau_fixed, aggregated)
+        table, summary, model = _one_funnel(rows, st, within, tau_fixed, aggregated, dropped)
         model["key"] = key
         for i, (col, val) in enumerate(zip(keys, key)):
             table.insert(i, col, val)
@@ -630,8 +641,11 @@ def _funnel(frame, st: _Settings, within_dispersion, aggregated: bool, phi_colum
     else:
         totals = {k: sum(f[k] for f in by_facet.values())
                   for k in ("n_providers", "n_tested", "n_outlier", "n_alert", "n_filtered",
-                            "n_fragile")}
+                            "n_fragile", "n_rows_dropped")}
+        totals["n_rows_dropped"] += sum(lost.values())
         notes = [f"{fv}: {note}" for fv, f in by_facet.items() for note in f["notes"]]
+        notes += [f"{fv}: all {k} row(s) are missing unit=, so this facet has no chart."
+                  for fv, k in lost.items()]
         summary = {**settings, **totals, "by_facet": by_facet, "notes": notes}
     meta = {
         "facets": keys, "hover": list(st.hover), "worse": st.worse, "side": st.side,
@@ -674,11 +688,13 @@ def _facet_value(value, key: tuple, name: str | None):
     raise ValueError(f"tau= as a dict needs one value per facet; missing {name!r}.")
 
 
-def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: bool):
+def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: bool,
+                dropped: int = 0):
     """One facet: (public table, summary, model for limits())."""
     family, _binomial = st.family, st.measure == "proportion"
     units = rows.groupby(_UNIT, sort=False)
-    agg = pd.DataFrame({_Y: units[_Y].sum(), _N: units[_N].sum()})
+    # min_count=1: a provider with no complete row sums to missing, not to zero.
+    agg = pd.DataFrame({_Y: units[_Y].sum(min_count=1), _N: units[_N].sum(min_count=1)})
     for col in (_LABEL, *st.hover, _MAXY, _MAXN):
         if col in rows:
             agg[col] = units[col].first()
@@ -686,7 +702,9 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     phi_u = (np.array([within.phi_units[u] for u in agg.index], dtype=float)
              if within.phi_units is not None else np.full(len(agg), within.phi))
     num, den = agg[_Y].to_numpy(dtype=float), agg[_N].to_numpy(dtype=float)
-    n_model = den if within.phi_units is None and within.phi == 1.0 else den / phi_u
+    empty = np.isnan(den)                    # no complete row: drawn nowhere, untested
+    volume = np.where(empty, 0.0, den)
+    n_model = volume if within.phi_units is None and within.phi == 1.0 else volume / phi_u
     order = np.argsort(n_model, kind="stable")
     agg, num, den, n_model, phi_u = agg.iloc[order], num[order], den[order], n_model[order], phi_u[order]
     excluded = agg[_EXCL].to_numpy(dtype=bool)
@@ -772,6 +790,7 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
         "within_dispersion_source": within.source,
         "n_filtered": int(np.sum(filtered)),
         "n_fragile": fragile,
+        "n_rows_dropped": dropped,
         "reference": prior.reference * m,
     }
     if st.measure == "mean":
@@ -781,6 +800,13 @@ def _one_funnel(rows, st: _Settings, within: _Within, tau_fixed, aggregated: boo
     notes: list[str] = []
     if st.compare_to is not None:
         notes.append(_QUESTION[st.compare_to])
+    if dropped:
+        note = (f"{dropped} row(s) were missing y=, n= or unit= and were left out: they "
+                f"are not counted as zero.")
+        if empty.any():
+            note += (f" {int(empty.sum())} provider(s) have no complete row and are listed "
+                     f"untested, with no value.")
+        notes.append(note)
     summary.update(_center_gap(st, cl, ratio, n_model, mask, family, tau2, source,
                                disp.scale, notes))
     summary["estimate_tau"] = math.sqrt(prior.tau2)
@@ -1496,8 +1522,11 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
     if data is None:
         if isinstance(y, str) or isinstance(n, str):
             raise ValueError("Without data=, y= and n= must be sequences, not column names.")
-        yv = np.asarray(y, dtype=float)
-        frame = pd.DataFrame({_Y: yv, _N: np.ones(len(yv)) if n is None else np.asarray(n, dtype=float)})
+        yv = numbers("y", y)
+        nv = np.ones(len(yv)) if n is None else numbers("n", n)
+        if len(nv) != len(yv):
+            raise ValueError(f"n= has {len(nv)} values, but y= has {len(yv)}.")
+        frame = pd.DataFrame({_Y: yv, _N: nv})
         k = len(frame)
         for col, values in ((_UNIT, unit), (_LABEL, label)):
             if values is not None:
@@ -1518,10 +1547,9 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
             raise TypeError("data= must be a pandas DataFrame.")
         for name, col in (("y", y), ("n", n), ("unit", unit), ("label", label),
                           *(("facets", f) for f in facets)):
-            if col is not None and (not isinstance(col, str) or col not in data.columns):
-                raise ValueError(f"{name}= must name a column of data, got {col!r}.")
-        frame = pd.DataFrame({_Y: data[y].to_numpy(dtype=float),
-                              _N: 1.0 if n is None else data[n].to_numpy(dtype=float)},
+            check_column(data, name, col, required=name == "y", column_only=True)
+        frame = pd.DataFrame({_Y: numbers("y", data[y]),
+                              _N: 1.0 if n is None else numbers("n", data[n])},
                              index=data.index)
         if unit is not None:
             frame[_UNIT] = data[unit].to_numpy()
@@ -1531,25 +1559,34 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
             frame[col] = data[col].to_numpy()
         hover_names = [hover] if isinstance(hover, str) else list(hover or [])
         for name in hover_names:
-            if name not in data.columns:
-                raise ValueError(f"hover= column {name!r} not found in data.")
+            check_column(data, "hover", name, column_only=True)
             if name in _COLUMNS:
                 raise ValueError(f"hover= column {name!r} collides with a column funnel() writes.")
             frame[name] = data[name].to_numpy()
         for key, col in extra.items():
+            what = {_PHI: "within_dispersion", _CASES: "cases", _SS: "sum_sq",
+                    _MAXY: "max_case_y", _MAXN: "max_case_n"}[key]
             if not isinstance(col, str) or col not in data.columns:
-                what = "within_dispersion" if key == _PHI else {
-                    _CASES: "cases", _SS: "sum_sq", _MAXY: "max_case_y", _MAXN: "max_case_n",
-                }[key]
                 raise ValueError(
                     f"{what}= must name a column of data, got {col!r}."
                     + (" A number, or 'estimate', is also accepted." if key == _PHI else "")
+                    + (_did_you_mean(col, data.columns) if isinstance(col, str) else "")
                 )
-            frame[key] = pd.to_numeric(data[col], errors="coerce").to_numpy(dtype=float)
+            frame[key] = numbers(what, data[col])
         frame = frame.reset_index(drop=True)
 
     if _UNIT not in frame.columns:
         frame[_UNIT] = np.arange(1, len(frame) + 1)
+    # A row missing its numerator, denominator or unit cannot be placed: it leaves the
+    # sums (never counting as zero events) and is counted in summary["n_rows_dropped"].
+    incomplete = (frame[_Y].isna() | frame[_N].isna() | frame[_UNIT].isna()).to_numpy()
+    frame[_DROP] = incomplete
+    frame.loc[incomplete, [_Y, _N]] = np.nan
+    if incomplete.all() and len(frame):
+        raise ValueError(
+            "No row has all of y=, n= and unit=: every row is missing at least one, so "
+            "there is nothing to compare. Check the columns passed as y=, n= and unit=."
+        )
 
     if exclude is not None:
         if isinstance(exclude, str):

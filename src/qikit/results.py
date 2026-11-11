@@ -128,7 +128,13 @@ class SPCResult(_Serializable):
             lines += [one(f, f"  {k}: ") for k, f in s["by_facet"].items()]
         else:
             lines.append(one(s))
-        lines.append("Signal." if self.signals else "No signal: the process looks stable.")
+        if self.signals:
+            lines.append("Signal.")
+        elif s.get("provisional"):
+            lines.append("No signal so far, with too few points to call the process stable.")
+        else:
+            lines.append("No signal: the process looks stable.")
+        lines += [f"Note: {note}" for note in s.get("notes", [])]
         return "\n".join(lines)
 
 
