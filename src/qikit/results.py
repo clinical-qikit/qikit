@@ -252,7 +252,9 @@ class FunnelResult(_Serializable):
     What funnel() returns. data: one row per provider (funnel's docstring lists every
     column); summary: the model, tier counts, expected_false_flags and notes.
     plot(**options) draws it; limits(n=None) gives the contours at any denominators;
-    print(result) describes it in a few sentences.
+    min_denominator(reliability=0.7) gives the minimum denominator (minimum volume) at
+    which a provider's score is reliable, and how many providers are above and below
+    it; print(result) describes it in a few sentences.
     """
 
     data: pd.DataFrame
@@ -371,6 +373,145 @@ class FunnelResult(_Serializable):
             self._grid["default"] = out
         return out.copy()
 
+    def min_denominator(self, reliability: Any = 0.7) -> pd.DataFrame:
+        """
+        The minimum denominator for this measure: the volume (minimum sample size, case
+        minimum, small-numbers threshold) at which a provider's score reaches a
+        reliability target, and how many providers are above and below it.
+
+        Reliability is the share of a provider's difference from the center that is real
+        rather than chance, the `reliability` column (methods §4.14). It rises with the
+        denominator as n/(n + k), so each target has one floor: a provider is at or above
+        the floor exactly when its reliability is at or above the target.
+
+        reliability : the target, or several, each between 0 and 1. It is a judgment
+            about the use, not a statistical result, so ask whoever owns the decision:
+            0.7 is the usual floor for high-stakes profiling (public reporting, pay,
+            credentialing; Adams et al. 2010), 0.9 for decisions about one provider,
+            0.5 for internal screening that is reviewed before anyone acts.
+
+        Returns one row per target (per facet under facets=), the facet columns first:
+
+        - reliability: the target.
+        - min_denominator: the floor, in the units of n= (denominator_unit says which:
+          expected events for O/E, cases for proportions and means, exposure for
+          rates). Round it up. Empty when no floor exists; note says why.
+        - min_low, min_high: its range from the 95% interval for the spread between
+          providers. min_high is inf when the data cannot rule out no spread. Empty when
+          tau= was given.
+        - n_providers, n_above, n_below: providers compared, how many are at or above
+          the floor, and how many are below it. share_above is n_above / n_providers.
+        - volume_above, volume_below, share_volume_above: the denominator they hold.
+        - center, tau: the model the floor comes from: the center of the estimates'
+          prior and the spread between providers around it (summary["estimate_tau"]).
+        - note: the row as one sentence to show a reader.
+
+        .attrs["notes"] lists cautions for the whole table: few providers (the floor is
+        imprecise, show the range), or no measurable spread (no volume makes a score
+        reliable; compare within a larger peer group, pass tau= from earlier periods, or
+        report at a higher level: funnel_rollup() compares levels).
+
+        Under a within_dispersion column the floor is in effective denominators
+        (denominator / phi), the plot's x axis. Excluded providers are not counted.
+        Which providers are below the floor: result.data["reliability"] < target.
+        """
+        from .core.shrinkage import min_denominator as floor_at
+
+        several = isinstance(reliability, (list, tuple, np.ndarray, pd.Series))
+        targets = list(reliability) if several else [reliability]
+        for r in targets:
+            ok = (isinstance(r, (int, float, np.integer, np.floating))
+                  and not isinstance(r, bool) and 0.0 < float(r) < 1.0)
+            if not ok:
+                raise ValueError(
+                    f"reliability= must be a number between 0 and 1 (not 0 or 1), or a "
+                    f"list of them, e.g. 0.7 or [0.5, 0.7, 0.9]. Got {reliability!r}.")
+        if not targets:
+            raise ValueError("reliability= needs at least one target, e.g. 0.7.")
+        facets = self._meta.get("facets", [])
+        measure = self._meta.get("measure")
+        unit_name = {"oe": "expected events", "rate": "exposure"}.get(str(measure), "cases")
+        if self._meta.get("n_name"):
+            unit_name += f" ({self._meta['n_name']})"
+        no_prior = (not self.summary.get("overdispersion")
+                    and self.summary.get("compare_to") != "model")
+        d = self.data
+        rows, notes = [], []
+        for name, model in self._models.items():
+            prior, phi = model["prior"], model["phi"]
+            part = d
+            for col, val in zip(facets, model["key"]):
+                part = part[part[col].isna() if pd.isna(val) else part[col] == val]
+            effective = phi is None
+            den = part["effective_denominator" if effective else "denominator"]
+            den = den[~part["excluded"].to_numpy(dtype=bool)].to_numpy(dtype=float)
+            den = den[np.isfinite(den) & (den > 0)]
+            k, volume = int(len(den)), float(den.sum())
+            scale = 1.0 if effective else float(phi)
+            unit = ("effective " if effective else "") + unit_name
+            has_floor = prior.tau2 > 0
+            prefix = f"{name}: " if name is not None else ""
+            if no_prior:
+                why = ("this chart allows no spread between providers "
+                       "(overdispersion=False), so it has no reliability to reach; use "
+                       "overdispersion=True or compare_to='model'")
+            elif not has_floor:
+                why = ("the data show no measurable spread between providers (tau = 0), "
+                       "so no volume makes a score reliable at this level")
+            else:
+                why = ""
+            if why:
+                notes.append(prefix + "No minimum denominator: " + why + ".")
+            elif prior.tau_ci is None:
+                notes.append(prefix + "tau= was given, so the minimum denominator has no "
+                             "range: it is exactly as certain as that tau.")
+            elif prior.tau_ci[0] == 0:
+                notes.append(
+                    f"{prefix}The data cannot rule out no spread between providers "
+                    f"(the interval for tau reaches 0), so the minimum denominator has "
+                    f"no upper bound: treat it as a lower bound, not a threshold.")
+            elif k < 30:
+                notes.append(
+                    f"{prefix}With {k} providers the spread between them is imprecise, "
+                    f"and so is the minimum denominator: report its range (min_low to "
+                    f"min_high), not the single number.")
+            for r in targets:
+                r = float(r)
+                floor = floor_at(prior, r) * scale if has_floor else math.nan
+                low = high = math.nan
+                if prior.tau_ci is not None and not no_prior:
+                    lo_t, hi_t = prior.tau_ci
+                    low = 0.0 if math.isinf(hi_t) else floor_at(prior, r, hi_t * hi_t) * scale
+                    high = floor_at(prior, r, lo_t * lo_t) * scale
+                above = den >= floor
+                n_above, v_above = int(above.sum()), float(den[above].sum())
+                if has_floor:
+                    span = "" if math.isnan(low) else (
+                        f" (95% range {_volume(low)} to "
+                        f"{'no upper bound' if math.isinf(high) else _volume(high)})")
+                    note = (f"Reliability {r:g} needs at least {_volume(floor)} {unit}{span}; "
+                            f"{n_above} of {k} providers are at or above it and "
+                            f"{k - n_above} are below, with "
+                            f"{(v_above / volume if volume else 0.0):.0%} of the volume "
+                            f"at or above.")
+                else:
+                    note = f"No minimum denominator: {why}."
+                row: dict[str, Any] = dict(zip(facets, model["key"]))
+                row.update({
+                    "reliability": r, "min_denominator": floor, "min_low": low,
+                    "min_high": high, "denominator_unit": unit, "n_providers": k,
+                    "n_above": n_above, "n_below": k - n_above,
+                    "share_above": n_above / k if k else math.nan,
+                    "volume_above": v_above, "volume_below": volume - v_above,
+                    "share_volume_above": v_above / volume if volume else math.nan,
+                    "center": prior.center * model["multiply"],
+                    "tau": math.sqrt(prior.tau2), "note": note,
+                })
+                rows.append(row)
+        out = pd.DataFrame(rows)
+        out.attrs["notes"] = notes
+        return out
+
     def __repr__(self) -> str:
         s = self.summary
         return (f"FunnelResult(measure={s.get('measure')!r}, providers={s.get('n_providers')}, "
@@ -378,6 +519,11 @@ class FunnelResult(_Serializable):
 
     def __str__(self) -> str:
         return _describe(self.summary)
+
+
+def _volume(x: float) -> str:
+    """A denominator in words: three significant figures, never an exponent."""
+    return f"{x:,.0f}" if x >= 100 else f"{x:.3g}"
 
 
 def _funnel_grid(n_obs: np.ndarray, integer: bool) -> np.ndarray:

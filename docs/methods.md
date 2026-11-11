@@ -948,6 +948,39 @@ the 0.7 reliability usually asked of high-stakes use (59% of physicians), with a
 misclassified in a two-tier network [24]. Hofer et al. made the same point for diabetes report cards [25].
 `reliability` lets an application apply that floor.
 
+**Minimum denominator for a reliability target.** In both families B = n/(n + k) on the
+denominator the model sees, with k = θ₀/τ² on counts and k = s = θ₀(1 − θ₀)/τ² − 1 on
+proportions. So the denominator at which reliability reaches a target R is
+
+    n_R = k · R/(1 − R)
+
+and `FunnelResult.min_denominator()` returns it, multiplied by φ under a scalar
+`within_dispersion` so that it is in the caller's units. For a mean this is
+R/(1 − R) · σ²/τ² cases, with σ² the variance of one case: the classical result for
+the reliability of a mean. It uses the same θ₀ and τ̂ as the `reliability` column
+(the maximum-likelihood τ̂ around the prior's center), so a provider is at or above
+n_R exactly when its `reliability` is at or above R; the method reports how many are
+on each side (`n_above`, `n_below`) and the volume they hold. The floor for O/E is in
+expected events, not cases: it is the expected count that carries the information.
+
+The range (`min_low`, `min_high`) is n_R at the two ends of the profile-likelihood 95%
+interval for τ (`summary["estimate_tau_ci"]`). Since n_R ∝ 1/τ², it is wide whenever τ
+is poorly determined, which is the usual case below about 30 providers, and its upper
+end is infinite when the interval reaches τ = 0. It reflects the uncertainty in τ
+only; θ₀ is treated as known. When τ̂ = 0 no floor is returned: with no spread between
+providers no volume makes a score reliable, and substituting a conventional threshold
+would misstate that. The target R is not a statistical quantity. 0.7 is the convention
+for high-stakes profiling [24]; a lower target suits a screen whose results are
+reviewed, a higher one decisions about a single provider.
+
+`funnel_rollup()` repeats this at each level of a hierarchy (physician, group,
+hospital), fitting each level separately. τ at a coarser level is the spread between
+that level's units, which is usually smaller than the spread between physicians, so a
+coarser level's floor is often higher even as its units grow: rolling up helps only
+when volume grows faster than the floor. The levels are fitted independently, not as
+one nested model, so the table compares levels; it does not partition the variance
+between them.
+
 **`prob_worse`** is the posterior probability, under the same model, that the provider's
 true value is worse than the reference: the upper (or, for `worse="lower"`, lower) tail of
 Gamma(a + O, b + E) or Beta(α + Y, β + n − Y) at the reference, on effective counts, from

@@ -224,6 +224,8 @@ Reporting rules:
   noisy for high-stakes use (Adams et al. 2010). Reliability 0 everywhere, with empty
   `eb_low`/`eb_high`, means no measurable spread between providers: no provider is
   reliably different. Physician readmissions are often like this; facet by hospital.
+  For the volume at which a score becomes reliable, and how many providers are above
+  and below it, call `r.min_denominator()` (the minimum-denominators skill).
 - For each flagged provider, report `fragility` (stay rows) or `flag_survives_drop1`. A
   fragility of 1 on length of stay means one stay carries the flag, so ask for that case
   to be reviewed before acting. On event counts it is expected at low volume (every event

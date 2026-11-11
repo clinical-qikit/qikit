@@ -128,6 +128,8 @@ including where qikit departs from the paper.
 | Flags acted on one by one, where the stated chance-flag rate must hold | `tau_method="winsorized"` |
 | The spread between providers known from earlier periods, or fewer than 30 providers | `tau=<value>` (fixed in advance) |
 | "Does this flag depend on the model?" | `funnel_sensitivity(...)` |
+| "What minimum denominator should this measure have?" | `r.min_denominator(reliability=0.7)`: the volume at which a score is reliable, and how many providers are above and below it |
+| "At what level should small providers be rolled up?" | `funnel_rollup(df, units=[...], ...)`: the same table for each level of a hierarchy |
 | "Is this provider probably worse than average?" (the CMS question) | read `prob_worse`; `signal` answers "unusual among peers?" |
 | A fixed target on a proportion or rate (a 2% goal, not the peer average) | `center=<target>` with `overdispersion=False`. With `overdispersion=True` a gap between the providers and the target widens every limit, and qikit warns |
 | A goal the best providers already reach, on a process measure (achievable benchmark of care) | `benchmark="abc"` with `worse=` |
@@ -253,6 +255,37 @@ s[~s.consistent]      # flagged under one model and not another: a judgment call
 
 Treat a non-zero τ̂ as a finding about the system: unmeasured case mix, data
 differences, or real variation in practice.
+
+### Minimum denominators
+
+A minimum denominator is the volume at which a provider's score is mostly signal.
+`reliability` rises with the denominator, so each reliability target has one floor, and
+`min_denominator()` returns it with its range and the providers on each side of it:
+
+```python
+r = funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon")
+floors = r.min_denominator([0.5, 0.7, 0.9])
+floors[["reliability", "min_denominator", "min_low", "min_high", "n_above", "n_below"]]
+floors.attrs["notes"]         # cautions to show with it
+```
+
+The floor is in the units of `n=`: expected events for O/E, cases for proportions and
+means, exposure for rates. 0.7 is the usual target for high-stakes use; the target is a
+decision about the use, not a statistical result. When the data show no spread between
+providers there is no floor, and the result says so instead of inventing one.
+
+To decide where to roll small providers up to, compare the levels of the hierarchy.
+Each level is fitted separately, because the spread between groups is not the spread
+between physicians:
+
+```python
+from qikit import funnel_rollup
+
+funnel_rollup(df, units=["surgeon", "practice", "hospital"], reliability=0.7,
+              y="deaths", n="expected", measure="oe")
+```
+
+Methods §4.14 has the formula.
 
 ### Length of stay and other clustered counts
 
@@ -468,6 +501,8 @@ r.plot(color_by="fdr", fdr_watch=0.20)   # points by q tier; the lines stay the 
   so a house style is one constant.
 - **`r.limits(n=None)`** returns the contours at any denominators, for drawing
   elsewhere.
+- **`r.min_denominator(reliability=0.7)`** returns the minimum denominator for one or
+  more reliability targets, with the count of providers above and below it.
 - **Unknown names raise.** An unknown `.plot()` option raises `TypeError`.
 
 ### Options at a glance

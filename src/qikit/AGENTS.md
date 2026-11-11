@@ -9,6 +9,8 @@ data and documents every result column.
 | Is one measure changing over time? | `qic(data, x=, y=, n=, chart=)` | `SPCResult` |
 | Which providers differ from their peers? | `funnel(data, y=, n=, measure=, unit=)` | `FunnelResult` |
 | Does a provider's flag depend on the τ model? | `funnel_sensitivity(data, ...)` | DataFrame |
+| What minimum denominator (minimum volume, case minimum) makes this measure reliable? | `funnel(...).min_denominator(reliability=0.7)` | DataFrame |
+| At which level of a hierarchy should small providers be rolled up? | `funnel_rollup(data, units=[...], ...)` | DataFrame |
 | Which categories account for most defects? | `paretochart(x, data=)` | `ParetoResult` |
 | Has a pass/fail process shifted? (CUSUM) | `bchart(x, target=, data=)` | `BChartResult` |
 | Which factors matter in an experiment? | `design(...)`, `analyze(...)` | `ExperimentDesign`, `ExperimentResult` |
@@ -136,6 +138,50 @@ r.data[r.data.signal != "none"]   # longer stays than Vizient expects, beyond ch
 r.summary["notes"]                # show these with the chart
 ```
 
+## Minimum denominator recipe
+
+Asked for a minimum denominator, minimum volume, minimum sample size, case minimum or
+small-numbers threshold for a measure: the answer is `min_denominator()`, the volume at
+which the `reliability` column reaches a target (methods §4.14). Do not quote a rule of
+thumb, and do not confuse it with `msd` under `benchmark="abc"`.
+
+1. **Ask, if not told:** the measure and its numerator and denominator columns
+   (`measure=`, `y=`, `n=`); the level compared, such as physician or hospital
+   (`unit=`); the peer group, if any (`facets=`); what the scores are used for, which
+   sets the target (0.5 internal screening, 0.7 scorecards and other high-stakes use,
+   0.9 decisions about one provider; with no answer, show all three); and the
+   reporting period, so the query covers the volumes that will be reported.
+2. **Call** `funnel()` as for a comparison, then `min_denominator()`:
+
+```python
+r = funnel(df, y="OBSERVED", n="EXPECTED", measure="oe", unit="ATTENDING_NPI")
+floors = r.min_denominator([0.5, 0.7, 0.9])
+floors.attrs["notes"]             # cautions: show them
+```
+
+   One row per target (per facet): `min_denominator` in the units of `n=`
+   (`denominator_unit`), its range `min_low` to `min_high`, `n_providers`, `n_above`
+   and `n_below` (providers at or above the floor, and below it), `share_above`,
+   `volume_above`, `volume_below`, `share_volume_above`, `center`, `tau`, and `note`,
+   the row as a sentence. Who is below: `r.data["reliability"] < target`.
+3. **For a rollup hierarchy**, when some providers are below the floor, compare levels:
+
+```python
+from qikit import funnel_rollup
+
+levels = funnel_rollup(df, units=["ATTENDING_NPI", "PRACTICE_GROUP", "CAMPUS"],
+                       reliability=0.7, y="OBSERVED", n="EXPECTED", measure="oe")
+```
+
+   One block of the same rows per level, under `level`. Each level is its own fit and
+   has its own floor. Rows must be at the finest level or finer.
+4. **Report** the floor with its unit and range, the counts above and below, the share
+   of volume above, and every note. "No minimum denominator" means no measurable
+   spread at that level: no volume makes the scores reliable. Say that, and offer a
+   larger peer group, `tau=` from earlier periods, or a higher level. `min_high` of
+   `inf` means the floor is a lower bound only. The level and the target are the
+   user's choices; name what you assumed.
+
 ## Signal or estimate
 
 - `signal` (with `p_value`, `q_value`): is this provider unusual, given chance and the
@@ -180,9 +226,11 @@ qikit/
   __init__.py      public exports
   spc.py           qic(): normalize -> aggregate by x -> baseline -> limits -> rules -> table
   funnel.py        funnel(), funnel_sensitivity(): sums per unit -> dispersion -> contours
-                   -> p/q values -> tiers -> estimates and robustness -> table
+                   -> p/q values -> tiers -> estimates and robustness -> table;
+                   funnel_rollup(): min_denominator() at each level of a hierarchy
   within.py        within_dispersion: phi from case rows or SQL totals (pandas)
-  results.py       SPCResult, FunnelResult, ParetoResult, BChartResult
+  results.py       SPCResult, FunnelResult (limits(), min_denominator()), ParetoResult,
+                   BChartResult
   schema.py        every column of result.data; schema(), and the shape of to_table()
   validate.py      argument checks, the numeric reader and messages shared by both front doors
   extras.py        paretochart(), bchart()
@@ -194,7 +242,8 @@ qikit/
     dispersion.py  phi and tau^2 estimators (spiegelhalter, winsorized, ml, cqc, shmi)
     pvalues.py     exact tails and Benjamini-Hochberg q-values
     power.py       detectability and exact intervals
-    shrinkage.py   the prior, shrunk estimates, posterior intervals, P(worse)
+    shrinkage.py   the prior, shrunk estimates, posterior intervals, P(worse), and the
+                   denominator at which reliability reaches a target
     benchmark.py   achievable benchmark of care (ABC), minimum sufficient denominator
     dist.py        Poisson/binomial walks, quantiles, incomplete gamma/beta
     constants.py   d2, D4, exact c4 and derived constants
@@ -222,7 +271,8 @@ qikit/
   simulation.
 - `docs/qic-methods.md`: time-series charts, rules, and departures from qicharts2.
 - `docs/snowflake.md`: stored procedure, UDTF and Streamlit in Snowflake recipes.
-- `skills/spc-monitoring/SKILL.md`, `skills/provider-funnels/SKILL.md`: workflows.
+- `skills/spc-monitoring/SKILL.md`, `skills/provider-funnels/SKILL.md`,
+  `skills/minimum-denominators/SKILL.md`: workflows.
 
 ## Checks
 
