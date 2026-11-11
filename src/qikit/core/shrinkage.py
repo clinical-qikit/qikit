@@ -113,6 +113,7 @@ def shrink(prior: Prior, y: np.ndarray, n_model: np.ndarray, coverage: float,
     """
     c, tau2, params = prior.center, prior.tau2, prior.params
     with np.errstate(divide="ignore", invalid="ignore"):
+        b: np.ndarray
         if not (tau2 > 0):
             b = np.zeros(len(y))
         elif params is not None:
