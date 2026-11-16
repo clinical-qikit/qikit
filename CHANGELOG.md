@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The `plot`, `app` and `dev` extras now require `plotly>=5.21`.** They declared
+  5.15, but the charts use trace `zorder`, which plotly added in 5.21; on an older
+  plotly `.plot()` raised `ValueError: Invalid property ... 'zorder'`. The tables never
+  needed plotly and are unaffected.
+
 ## 1.4.0 (2026-11-11)
 
 Minimum denominators from a reliability target. Additive; no result changes.

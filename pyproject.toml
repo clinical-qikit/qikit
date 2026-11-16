@@ -29,9 +29,9 @@ classifiers = [
 dependencies = ["numpy>=1.24", "pandas>=2.0"]
 
 [project.optional-dependencies]
-plot = ["plotly>=5.15"]
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4", "mypy>=1.8", "plotly>=5.15"]
-app = ["streamlit>=1.30.0", "openpyxl>=3.1.0", "plotly>=5.15"]
+plot = ["plotly>=5.21"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.4", "mypy>=1.8", "plotly>=5.21"]
+app = ["streamlit>=1.30.0", "openpyxl>=3.1.0", "plotly>=5.21"]
 
 [project.urls]
 Homepage = "https://github.com/clinical-qikit/qikit"
@@ -54,6 +54,7 @@ ignore = ["E701", "E702"]
 
 [tool.mypy]
 python_version = "3.10"
+check_untyped_defs = true
 ignore_missing_imports = true
 files = ["src/qikit"]
 

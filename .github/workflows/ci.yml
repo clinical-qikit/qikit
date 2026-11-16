@@ -17,13 +17,16 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python: ["3.10", "3.13"]
         include:
+          # 3.11 is the runtime the Snowflake procedures in docs/snowflake.md use.
+          - os: ubuntu-latest
+            python: "3.11"
           - os: ubuntu-latest
             python: "3.12"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
       - run: uv sync --extra dev --python ${{ matrix.python }}
@@ -39,14 +42,27 @@ jobs:
           uv pip uninstall plotly
           uv run --no-sync python -c "import qikit; qikit.qic(y=[1.0, 2, 3, 2], chart='i'); qikit.funnel(y=[3, 5], n=[2.0, 4.0], measure='oe')"
 
+  # The oldest versions pyproject.toml allows of numpy, pandas and plotly, on the oldest
+  # Python: a Snowflake runtime pins older packages than a fresh install resolves.
+  lowest-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+      - run: uv sync --extra dev --resolution lowest-direct --python 3.10
+      - run: uv run --no-sync pytest tests/
+
   node:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: excel-addin
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: npm ci
