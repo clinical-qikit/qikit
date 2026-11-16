@@ -71,7 +71,7 @@ def _normal_tails(o: float, mu: float, var: float) -> tuple[float, float]:
     if not (var > 0) or math.isnan(o) or math.isnan(mu):
         return math.nan, math.nan
     z = (o - mu) / math.sqrt(2.0 * var)
-    return 0.5 * math.erfc(z), 0.5 * math.erfc(-z)
+    return 0.5 * math.erfc(-z), 0.5 * math.erfc(z)
 
 
 def byar_tails(o: float, lam: float) -> tuple[float, float]:

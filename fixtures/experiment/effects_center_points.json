@@ -1,0 +1,130 @@
+{
+  "id": "effects_center_points",
+  "reference": "The 2x2 of effects_2x2_known with two center points added: the effects are unchanged (A 13, B -5, A:B 1) because center points are coded 0.",
+  "function": "experiment_analyze",
+  "input": {
+    "factors": [
+      "A",
+      "B"
+    ],
+    "center_points": 2,
+    "response": [
+      60,
+      72,
+      54,
+      68,
+      63,
+      64
+    ]
+  },
+  "check": {
+    "grand_mean": [
+      63.5,
+      1e-09
+    ],
+    "r_squared": [
+      0.9974,
+      0.001
+    ]
+  },
+  "snapshot": {
+    "design": {
+      "factors": [
+        "A",
+        "B"
+      ],
+      "lows": [
+        -1.0,
+        -1.0
+      ],
+      "highs": [
+        1.0,
+        1.0
+      ],
+      "design_type": "full_factorial",
+      "matrix": [
+        {
+          "RunOrder": 1,
+          "A": -1,
+          "B": -1,
+          "Response": null
+        },
+        {
+          "RunOrder": 2,
+          "A": 1,
+          "B": -1,
+          "Response": null
+        },
+        {
+          "RunOrder": 3,
+          "A": -1,
+          "B": 1,
+          "Response": null
+        },
+        {
+          "RunOrder": 4,
+          "A": 1,
+          "B": 1,
+          "Response": null
+        },
+        {
+          "RunOrder": 5,
+          "A": 0,
+          "B": 0,
+          "Response": null
+        },
+        {
+          "RunOrder": 6,
+          "A": 0,
+          "B": 0,
+          "Response": null
+        }
+      ],
+      "n_factors": 2,
+      "n_runs": 6,
+      "n_replicates": 1,
+      "n_center_points": 2,
+      "generators": null,
+      "resolution": null
+    },
+    "response": [
+      60.0,
+      72.0,
+      54.0,
+      68.0,
+      63.0,
+      64.0
+    ],
+    "effects": [
+      {
+        "term": "A",
+        "effect": 13.0,
+        "abs_effect": 13.0,
+        "ss": 169.0,
+        "pct_contribution": 86.44501278772378
+      },
+      {
+        "term": "B",
+        "effect": -5.0,
+        "abs_effect": 5.0,
+        "ss": 25.0,
+        "pct_contribution": 12.787723785166241
+      },
+      {
+        "term": "A:B",
+        "effect": 1.0,
+        "abs_effect": 1.0,
+        "ss": 1.0,
+        "pct_contribution": 0.5115089514066496
+      }
+    ],
+    "grand_mean": 63.5,
+    "r_squared": 0.9974424552429667,
+    "adj_r_squared": 0.9936061381074168,
+    "summary": {
+      "n_runs": 6,
+      "n_factors": 2,
+      "ss_total": 195.5
+    }
+  }
+}

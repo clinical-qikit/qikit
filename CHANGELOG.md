@@ -8,6 +8,27 @@
   5.15, but the charts use trace `zorder`, which plotly added in 5.21; on an older
   plotly `.plot()` raised `ValueError: Invalid property ... 'zorder'`. The tables never
   needed plotly and are unaffected.
+- **One-sided funnel p-values were reversed where the normal model stood in for the
+  exact one** (`summary["p_value_method"] == "normal"`). With `worse="higher"` or
+  `"lower"` the provider furthest in the bad direction got the largest p-value, not the
+  smallest, so `signal="fdr"` could miss it and `p_value`/`q_value` were wrong for
+  every provider on that funnel. This arises only when the exact model is unavailable:
+  a proportion funnel whose spread is wider than any beta distribution allows, or
+  over-dispersed counts in the millions. Two-sided p-values (`worse` unset) and the
+  limits themselves were always correct.
+- **`design(...).fill(...).plot("timeseries")` raised a `TypeError`** from an argument
+  `qic()` no longer takes.
+- **`ExperimentDesign.to_json()` wrote `NaN`**, which is not JSON, for the unfilled
+  `Response` column; it and `to_dict()` now give `null`/`None`.
+- **Center points no longer shrink the effects of an experiment.** `analyze()` divided
+  each contrast by every run, center points included, so a 2×2 with an A effect of 13
+  reported 8.67 once two center points were added. Effects, sums of squares and
+  `pct_contribution` now come from the factorial runs alone, which is the least-squares
+  fit; designs without center points are unchanged. The Excel engine had the same
+  formula and has the same fix, with a shared fixture (`effects_center_points`).
+- **`design(randomize="within_blocks")` with center points mixed the replicates.** The
+  block length counted the center points, so blocks straddled replicates. Each
+  replicate is now shuffled on its own and the center points stay at the end.
 
 ## 1.4.0 (2026-11-11)
 

@@ -46,7 +46,8 @@ def plot_experiment(result: ExperimentResult, chart_type: ChartType = "effects",
 
 def _plot_effects(result: ExperimentResult, **kwargs: Any) -> go.Figure:
     """Horizontal lollipop of abs(effect), sorted largest first."""
-    df = result.effects.sort_values("abs_effect", ascending=True)
+    # Stable, so tied effects keep their term order on every platform.
+    df = result.effects.sort_values("abs_effect", ascending=True, kind="stable")
     
     fig = go.Figure()
     
@@ -223,8 +224,8 @@ def _plot_run_order(result: ExperimentResult, **kwargs: Any) -> go.Figure:
 def _plot_timeseries(result: ExperimentResult, **kwargs: Any) -> go.Figure:
     """Delegates to qic(y=response, chart='i')."""
     from qikit import qic
-    spc = qic(y=result.response, chart="i", title="Experimental Response Time Series")
-    return spc.plot()
+    spc = qic(y=result.response, chart="i")
+    return spc.plot(title="Experimental Response Time Series")
 
 
 def _plot_dot_diagram(result: ExperimentResult, **kwargs: Any) -> go.Figure:

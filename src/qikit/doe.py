@@ -61,7 +61,9 @@ class ExperimentDesign:
             "lows": list(self.lows),
             "highs": list(self.highs),
             "design_type": self.design_type,
-            "matrix": self.matrix.to_dict(orient="records"),
+            # An unfilled Response is None, not NaN, which JSON cannot hold.
+            "matrix": self.matrix.astype(object).where(self.matrix.notna(), None)
+                          .to_dict(orient="records"),
             "n_factors": self.n_factors,
             "n_runs": self.n_runs,
             "n_replicates": self.n_replicates,
@@ -147,7 +149,8 @@ def design(
     generators  : explicit generators for fractional design (e.g. ["D=ABC"])
     replicates  : number of times to repeat the design
     center_points : number of center points to add
-    randomize   : none | full | within_blocks
+    randomize   : none | full | within_blocks (each replicate shuffled on its own;
+                  center points stay at the end)
     seed        : random seed
 
     Returns
@@ -205,7 +208,8 @@ def design(
         run_order = rng.permutation(run_order)
     elif randomize == "within_blocks" and replicates > 1:
         rng = np.random.default_rng(seed)
-        base_runs = n_runs // replicates
+        # Each replicate is shuffled on its own; center points keep their place at the end.
+        base_runs = (n_runs - center_points) // replicates
         for i in range(replicates):
             start = i * base_runs
             end = (i + 1) * base_runs
@@ -351,8 +355,12 @@ def _compute_effects(matrix: np.ndarray, response: np.ndarray,
             for i in combo:
                 contrast_col *= matrix[:, i]
                 
-            effect = 2.0 * np.dot(contrast_col, response) / n
-            ss = effect ** 2 * n / 4.0
+            # Center points are coded 0, so they drop out of the contrast and must drop
+            # out of the divisor too: an effect is the mean at +1 minus the mean at -1
+            # over the factorial runs, which is twice the least-squares coefficient.
+            n_factorial = float(np.dot(contrast_col, contrast_col))
+            effect = 2.0 * np.dot(contrast_col, response) / n_factorial
+            ss = effect ** 2 * n_factorial / 4.0
             pct = 100.0 * ss / ss_total if ss_total > 0 else 0.0
             
             terms.append({
