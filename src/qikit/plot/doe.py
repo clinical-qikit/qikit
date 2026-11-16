@@ -46,7 +46,8 @@ def plot_experiment(result: ExperimentResult, chart_type: ChartType = "effects",
 
 def _plot_effects(result: ExperimentResult, **kwargs: Any) -> go.Figure:
     """Horizontal lollipop of abs(effect), sorted largest first."""
-    df = result.effects.sort_values("abs_effect", ascending=True)
+    # Stable, so tied effects keep their term order on every platform.
+    df = result.effects.sort_values("abs_effect", ascending=True, kind="stable")
     
     fig = go.Figure()
     
