@@ -284,11 +284,11 @@ def _walk_terms(ratio, start, upper, key=None):
     k_lo = start - len(down_terms)
     if isinstance(down_terms, list) and isinstance(up_terms, list):
         # A short walk stays a tuple of floats, summed by plain loops downstream.
-        terms = tuple(down_terms[::-1]) + (1.0,) + tuple(up_terms)
+        short = tuple(down_terms[::-1]) + (1.0,) + tuple(up_terms)
         total = 0.0
-        for t in terms:
+        for t in short:
             total += t
-        return k_lo, terms, total
+        return k_lo, short, total
     terms = np.concatenate((down_terms[::-1], [1.0], up_terms))
     # np.cumsum accumulates left to right, unlike sum() (compensated from Python 3.12)
     # or np.sum (pairwise), and so matches the TypeScript twin's plain loop.
@@ -310,7 +310,7 @@ def _walk_side(ratio, start, stop, step, peak):
     upper or unbounded) or down (step −1, to 0), and the running peak. Stops before
     the first term below _TAIL_EPS of the peak so far. None past _MAX_TERMS.
     """
-    head = []
+    head: list[float] = []
     u = 1.0
     k = start
     while len(head) < _WALK_SCALAR and (stop is None or (k < stop if step > 0 else k > stop)):
