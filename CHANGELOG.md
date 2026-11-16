@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- **`docs/snowflake.md` named the 1.1.0 wheel** in its `PUT` and `IMPORTS` lines; it now
+  names the current one, and a test fails when the version moves on without it. The
+  stored procedure and UDTF in that doc are now run by the tests, which check that the
+  UDTF returns the columns its `RETURNS TABLE` clause declares. Faceted-funnel timings
+  are added to the performance table.
+
 ## 1.4.1 (2026-11-16)
 
 ### Fixed
