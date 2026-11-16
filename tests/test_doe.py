@@ -177,9 +177,6 @@ class TestReplicatesCentersAndRandomization:
         d = design(["A", "B"], randomize="within_blocks", seed=5)
         assert d.matrix.equals(design(["A", "B"]).matrix)
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "the block length is n_runs // replicates with the center points counted in, so "
-        "blocks straddle replicates when center points are added"))
     def test_within_blocks_with_center_points_keeps_each_replicate_together(self):
         d = design(["A", "B"], replicates=2, center_points=3, randomize="within_blocks", seed=1)
         m = d.matrix[["A", "B"]].to_numpy()
@@ -232,12 +229,18 @@ class TestAnalysis:
         with pytest.raises(ValueError, match=r"Response length \(3\) must match n_runs \(4\)"):
             design(["A", "B"]).fill([1, 2, 3])
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "effects divide by every run, center points included, so adding center points "
-        "shrinks them; they should come from the factorial runs alone"))
     def test_center_points_do_not_change_the_effects(self):
-        res = design(["A", "B"], center_points=2).fill([60, 72, 54, 68, 63, 64])
+        y = np.array([60, 72, 54, 68, 63, 64], dtype=float)
+        res = design(["A", "B"], center_points=2).fill(y)
         assert _effects(res) == pytest.approx({"A": 13.0, "B": -5.0, "A:B": 1.0}, abs=1e-12)
+        # The effects are twice the least-squares coefficients, and the fit is that model's.
+        a, b = res.design.matrix[["A", "B"]].to_numpy(dtype=float).T
+        X = np.column_stack([np.ones(6), a, b, a * b])
+        beta = np.linalg.lstsq(X, y, rcond=None)[0]
+        assert 2 * beta[1:] == pytest.approx([13.0, -5.0, 1.0], abs=1e-9)
+        assert res.residuals == pytest.approx(y - X @ beta, abs=1e-9)
+        assert res.effects["ss"].sum() + (res.residuals ** 2).sum() == pytest.approx(
+            res.summary["ss_total"], abs=1e-9)
 
 
 class TestSerialization:

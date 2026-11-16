@@ -20,6 +20,15 @@
   `qic()` no longer takes.
 - **`ExperimentDesign.to_json()` wrote `NaN`**, which is not JSON, for the unfilled
   `Response` column; it and `to_dict()` now give `null`/`None`.
+- **Center points no longer shrink the effects of an experiment.** `analyze()` divided
+  each contrast by every run, center points included, so a 2×2 with an A effect of 13
+  reported 8.67 once two center points were added. Effects, sums of squares and
+  `pct_contribution` now come from the factorial runs alone, which is the least-squares
+  fit; designs without center points are unchanged. The Excel engine had the same
+  formula and has the same fix, with a shared fixture (`effects_center_points`).
+- **`design(randomize="within_blocks")` with center points mixed the replicates.** The
+  block length counted the center points, so blocks straddled replicates. Each
+  replicate is now shuffled on its own and the center points stay at the end.
 
 ## 1.4.0 (2026-11-11)
 

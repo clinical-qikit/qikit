@@ -195,15 +195,19 @@ export function analyze(designObj: DOEDesign, response: number[], maxInteraction
     for (const combo of combinations(indices, order)) {
       const termLabel = combo.map(i => factorNames[i]).join(':');
       
+      // Center points are coded 0: they drop out of the contrast, so they must drop
+      // out of the divisor too. nFactorial counts the runs the contrast uses.
       let dot = 0;
+      let nFactorial = 0;
       for (let i = 0; i < n; i++) {
         let contrast = 1;
         for (const idx of combo) contrast *= codedMatrix[i][idx];
         dot += contrast * response[i];
+        nFactorial += contrast * contrast;
       }
       
-      const effect = 2.0 * dot / n;
-      const ss = (effect * effect * n) / 4.0;
+      const effect = 2.0 * dot / nFactorial;
+      const ss = (effect * effect * nFactorial) / 4.0;
       const pct = ssTotal > 0 ? (100.0 * ss / ssTotal) : 0;
       
       terms.push({
