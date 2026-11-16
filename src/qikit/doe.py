@@ -252,6 +252,11 @@ def analyze(
     response   : experimental results in RunOrder
     max_interaction : maximum order of interactions to compute (default 2)
 
+    A one_factor design estimates main effects only: each is the mean response with that
+    factor high minus the mean of the baseline runs (every factor low). Its runs are not
+    balanced, so the terms' sums of squares do not partition the total and `ss` and
+    `pct_contribution` are NaN; `r_squared` is that of the main-effects fit.
+
     Returns
     -------
     ExperimentResult
@@ -264,19 +269,22 @@ def analyze(
     factor_cols = [c for c in design_obj.matrix.columns if c not in ("RunOrder", "Response")]
     coded_matrix = design_obj.matrix[factor_cols].to_numpy()
 
-    terms, r_squared, ss_total = _compute_effects(coded_matrix, resp_arr, factor_cols, max_interaction)
-
-    # Residuals and predicted
     grand_mean = float(np.mean(resp_arr))
     n = len(resp_arr)
-    predicted = np.full(n, grand_mean)
-    for t in terms:
-        # Rebuild contrast column
-        combo = t["_combo"]
-        contrast_col = np.ones(n, dtype=float)
-        for idx in combo:
-            contrast_col *= coded_matrix[:, idx]
-        predicted += (t["effect"] / 2.0) * contrast_col
+    if design_obj.design_type == "one_factor":
+        terms, predicted = _one_factor_effects(coded_matrix, resp_arr, factor_cols)
+        ss_total = float(np.sum((resp_arr - grand_mean) ** 2))
+        ss_error = float(np.sum((resp_arr - predicted) ** 2))
+        r_squared = 1.0 - ss_error / ss_total if ss_total > 0 else 0.0
+    else:
+        terms, r_squared, ss_total = _compute_effects(
+            coded_matrix, resp_arr, factor_cols, max_interaction)
+        predicted = np.full(n, grand_mean)
+        for t in terms:
+            contrast_col = np.ones(n, dtype=float)
+            for idx in t["_combo"]:
+                contrast_col *= coded_matrix[:, idx]
+            predicted += (t["effect"] / 2.0) * contrast_col
 
     residuals = resp_arr - predicted
     
@@ -337,6 +345,27 @@ def _fractional_matrix(k: int, p: int, generators: list[str]) -> np.ndarray:
         generated_cols.append(col)
         
     return np.column_stack([base] + generated_cols) if generated_cols else base
+
+
+def _one_factor_effects(matrix: np.ndarray, response: np.ndarray,
+                        factor_names: list[str]) -> tuple[list[dict], np.ndarray]:
+    """Main effects of a one-factor-at-a-time design, and the fit they imply."""
+    baseline = float(np.mean(response[np.all(matrix == -1, axis=1)]))
+    predicted = np.full(len(response), baseline)
+    terms = []
+    for i, name in enumerate(factor_names):
+        effect = float(np.mean(response[matrix[:, i] == 1])) - baseline
+        terms.append({
+            "term": name,
+            "effect": effect,
+            "abs_effect": abs(effect),
+            "ss": float("nan"),
+            "pct_contribution": float("nan"),
+            "_combo": (i,),
+        })
+        # Coded -1, 0, +1 moves the fit by 0, half and all of the effect.
+        predicted += effect * (matrix[:, i] + 1) / 2.0
+    return terms, predicted
 
 
 def _compute_effects(matrix: np.ndarray, response: np.ndarray, 

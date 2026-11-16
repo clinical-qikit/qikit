@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Fixed
+
+- **One-factor-at-a-time designs are analyzed as what they are.** `analyze()` applied
+  the factorial formula to `design_type="one_factor"`, whose runs are not balanced, so
+  every effect was wrong (in a three-factor example an effect of 4 came out as −7.75,
+  with interactions that such a design cannot estimate). Each
+  effect is now the mean with that factor high minus the mean of the baseline runs,
+  which is the least-squares fit. Only main effects are reported, and `ss` and
+  `pct_contribution` are NaN because the terms do not partition the total. The Excel
+  engine has the same fix (shared fixture `effects_one_factor`) and writes those two
+  cells blank.
+- **`plot("cube")` draws two-factor experiments** as a square with the mean response at
+  each corner, where it showed "coming soon". One factor raises, naming
+  `chart="single_factor"`.
+- **`plot("line_effects")` is in standard order, as its title says.** It plotted the
+  response in run order, which is a different chart once the design is randomized.
+  Replicates follow in turn and center points come last; hover shows each run's number.
+
 ### Documentation
 
 - **`docs/snowflake.md` named the 1.1.0 wheel** in its `PUT` and `IMPORTS` lines; it now

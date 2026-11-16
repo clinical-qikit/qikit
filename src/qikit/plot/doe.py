@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+import numpy as np
 import plotly.graph_objects as go
 
 from ..doe import ExperimentResult
@@ -133,8 +134,34 @@ def _plot_interaction(result: ExperimentResult, factors: tuple[int, int] | None 
     return apply_tufte_theme(fig)
 
 
+def _plot_square(means: Any, factors: tuple[str, ...]) -> go.Figure:
+    """The two-factor cube plot: a square with the mean response at each corner."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[-1, 1, 1, -1, -1], y=[-1, -1, 1, 1, -1],
+        mode="lines", line=dict(color=NORMAL, width=1.5), hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=means[factors[0]], y=means[factors[1]],
+        mode="markers+text",
+        marker=dict(size=10, color=SIGMA),
+        text=means["Response"].round(2),
+        textposition="top center",
+        hovertemplate=f"{factors[0]}: %{{x}}<br>{factors[1]}: %{{y}}<br>Mean: %{{text}}<extra></extra>",
+    ))
+    ticks = dict(tickmode="array", tickvals=[-1, 1], ticktext=["Low (-1)", "High (+1)"],
+                 range=[-1.5, 1.5])
+    fig.update_layout(
+        title=dict(text=f"Cube Plot: {', '.join(factors)}", font=dict(size=14)),
+        xaxis=dict(title=factors[0], **ticks),
+        yaxis=dict(title=factors[1], scaleanchor="x", **ticks),
+        showlegend=False,
+    )
+    return apply_tufte_theme(fig)
+
+
 def _plot_cube(result: ExperimentResult, **kwargs: Any) -> go.Figure:
-    """3D Cube plot for up to 3 factors."""
+    """Cube plot of the first three factors; a square when there are two."""
     k = min(3, result.design.n_factors)
     factors = result.design.factors[:k]
     
@@ -142,11 +169,11 @@ def _plot_cube(result: ExperimentResult, **kwargs: Any) -> go.Figure:
     df["Response"] = result.response
     means = df.groupby(list(factors))["Response"].mean().reset_index()
     
-    if k < 3:
-        # Fallback to 2D square if only 2 factors
-        fig = go.Figure()
-        fig.add_annotation(text="2D Cube plot coming soon", x=0.5, y=0.5, showarrow=False)
-        return apply_tufte_theme(fig)
+    if k < 2:
+        raise ValueError(
+            'A cube plot needs at least two factors; use chart="single_factor" for one.')
+    if k == 2:
+        return _plot_square(means, factors)
 
     # 3D Cube using Scatter3d
     # 8 vertices of the cube
@@ -278,14 +305,32 @@ def _plot_single_factor(result: ExperimentResult, factor: int = 0, **kwargs: Any
     return apply_tufte_theme(fig)
 
 
+def _standard_order(result: ExperimentResult) -> np.ndarray:
+    """
+    The runs' positions in standard (Yates) order: the first factor alternating fastest,
+    replicates in the order they were run, center points last. A fractional design is
+    ordered on its base factors, the ones its generators build the others from.
+    """
+    d = result.design
+    base = d.n_factors - len(d.generators or ())
+    coded = d.matrix[list(d.factors)].to_numpy()
+    center = np.all(coded == 0, axis=1)
+    # lexsort sorts by its last key first.
+    return np.lexsort([coded[:, j] for j in range(base)] + [center])
+
+
 def _plot_line_effects(result: ExperimentResult, **kwargs: Any) -> go.Figure:
-    """Response vs Design Order."""
+    """Response in standard order, whatever order the runs were made in."""
+    order = _standard_order(result)
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        y=result.response,
+        x=np.arange(1, len(order) + 1),
+        y=np.asarray(result.response)[order],
+        customdata=result.design.matrix["RunOrder"].to_numpy()[order],
         mode="lines+markers",
         line=dict(color=NORMAL, width=1),
-        marker=dict(color=SIGMA, size=8)
+        marker=dict(color=SIGMA, size=8),
+        hovertemplate="Standard order: %{x}<br>Run: %{customdata}<br>Response: %{y}<extra></extra>",
     ))
     
     fig.update_layout(

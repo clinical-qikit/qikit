@@ -16,10 +16,15 @@ export function extractResponse(values: any[][], design: DOEDesign): number[] {
   return response;
 }
 
-/** Sheet layout consumed by createEffectsChart: Term(A), Effect(B), SS(C), % Contribution(D). */
+/**
+ * Sheet layout consumed by createEffectsChart: Term(A), Effect(B), SS(C), % Contribution(D).
+ * A one-factor-at-a-time design has no SS or % contribution (NaN), and Excel rejects NaN
+ * in a range, so those cells are left blank.
+ */
 export function buildEffectsSheetRows(result: DOEResult): any[][] {
+  const cell = (v: number) => (Number.isFinite(v) ? v : '');
   return [
     ['Term', 'Effect', 'SS', '% Contribution'],
-    ...result.effects.map(e => [e.term, e.effect, e.ss, e.pct_contribution]),
+    ...result.effects.map(e => [e.term, e.effect, cell(e.ss), cell(e.pct_contribution)]),
   ];
 }

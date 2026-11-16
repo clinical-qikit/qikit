@@ -48,4 +48,10 @@ describe('buildEffectsSheetRows', () => {
     expect(sheetData[0]).toEqual(['Term', 'Effect', 'SS', '% Contribution']);
     expect(sheetData).toHaveLength(result.effects.length + 1);
   });
+
+  it('leaves SS and % contribution blank for a one-factor design (Excel rejects NaN)', () => {
+    const d = design({ factors: ['A', 'B'], design_type: 'one_factor' });
+    const rows = buildEffectsSheetRows(analyze(d, [10, 14, 9]));
+    expect(rows.slice(1)).toEqual([['A', 4, '', ''], ['B', -1, '', '']]);
+  });
 });
