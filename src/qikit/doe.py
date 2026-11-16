@@ -61,7 +61,9 @@ class ExperimentDesign:
             "lows": list(self.lows),
             "highs": list(self.highs),
             "design_type": self.design_type,
-            "matrix": self.matrix.to_dict(orient="records"),
+            # An unfilled Response is None, not NaN, which JSON cannot hold.
+            "matrix": self.matrix.astype(object).where(self.matrix.notna(), None)
+                          .to_dict(orient="records"),
             "n_factors": self.n_factors,
             "n_runs": self.n_runs,
             "n_replicates": self.n_replicates,

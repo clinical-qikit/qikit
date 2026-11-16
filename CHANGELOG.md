@@ -8,6 +8,18 @@
   5.15, but the charts use trace `zorder`, which plotly added in 5.21; on an older
   plotly `.plot()` raised `ValueError: Invalid property ... 'zorder'`. The tables never
   needed plotly and are unaffected.
+- **One-sided funnel p-values were reversed where the normal model stood in for the
+  exact one** (`summary["p_value_method"] == "normal"`). With `worse="higher"` or
+  `"lower"` the provider furthest in the bad direction got the largest p-value, not the
+  smallest, so `signal="fdr"` could miss it and `p_value`/`q_value` were wrong for
+  every provider on that funnel. This arises only when the exact model is unavailable:
+  a proportion funnel whose spread is wider than any beta distribution allows, or
+  over-dispersed counts in the millions. Two-sided p-values (`worse` unset) and the
+  limits themselves were always correct.
+- **`design(...).fill(...).plot("timeseries")` raised a `TypeError`** from an argument
+  `qic()` no longer takes.
+- **`ExperimentDesign.to_json()` wrote `NaN`**, which is not JSON, for the unfilled
+  `Response` column; it and `to_dict()` now give `null`/`None`.
 
 ## 1.4.0 (2026-11-11)
 
