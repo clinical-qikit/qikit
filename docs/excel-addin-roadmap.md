@@ -1,243 +1,137 @@
-# Excel Add-in Improvement Roadmap
+# Excel add-in: scope and plan for broad use
 
-*Status: in progress — 2026-07-04, updated 2026-07-12. Phase 0 and Phase 1
-are complete; CI (Phase 3, task 3) is live — see
-[Phase 3](#phase-3--testing--code-health); the SpcPanel decomposition
-(Phase 2, task 2), consistent styling (Phase 2, task 5 — design tokens,
-teal Fluent theme, matching native Excel charts, a11y pass), and error
-recovery + live chart updates (Phase 2, task 7) are done;
-Phase 3 tasks 1–2 are partially done (data-prep unit tests, inline numeric
-validation). Next up: Phase 2 task 1 (expose funnel/y-percent in the UI) and
-the remaining halves of Phase 3 tasks 1–2.*
+*Written 2026-11-16. Replaces the July 2026 improvement roadmap, whose finished phases
+are in the git history.*
 
-This roadmap covers the next stretch of work on the QI Kit Excel add-in
-(`excel-addin/`). It prioritizes three things, in order: (1) landing the
-in-flight Phase 4 work, (2) closing the feature gap with the Python package
-(clinical-qikit v0.1.1), and (3) paying down UX and testing debt so the add-in
-can evolve safely.
+## Scope: the engine is frozen
 
-Guiding principle, unchanged from the rest of the project: **the engine math is
-the contract, and shared JSON fixtures in `fixtures/` prove it on both
-languages.** New engine behavior lands with a fixture before it lands with a UI.
+The TypeScript engine (`excel-addin/packages/engine`) does not follow the Python package
+any further. Python is where new methods go; the add-in is a fixed, supported subset.
 
----
+**In the add-in:** run and control charts (run, I, MR, X̄, S, P, U, C, IP, G, T, Laney
+P′ and U′) with the Anhøj, IHI, WECO and Nelson rules; Pareto charts; Bernoulli CUSUM;
+two-level designed experiments.
 
-## Phase 0 — Land the in-flight work (baseline hygiene) ✅ Done
+**Python only, and staying there:** `funnel()` and everything built on it (p-values and
+FDR, shrinkage estimates, reliability and minimum denominators, benchmarks, rollups),
+NHS Making Data Count rules, faceting, and `brief()`/`to_table()`. The engine still
+contains an early funnel mode; it is not shown in the task pane and should not be, since
+its answers no longer match `funnel()`.
 
-The working tree carried a large uncommitted diff (SpcPanel rewrite, new
-Pareto/B-chart panels, expanded `chart-builder.ts`, dev-harness mock datasets,
-`data/examples/` datasets). This has since landed across several commits
-(`1085626` through `b66c616`), `show95` is fully wired into `ChartViewer.tsx`
-(1σ/2σ bands render when the checkbox is on), and `git status` is clean.
+**What frozen still requires:**
 
-**Tasks (all complete)**
+- The shared fixtures (`fixtures/spc`, `fixtures/experiment`) keep passing in both
+  languages. CI runs both.
+- A bug in math the two engines share is fixed in both, in one change, with a fixture.
+- A Python-only feature adds no fixture to the shared directories.
 
-1. ~~Verify green before committing~~ — `npm test`, `tsc --noEmit` (both
-   packages), and `uv run pytest tests/` are all green, and are now enforced
-   automatically by CI (see Phase 3).
-2. ~~Resolve the `show95` option~~ — finished, not removed: `ChartViewer.tsx`
-   draws the bands when `show95` is set.
-3. ~~Commit in logical units~~ — done via the commit history above.
+## Where the add-in stands
 
-**Acceptance:** met — clean `git status`, all three test/typecheck commands
-green, no dead options in the SPC panel.
+Working: four panels, native Excel charts that match the preview, live updates when the
+source range changes, a browser dev harness, 258 tests, type checks and tests in CI. The
+production build is about 190 kB gzipped.
 
----
+What stops someone outside this repository from using it:
 
-## Phase 1 — Engine parity with Python v0.1.1 ✅ Done
+1. **Nothing is hosted.** The manifest points at `https://localhost:3000`. There is no
+   published task pane, so installing means cloning the repo and running a dev server.
+2. **The manifest reaches only part of the Excel audience.** It is a unified (JSON)
+   manifest on the `devPreview` schema with a non-GUID id. Microsoft's support table
+   (unified-manifest-overview, October 2026) lists Excel on the web, Windows Microsoft
+   365 from version 2501 and Mac from 16.103, and says no for perpetual Office on
+   Windows and for mobile. Many hospitals run perpetual or older builds.
+3. **The build is not deployable as it stands.** `vite build` emits the task pane but
+   not the icons or a manifest, and nothing in CI builds or publishes it.
+4. **`docs/deployment.md` describes a different add-in**: an XML `<SourceLocation>` and
+   a `taskpane.html` that do not exist here.
+5. **First-run experience.** A new user gets an empty pane and "Use Current Selection".
+   There is no sample data, no guidance on which chart fits their data, and settings are
+   forgotten when the pane closes.
+6. **Input handling.** Dates are recognized by a serial-number range (25569–60000), so a
+   column of large counts can be read as dates. Dropped non-numeric cells and zero
+   denominators are not reported.
+7. **No way to hear about failures**, and no privacy statement, which an IT reviewer will
+   ask for. The add-in sends no data anywhere; that needs saying where they will look.
 
-The Python package gained several capabilities in v0.1.1 that the TypeScript
-engine lacked or hadn't proven. All three parity items landed 2026-07-08.
+## Plan
 
-**Tasks (all complete)**
+Ordered so that each step is usable on its own. Steps 1 and 2 are what "broad use"
+actually depends on; the rest make it good.
 
-1. ~~**Funnel plot mode.**~~ ✅ Ported into `spc-core.ts` (`SPCInput.funnel`):
-   stable sort by denominator ascending, runs signals suppressed
-   (`runs_disabled` in the summary), p/pp/u/up only. Proven by two shared
-   fixtures — `fixtures/spc/funnel_p_chart.json` (clinic readmissions, one
-   UCL breach at large n) and `funnel_u_chart.json` (CAUTI per catheter-day,
-   one breach at small n) — exercised by both conformance suites. Note: the
-   roadmap originally pointed at the CMS sample in `data/examples/` as demo
-   data, but that file turned out to contain a provider directory, not
-   infections data; the fixtures use crafted clinical scenarios instead.
-   (Since fixed: `cms_hospital_infections_sample.csv` now holds real CMS HAI
-   data — CLABSI/CAUTI observed cases + device days for 25 hospitals —
-   suitable as funnel-plot demo data.)
-   **Engine change in 0.5.0:** funnels now use Spiegelhalter's exact 95%/99.8%
-   contours (binomial for p, Poisson for u), and pp/up/oep funnels use his
-   additive over-dispersion adjustment with exact Poisson–gamma and beta-binomial
-   limits instead of Laney's σ_z or a multiplicative φ̂ (`FUNNEL_CHARTS` and
-   `funnelDispersion` in `spc-core.ts`, twins of `core/contours.py` and `core/dispersion.py`). Time-ordered charts
-   are unchanged. Methods and references are in `docs/methods.md`. Any UI work on
-   funnels should surface `summary.dispersion_note` and `summary.limit_method`.
-   **Python 0.6.0** plots funnels against their denominator, with smooth contours from
-   `SPCResult.funnel_limits()` (methods §4.9). This is renderer-only, with no engine
-   math, so porting it is chart-builder work for when Phase 2 exposes funnels.
-2. ~~**Laney p′/u′ σ_z validation.**~~ ✅ Audit found this was already proven:
-   both Laney fixtures are genuinely overdispersed (implied σ_z ≈ 3.2 / 3.6 —
-   plain p/u limits would differ by >2×) and the TS snapshot comparison pins
-   every row's UCL/LCL to 5 decimals. Tightened the `check` UCL tolerances
-   from ±0.01 to ±0.0001 so the check block pins σ_z explicitly too.
-3. ~~**`connect` and y-percent semantics.**~~ ✅ `SPCInput.connect`/`yPercent`
-   in, resolved hints out as `SPCResult.connect` (null = infer from x-axis;
-   funnel forces false) and `SPCResult.y_percent` (defaults true for p/pp).
-   Resolution rules pinned by `packages/engine/tests/display-hints.test.ts`.
+### 1. Make it installable (about a week)
 
-**Acceptance:** met — new fixtures pass on both Python and TypeScript, zero
-snapshot drift in existing fixtures, `SPCResult` carries everything Phase 2
-needs.
+- **Host the task pane on GitHub Pages** from a workflow that builds on each release tag
+  and publishes `dist/` with the icons. A versioned path per release plus `latest`, so
+  an organization can pin.
+- **Ship an add-in-only (XML) manifest** as the primary manifest, with a real GUID, the
+  hosted URLs, a support URL and `Workbook`/ExcelApi requirement sets that match the
+  APIs used (bindings and chart series need ExcelApi 1.7 or so; confirm by test).
+  It installs everywhere the unified manifest does and also on perpetual Office and
+  iPad. Keep the JSON manifest only if something needs it.
+- **Generate manifests from one template** (dev → localhost, production → Pages) and
+  validate both in CI with `office-addin-manifest validate`.
+- **Rewrite `docs/deployment.md`** around three routes: sideload from the hosted
+  manifest (one person), Microsoft 365 admin center centralized deployment (an
+  organization), and self-hosting `dist/` on an intranet.
+- **Version the add-in with the package**, shown in the task pane footer.
 
----
+Done when a person with no repository access can install from a URL in five minutes on
+Windows, Mac and Excel on the web.
 
-## Phase 2 — SPC panel UX & robustness
+### 2. Make the first five minutes work (about a week)
 
-**Tasks**
+- **Sample data.** "Try with sample data" writes one of the `data/examples` sets to a
+  new sheet and charts it. The dev harness already carries the datasets.
+- **Chart chooser.** Three plain questions (counting events or measuring? is there a
+  denominator? subgroups?) pick the chart type, with the full list still available.
+  Default to a run chart when unsure, as the Python docs advise.
+- **Plain-language findings.** The summary panel says what was found ("a shift of 9
+  points below the median starting March") and warns under 12 baseline points, the
+  same wording as Python's `summary["notes"]`.
+- **Remember settings** per workbook (`Office.context.document.settings`), with
+  `localStorage` in the harness.
+- **Honest input handling.** Use the range's number formats to recognize dates; list
+  the rows that were skipped and why; refuse a zero denominator with a message.
 
-1. **Expose the parity features.**
-   - Funnel-mode toggle in the SPC panel, auto-suggested when the chart type
-     is p/pp/u/up and the x column looks categorical rather than temporal.
-   - y-percent axis option in `shared/ChartViewer.tsx` and in the native Excel
-     charts built by `excel/chart-builder.ts`.
-2. ~~**Decompose `SpcPanel.tsx`**~~ ✅ Done — pulled forward ahead of task 1 so
-   the funnel/y-percent toggles land in small components instead of growing
-   the monolith. `SpcPanel.tsx` is now a ~300-line orchestrator; the roadmap's
-   named subcomponents (`ColumnSelector`, `DateAggregationOptions`,
-   `LimitOptions`, `SignalMethodPicker`) plus `ChartTypePicker`,
-   `AnnotationEditor`, and `SummaryPanel` live alongside it in `ui/spc/`.
-   Pure logic (date bucketing, column parsing, `buildSpcInput`,
-   `buildSheetRows`) moved to `ui/spc/data-prep.ts` with no React imports —
-   that module is the target surface for the Phase 3 component tests.
-   Verified in the dev harness: chart-type switching, settings, annotation
-   round-trip, and summary all behave as before; `tsc --noEmit` and vitest
-   green.
-3. **Sturdier data detection.** Replace the Excel-serial-range date heuristic
-   (25569–60000) in the column type detector with Office.js
-   `Range.valueTypes` + `numberFormat`, and handle blank/NA cells explicitly
-   before data reaches the engine.
-4. **State persistence.** Persist last-used chart type, signal method, and
-   options via `Office.context.document.settings` (workbook-scoped), with a
-   localStorage fallback so the dev harness behaves the same.
-5. ~~**Consistent styling.**~~ ✅ Done — `src/theme/` now holds a teal
-   `BrandVariants` ramp (Fluent controls pick up the brand natively), a
-   `qikit` token module (one palette, one gray ramp, one error palette,
-   radius/spacing scales, Segoe UI everywhere — Inter/Google Fonts removed),
-   and every panel, `ChartViewer`, the dev harness, and
-   `excel/chart-builder.ts` import from it, so the native Excel charts match
-   the task-pane preview. Manifest `accentColor` aligned to `#107C6C` and the
-   previously missing icon PNGs generated (`assets/icon.svg` +
-   `scripts/make-icons.mjs`). An accessibility pass (tablist roles, label
-   association, `aria-expanded`, named icon buttons) and micro-UX fixes
-   (busy states on writes, inline numeric validation via
-   `ui/shared/NumericField.tsx`, tooltips on cryptic fields, notes/date
-   aggregation limitation surfaced) landed alongside.
-6. **Chart export.** PNG export of the Chart.js preview (canvas `toBlob` →
-   download) alongside the existing write-to-sheet output.
-7. ~~**Error recovery.**~~ ✅ Done — landed alongside **live chart updates**:
-   when a panel writes to a sheet it now also registers an Office.js workbook
-   binding over the *source* range (`excel/live-update.ts`) with a debounced
-   `onDataChanged` handler. Editing the source data re-runs the matching
-   `@qikit/engine` function (`excel/recompute.ts`) and rewrites the output
-   table in place, so the native chart (bound to those cells) updates itself
-   without the user re-clicking "Write to Sheet." Handlers persist via
-   `Office.context.document.settings` and re-attach on add-in load
-   (`reattachLiveUpdates()`); a binding whose range was deleted or moved is
-   pruned gracefully with a task-pane message instead of a raw Office.js
-   error, and each panel is wrapped in `ui/shared/PanelErrorBoundary.tsx` so
-   one crash doesn't blank the pane. Recompute only runs while the task pane
-   is open — a `=QIKIT.*` custom-functions approach is the possible
-   always-on follow-on, not attempted here.
+Done when a quality-improvement nurse with a two-column sheet gets a correct chart and
+a sentence about it without reading documentation.
 
-**Acceptance:** funnel and y-percent usable end-to-end in the dev harness and
-in sideloaded Excel; ~~SpcPanel file under ~400 LOC with logic pushed into
-subcomponents~~ (met — 297 lines); settings survive closing and reopening the
-task pane.
+### 3. Make it trustworthy to IT and to the next maintainer (several days)
 
----
+- **Privacy and security page**: all computation is local to the task pane, no network
+  calls after load, no telemetry. Link it from the manifest.
+- **Content Security Policy** on the hosted page, and Office.js as the only external
+  script.
+- **Component tests** (`@testing-library/react` + jsdom) for the four panels, and one
+  end-to-end pass through the dev harness in CI.
+- **Drop the dev harness from the production bundle**, or keep it deliberately as the
+  public demo at a separate path. The second is the better use: a live demo needs no
+  Excel.
+- **An error panel with "copy details"** so a user can paste what went wrong into an
+  issue.
 
-## Phase 3 — Testing & code health
+### 4. Reach (optional, after 1–3)
 
-**Tasks**
+- **Microsoft Marketplace (AppSource) listing.** It is the only route for individuals
+  whose organization blocks sideloading, and it requires validation, a support URL and
+  a privacy policy, which steps 1 and 3 produce.
+- **PNG export** of the preview, and y-axis percent on proportion charts.
+- **Tables that grow**: bind live updates to an Excel table so appended rows are picked
+  up, instead of a fixed range.
 
-1. **UI component tests.** *(partially done)* The pure logic layer is now
-   covered: `tests/data-prep.test.ts` exercises `parseColumns`,
-   `aggregateByPeriod`, `buildSpcInput`, `buildNoteMap`, and `buildSheetRows`
-   against the dev-harness dataset shapes (19 tests, no jsdom needed).
-   Still open: `@testing-library/react` + jsdom for the components themselves
-   (SpcPanel subcomponents, `ParetoPanel`, `BChartPanel`).
-2. **Input validation layer.** *(partially done)* `ui/shared/NumericField.tsx`
-   now validates numeric option inputs inline (freeze, target, subgroup 2–25,
-   CL override, multiply, CUSUM baseline/odds-ratio/limit) instead of silent
-   `parseInt`/`parseFloat` coercion. Still open: reporting dropped non-numeric
-   cells and denominator > 0 checks at the panel→engine boundary.
-3. ~~**CI.**~~ ✅ Done — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
-   runs a `python` job (`uv sync --extra dev` + `uv run pytest tests/`) and a
-   `node` job (`tsc --noEmit` in both `packages/engine` and `packages/addin`,
-   then `npm test`) on every push/PR to `main`. Cross-language fixture drift
-   is now caught automatically instead of manually. Pulled forward ahead of
-   items 1–2 since it was cheap and everything else in this roadmap is safer
-   with it in place.
+### Not planned
 
-**Acceptance:** CI green on main ✅; UI test suite exists and runs in CI
-(pending — items 1–2 above); invalid data produces a readable message in the
-panel, never a NaN chart (pending).
-
----
-
-## Backlog (not prioritized now)
-
-Worth keeping visible, deliberately out of scope for this roadmap:
-
-- EWMA and short-run SPC chart types
-- User-configurable signal thresholds (Nelson/WECO rule parameters)
-- Analysis templates (pre-configured chart + method bundles)
-- PDF report export
-- Faceted (per-group subplot) charts in the task pane
-- **0.8 funnel engine changes, mirrored in TS:** the upper contour is drawn at the
-  exact test's boundary (`upperBoundary` in `spc-core.ts`), and `poissonQuantileInterp`
-  uses the lgamma-free walk. Python-only so far: `funnel()` itself, `limits`/`fdr_levels`,
-  `within_dispersion` with the dispersion-shape diagnostic and the case-level row check,
-  interpolated p-values for non-integer counts, binomial and beta-binomial tails,
-  contours, intervals and detectability at a non-integer denominator
-  (`fractional_binomial_*` in `core/contours.py`, methods §4.13), and the Newton Poisson
-  inversion. Its values match TS bisection
-  inside the fixtures' 1e-9 tolerance.
-- **TS engine parity for the 0.7 funnel signalling** (Python-only for now; see
-  `docs/methods.md` §4.10–4.11). Port to `packages/engine`:
-  - the `n` row column on every chart with denominators;
-  - the `signal_side` filter on `sigma_signal`/`warn_signal`;
-  - the tail functions (`poisson_tails`, `binomial_tails`, `poisson_gamma_tails`,
-    `beta_binomial_tails` in `dist.py`) on `walkTerms`, keeping the documented
-    summation order: lower tail ascending, upper tail descending from the last kept
-    term;
-  - an `erfc` for the normal fallback;
-  - Benjamini–Hochberg;
-  - `signal_method`;
-  - the `signal_side`, `signal_method`, `count_model`, `p_value_method` and `n_tested`
-    summary keys.
-
-  Then add shared fixtures with non-default `signal_side`/`signal_method`. Until then
-  none may exist, because vitest compares `sigma_signal` per row.
-
----
+Funnels, NHS rules, faceted charts, custom functions (`=QIKIT.*`), EWMA and short-run
+charts. Funnels and NHS rules live in Python by decision; the rest have no evidence of
+demand yet.
 
 ## Key files
 
 | Area | Files |
-|------|-------|
-| Engine | `excel-addin/packages/engine/src/spc-core.ts`, `signals.ts`, `spc-types.ts` |
-| Fixtures | `fixtures/spc/` (shared Python ⇄ TypeScript contract) |
-| UI | `excel-addin/packages/addin/src/ui/spc/` (SpcPanel + subcomponents, `data-prep.ts`), `ui/shared/ChartViewer.tsx` |
-| Excel integration | `excel-addin/packages/addin/src/excel/chart-builder.ts`, `excel/excel-io.ts` |
-| Dev | `excel-addin/packages/addin/src/dev-harness.tsx` |
-| Python reference | `src/qikit/spc/` (funnel + Laney logic), `tests/test_conformance.py` |
-
-## Verification strategy
-
-- **Phase 1:** cross-language fixture passes are the acceptance gate — no
-  eyeballing chart output as proof of math.
-- **Phases 2–3:** dev-harness manual checks plus the new component tests;
-  sideload into Excel (`npm run sideload`) for a final end-to-end pass per
-  phase.
-- **Ongoing:** the Phase 3 CI workflow (`.github/workflows/ci.yml`) is live
-  and is now the standing gate for all subsequent work — Phase 1 and Phase 2
-  PRs get pytest/vitest/tsc verification for free.
+|---|---|
+| Engine | `excel-addin/packages/engine/src/` |
+| Shared fixtures | `fixtures/spc/`, `fixtures/experiment/` |
+| Task pane | `excel-addin/packages/addin/src/ui/` |
+| Excel integration | `excel-addin/packages/addin/src/excel/` |
+| Manifest and build | `excel-addin/manifest.json`, `excel-addin/vite.config.ts` |
+| Deployment guide | `docs/deployment.md` |

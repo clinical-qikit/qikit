@@ -257,9 +257,12 @@ qikit/
 - **Defaults are decisions.** `tau_method="spiegelhalter"`, `method="anhoej"` and
   `limits=(0.998, 0.95)` were chosen deliberately; docs/methods.md §4.16 and
   docs/qic-methods.md say why.
-- **Python is authoritative; TypeScript conforms.** `fixtures/spc/*.json` are shared
-  with `excel-addin/packages/engine`. An intended engine change regenerates them
-  (`scripts/update_snapshots.py`) and updates the TypeScript engine in the same change.
+- **Python is authoritative; the TypeScript engine is a frozen subset.** The Excel
+  engine (`excel-addin/packages/engine`) covers time-series SPC, Pareto, Bernoulli CUSUM
+  and experiments, and takes no new features. `fixtures/spc/*.json` and
+  `fixtures/experiment/*.json` are shared with it: a change to math both engines have
+  regenerates them (`scripts/update_snapshots.py`) and updates the TypeScript engine in
+  the same change; a Python-only feature adds no shared fixture.
 - **R reference output is ground truth.** `fixtures/reference/` holds qicharts2,
   FunnelPlotR and NHSRplotthedots output; a new departure goes in `DEPARTURES` in
   `tests/test_reference.py` with its reason, and in the methods docs.

@@ -74,10 +74,19 @@ updates on its own. A few things follow from how bindings work:
   fires the binding) or "Simulate source deleted" (exercises the recovery
   path) buttons.
 
-## Engine parity
+## Engine scope: frozen
 
-The engine math is the contract: Python (`src/qikit/`) is authoritative, the
-TS engine conforms, and `fixtures/**/*.json` prove it on both sides
-(`tests/test_conformance.py` in Python, `packages/engine/tests/conformance.test.ts`
-here). Regenerate snapshots with `python scripts/update_snapshots.py` from the
-repo root after intentional engine changes.
+The engine is a fixed subset of the Python package and does not follow it further:
+time-series SPC charts with the Anhøj, IHI, WECO and Nelson rules, Pareto, Bernoulli
+CUSUM and two-level designed experiments. `funnel()` and what is built on it, NHS Making
+Data Count rules and faceting are Python only.
+
+For what the engine does cover, Python (`src/qikit/`) is authoritative and the shared
+fixtures in `fixtures/**/*.json` hold the two to the same numbers
+(`tests/test_conformance.py` in Python, `packages/engine/tests/*conformance.test.ts`
+here). A bug in shared math is fixed in both engines in one change, with a fixture;
+regenerate snapshots with `python scripts/update_snapshots.py` from the repo root. A
+Python-only feature adds nothing to the shared fixture directories.
+
+The plan for making the add-in installable and usable outside this repository is in
+[`../docs/excel-addin-roadmap.md`](../docs/excel-addin-roadmap.md).
