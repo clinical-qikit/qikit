@@ -34,12 +34,12 @@ CREATE OR REPLACE PROCEDURE ...
 **From a stage.** Build or download the wheel and upload it once:
 
 ```bash
-uv build --wheel                      # dist/clinical_qikit-1.1.0-py3-none-any.whl
+uv build --wheel                      # dist/clinical_qikit-1.4.1-py3-none-any.whl
 ```
 
 ```sql
 CREATE STAGE IF NOT EXISTS QI.PUBLIC.PY_LIBS;
-PUT file://dist/clinical_qikit-1.1.0-py3-none-any.whl @QI.PUBLIC.PY_LIBS
+PUT file://dist/clinical_qikit-1.4.1-py3-none-any.whl @QI.PUBLIC.PY_LIBS
   AUTO_COMPRESS = FALSE OVERWRITE = TRUE;
 ```
 
@@ -57,7 +57,7 @@ CREATE OR REPLACE PROCEDURE QI.PUBLIC.ADD_SPC_LIMITS(SOURCE STRING, TARGET STRIN
   LANGUAGE PYTHON
   RUNTIME_VERSION = '3.11'
   PACKAGES = ('snowflake-snowpark-python', 'numpy', 'pandas')
-  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.1.0-py3-none-any.whl')
+  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.4.1-py3-none-any.whl')
   HANDLER = 'run'
 AS
 $$
@@ -98,7 +98,7 @@ CREATE OR REPLACE FUNCTION QI.PUBLIC.QIC_P(MONTH DATE, NUM FLOAT, DEN FLOAT)
   LANGUAGE PYTHON
   RUNTIME_VERSION = '3.11'
   PACKAGES = ('numpy', 'pandas')
-  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.1.0-py3-none-any.whl')
+  IMPORTS = ('@QI.PUBLIC.PY_LIBS/clinical_qikit-1.4.1-py3-none-any.whl')
   HANDLER = 'QicP'
 AS
 $$
@@ -155,10 +155,13 @@ pipeline expects one output row per input row.
 | 200 charts of 36 points, one faceted call | about 0.15 s |
 | O/E funnel, 5,000 providers | about 0.2 s |
 | Proportion funnel, 5,000 providers | about 1 s |
+| O/E funnels, 200 facets of 30 providers, one faceted call | about 2 s |
+| Proportion funnels, 200 facets of 30 providers, one faceted call | about 3.5 s |
 
-These are laptop timings; a Snowflake warehouse is in the same range. A faceted call
-runs the facets one after another, so a very large pipeline gains from the UDTF's
-parallel partitions.
+These are laptop timings; a Snowflake warehouse is in the same range. A faceted funnel
+costs 10 to 20 ms per facet on top of its providers: each facet fits its own spread,
+contours, estimates and intervals. A faceted call runs the facets one after another, so
+a very large pipeline gains from the UDTF's parallel partitions.
 
 ## 6. Streamlit in Snowflake
 
