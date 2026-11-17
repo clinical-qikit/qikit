@@ -61,6 +61,10 @@ actually depends on; the rest make it good.
 
 ### 1. Make it installable (about a week)
 
+*Built 2026-11-17: `.github/workflows/addin-pages.yml`, `excel-addin/manifest.template.json`
+and `scripts/manifest.mjs`, rewritten `docs/deployment.md`. Live once Pages is enabled
+and a release tag is pushed; the "done when" test below is still to run.*
+
 - **Host the task pane on GitHub Pages** from a workflow that builds on each release tag
   and publishes `dist/` with the icons. A versioned path per release plus `latest`, so
   an organization can pin.

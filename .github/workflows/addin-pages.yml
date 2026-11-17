@@ -1,0 +1,92 @@
+name: Excel add-in on GitHub Pages
+
+# Each release tag vX.Y.Z publishes the Excel add-in's task pane to the gh-pages branch
+# twice: under vX.Y.Z/ (fixed, for organizations that pin a version) and under latest/.
+# Each folder holds its own manifest.json and qikit-excel-addin.zip pointing at itself.
+#
+# One-time setup: Settings → Pages → Build and deployment → Deploy from a branch →
+# gh-pages, / (root). The first run creates the branch.
+#
+# To republish an existing tag (for example after enabling Pages), run this workflow by
+# hand with that tag.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish, e.g. v1.4.2"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: addin-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+      - name: The tag must be the package version
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/qikit/__init__.py)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match __version__ $version"
+            exit 1
+          fi
+      - run: npm ci
+        working-directory: excel-addin
+      - run: npm test
+        working-directory: excel-addin
+      - run: npm run build
+        working-directory: excel-addin
+      - name: Assemble the site
+        working-directory: excel-addin
+        run: |
+          base="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          for dir in "$TAG" latest; do
+            mkdir -p "../site/$dir"
+            cp -R dist/. "../site/$dir/"
+            node scripts/manifest.mjs prod "$base/$dir/" "../site/$dir"
+          done
+          npx office-addin-manifest validate "../site/$TAG/manifest.json"
+          node scripts/validate-manifest.mjs "../site/$TAG/manifest.json" ../site/latest/manifest.json
+      - name: Push to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth 1 origin gh-pages; then
+            git worktree add pages FETCH_HEAD
+          else
+            git worktree add --detach pages
+            git -C pages checkout --orphan gh-pages
+            git -C pages rm -rf --quiet .
+          fi
+          rm -rf "pages/$TAG" pages/latest
+          cp -R "site/$TAG" site/latest pages/
+          touch pages/.nojekyll
+          cat > pages/index.html <<'EOF'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>QI Kit for Excel</title>
+          <meta http-equiv="refresh" content="0; url=https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md">
+          <p>QI Kit for Excel: see the <a href="https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md">install guide</a>.</p>
+          EOF
+          git -C pages add -A
+          if git -C pages diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git -C pages commit -m "Publish Excel add-in $TAG"
+          git -C pages push origin HEAD:gh-pages

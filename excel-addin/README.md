@@ -36,9 +36,12 @@ npm run dev        # HTTPS dev server on :3000 (the manifest points here)
 npm run sideload   # opens Excel with manifest.json registered
 ```
 
-`sideload`/`validate` use the `office-addin-debugging` / `office-addin-manifest`
-CLIs (run them via `npx` if not installed). See
-[`../docs/deployment.md`](../docs/deployment.md) for production hosting.
+`manifest.json` is the dev manifest ("QI Kit (dev)", its own id), generated from
+`manifest.template.json` by `npm run manifest`; edit the template, not the output.
+`npm run validate` checks it is current and passes Microsoft's validator and the
+published schema. Release tags publish the add-in to GitHub Pages with a production
+manifest; [`../docs/deployment.md`](../docs/deployment.md) covers installing it,
+self-hosting and privacy.
 
 ## Design tokens
 
@@ -48,7 +51,8 @@ All colors, fonts, and radii live in `packages/addin/src/theme/`:
 Chart.js previews and the native Excel charts in `src/excel/chart-builder.ts`
 import the same `qikit.chart` colors, which is what keeps the written
 workbook chart matching the task-pane preview. Icons are generated from
-`assets/icon.svg` by `node scripts/make-icons.mjs` (PNGs are committed).
+`assets/icon.svg` and `assets/icon-outline.svg` by `node scripts/make-icons.mjs`
+(PNGs are committed).
 
 ## Live updates
 

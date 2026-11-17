@@ -71,3 +71,12 @@ jobs:
       - run: npx tsc --noEmit
         working-directory: excel-addin/packages/addin
       - run: npm test
+      - run: npm run build
+      # manifest.json matches the template; it and a production manifest pass
+      # Microsoft's validator and the published schema.
+      - run: npm run validate
+      - run: |
+          node scripts/manifest.mjs prod https://example.github.io/qikit/latest/ ../site
+          npx office-addin-manifest validate ../site/manifest.json
+          node scripts/validate-manifest.mjs ../site/manifest.json
+          unzip -l ../site/qikit-excel-addin.zip

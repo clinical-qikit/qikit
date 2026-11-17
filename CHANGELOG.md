@@ -20,6 +20,21 @@
   response in run order, which is a different chart once the design is randomized.
   Replicates follow in turn and center points come last; hover shows each run's number.
 
+### Excel add-in
+
+- **Installable without the repository.** Each release tag publishes the task pane to
+  GitHub Pages under `vX.Y.Z/` and `latest/`, each with an app package
+  (`qikit-excel-addin.zip`) for the Microsoft 365 admin center or Teams custom-app
+  upload. `docs/deployment.md` is rewritten around those routes, self-hosting, and a
+  privacy statement.
+- **Production manifest.** The unified manifest moves from the `devPreview` schema to
+  1.29, with a GUID, hosted URLs, the 192 px and outline app icons, an 80 px ribbon icon,
+  a tooltip, and an ExcelApi 1.7 requirement (chart series and the series axis). It is
+  generated from `manifest.template.json`; the committed `manifest.json` is the dev
+  manifest ("QI Kit (dev)", its own id). CI builds the add-in and checks both manifests
+  with Microsoft's validator and the published schema.
+- **The task pane shows its version**, which is the Python package's.
+
 ### Documentation
 
 - **`docs/snowflake.md` named the 1.1.0 wheel** in its `PUT` and `IMPORTS` lines; it now
