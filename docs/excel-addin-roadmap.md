@@ -71,8 +71,10 @@ and a release tag is pushed; the "done when" test below is still to run.*
 - **Keep the unified (JSON) manifest only** and make it a production one: a released
   schema version instead of `devPreview`, a real GUID, the hosted URLs, a support URL,
   and ExcelApi requirement sets that match the APIs used (bindings and chart series
-  need ExcelApi 1.7 or so; confirm by test). No XML manifest: every intended user is on
-  Microsoft 365, and perpetual Office and mobile are out of scope.
+  need ExcelApi 1.7 or so; confirm by test). Perpetual Office and mobile are out of
+  scope. *Revised 2026-11-17:* an XML manifest is published too, not for reach but
+  because the JSON package installs only through Teams or the admin center; the XML
+  manifest is what lets one person install it where Teams uploads are blocked.
 - **Generate the manifest from one template** (dev → localhost, production → Pages)
   and validate both outputs in CI with `office-addin-manifest validate`.
 - **Rewrite `docs/deployment.md`** around three routes: sideload from the hosted

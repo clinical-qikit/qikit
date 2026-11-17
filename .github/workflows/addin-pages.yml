@@ -2,7 +2,8 @@ name: Excel add-in on GitHub Pages
 
 # Each release tag vX.Y.Z publishes the Excel add-in's task pane to the gh-pages branch
 # twice: under vX.Y.Z/ (fixed, for organizations that pin a version) and under latest/.
-# Each folder holds its own manifest.json and qikit-excel-addin.zip pointing at itself.
+# Each folder holds its own manifest.json, qikit-excel-addin.zip and manifest.xml
+# pointing at itself.
 #
 # One-time setup: Settings → Pages → Build and deployment → Deploy from a branch →
 # gh-pages, / (root). The first run creates the branch.
@@ -61,6 +62,7 @@ jobs:
             node scripts/manifest.mjs prod "$base/$dir/" "../site/$dir"
           done
           npx office-addin-manifest validate "../site/$TAG/manifest.json"
+          npx office-addin-manifest validate "../site/$TAG/manifest.xml"
           node scripts/validate-manifest.mjs "../site/$TAG/manifest.json" ../site/latest/manifest.json
       - name: Push to gh-pages
         run: |
