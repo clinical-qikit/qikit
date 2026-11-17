@@ -71,10 +71,48 @@ def test_cube_averages_over_replicates():
     assert sorted(corners.text) == sorted(y + 1 for y in PILOT)
 
 
-def test_cube_of_two_factors_is_a_placeholder():
+def test_cube_of_two_factors_is_a_square():
     fig = design(["A", "B"]).fill([60, 72, 54, 68]).plot("cube")
-    assert len(fig.data) == 0
-    assert fig.layout.annotations[0].text == "2D Cube plot coming soon"
+    outline, corners = fig.data
+    assert list(outline.x) == [-1, 1, 1, -1, -1] and list(outline.y) == [-1, -1, 1, 1, -1]
+    assert sorted(zip(corners.x, corners.y, corners.text)) == [
+        (-1, -1, 60.0), (-1, 1, 54.0), (1, -1, 72.0), (1, 1, 68.0)]
+    assert fig.layout.title.text == "Cube Plot: A, B"
+    assert fig.layout.yaxis.scaleanchor == "x"                         # drawn square
+    assert not fig.layout.annotations
+
+
+def test_square_shows_center_points_at_the_center():
+    res = design(["A", "B"], center_points=2).fill([60, 72, 54, 68, 63, 64])
+    corners = res.plot("cube").data[-1]
+    assert (0, 0, 63.5) in set(zip(corners.x, corners.y, corners.text))
+
+
+def test_cube_of_one_factor_names_the_chart_to_use():
+    with pytest.raises(ValueError, match='at least two factors; use chart="single_factor"'):
+        design(["A"]).fill([1.0, 2.0]).plot("cube")
+
+
+def test_line_effects_puts_a_randomized_run_back_in_standard_order():
+    d = design(["A", "B", "C"], randomize="full", seed=4)
+    coded = d.matrix[["A", "B", "C"]].to_numpy()
+    assert coded.tolist() != design(["A", "B", "C"]).matrix[["A", "B", "C"]].to_numpy().tolist()
+    # Each run's response is its standard-order position, so the plot must read 1..8.
+    position = ((coded[:, 0] + 1) // 2 + (coded[:, 1] + 1) + 2 * (coded[:, 2] + 1) + 1)
+    trace = d.fill(position.astype(float)).plot("line_effects").data[0]
+    assert list(trace.y) == [1, 2, 3, 4, 5, 6, 7, 8] and list(trace.x) == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert sorted(trace.customdata) == [1, 2, 3, 4, 5, 6, 7, 8]        # the run each came from
+    assert list(trace.customdata) != [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def test_line_effects_keeps_replicates_in_turn_and_center_points_last():
+    res = design(["A", "B"], replicates=2, center_points=1).fill([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    assert list(res.plot("line_effects").data[0].y) == [1, 5, 2, 6, 3, 7, 4, 8, 9]
+
+
+def test_line_effects_orders_a_fraction_on_its_base_factors():
+    res = design(list("ABC"), design_type="fractional").fill([1, 2, 3, 4])
+    assert list(res.plot("line_effects").data[0].y) == [1, 2, 3, 4]
 
 
 def test_run_order_plots_the_response_as_run(result):

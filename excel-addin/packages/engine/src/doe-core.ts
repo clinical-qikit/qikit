@@ -190,7 +190,26 @@ export function analyze(designObj: DOEDesign, response: number[], maxInteraction
     }
   }
 
-  for (let order = 1; order <= maxInteraction; order++) {
+  // One factor at a time: each effect is the mean with that factor high minus the mean
+  // of the baseline runs (every factor low). The runs are not balanced, so there is no
+  // partition of the total sum of squares to report, and no interaction to estimate.
+  const oneFactor = designObj.design_type === 'one_factor';
+  let ssError = 0;
+  if (oneFactor) {
+    const mean = (rows: number[]) => rows.reduce((a, i) => a + response[i], 0) / rows.length;
+    const all = Array.from({ length: n }, (_, i) => i);
+    const baseline = mean(all.filter(i => codedMatrix[i].every(v => v === -1)));
+    const predicted = new Array(n).fill(baseline);
+    factorNames.forEach((name, j) => {
+      const effect = mean(all.filter(i => codedMatrix[i][j] === 1)) - baseline;
+      terms.push({ term: name, effect, abs_effect: Math.abs(effect), ss: NaN,
+                   pct_contribution: NaN, _combo: [j] });
+      for (let i = 0; i < n; i++) predicted[i] += effect * (codedMatrix[i][j] + 1) / 2;
+    });
+    ssError = response.reduce((a, y, i) => a + Math.pow(y - predicted[i], 2), 0);
+  }
+
+  for (let order = 1; !oneFactor && order <= maxInteraction; order++) {
     const indices = Array.from({ length: factorNames.length }, (_, i) => i);
     for (const combo of combinations(indices, order)) {
       const termLabel = combo.map(i => factorNames[i]).join(':');
@@ -221,7 +240,7 @@ export function analyze(designObj: DOEDesign, response: number[], maxInteraction
     }
   }
 
-  const ssModel = terms.reduce((a, b) => a + b.ss, 0);
+  const ssModel = oneFactor ? ssTotal - ssError : terms.reduce((a, b) => a + b.ss, 0);
   const rSquared = ssTotal > 0 ? ssModel / ssTotal : 0;
   
   const p = terms.length;

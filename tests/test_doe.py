@@ -229,6 +229,33 @@ class TestAnalysis:
         with pytest.raises(ValueError, match=r"Response length \(3\) must match n_runs \(4\)"):
             design(["A", "B"]).fill([1, 2, 3])
 
+    def test_one_factor_effects_are_each_run_against_the_baseline(self):
+        res = design(["A", "B", "C"], design_type="one_factor").fill([10, 14, 9, 10.5])
+        assert _effects(res) == pytest.approx({"A": 4.0, "B": -1.0, "C": 0.5}, abs=1e-12)
+        assert res.r_squared == pytest.approx(1.0) and res.adj_r_squared == 0.0
+        assert res.residuals == pytest.approx(np.zeros(4), abs=1e-12)
+        # The runs are not balanced, so there is no partition of the total to report.
+        assert res.effects["ss"].isna().all() and res.effects["pct_contribution"].isna().all()
+        assert json.loads(res.to_json())["effects"][0]["ss"] is None
+
+    def test_one_factor_has_no_interactions_whatever_is_asked(self):
+        res = analyze(design(["A", "B", "C"], design_type="one_factor"), [10, 14, 9, 10.5],
+                      max_interaction=3)
+        assert list(res.effects["term"]) == ["A", "B", "C"]
+
+    def test_one_factor_with_replicates_is_the_least_squares_fit(self):
+        y = np.array([10, 14, 9, 11, 13, 8, 10.9])
+        res = design(["A", "B"], design_type="one_factor", replicates=2, center_points=1).fill(y)
+        assert _effects(res) == pytest.approx({"A": 3.0, "B": -2.0}, abs=1e-12)
+        a, b = res.design.matrix[["A", "B"]].to_numpy(dtype=float).T
+        factorial = a != 0                       # the center point is not in the estimate
+        X = np.column_stack([np.ones(6), a[factorial], b[factorial]])
+        beta = np.linalg.lstsq(X, y[factorial], rcond=None)[0]
+        assert 2 * beta[1:] == pytest.approx([3.0, -2.0], abs=1e-9)
+        assert res.residuals[factorial] == pytest.approx(y[factorial] - X @ beta, abs=1e-9)
+        assert res.residuals[~factorial] == pytest.approx([10.9 - 11.0], abs=1e-9)
+        assert 0.9 < res.r_squared < 1.0
+
     def test_center_points_do_not_change_the_effects(self):
         y = np.array([60, 72, 54, 68, 63, 64], dtype=float)
         res = design(["A", "B"], center_points=2).fill(y)
