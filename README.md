@@ -604,7 +604,9 @@ to 1e-6, with each accepted departure listed and explained.
 
 To release: set `__version__` in `src/qikit/__init__.py`, add that version's section to
 `CHANGELOG.md`, update the wheel name in `docs/snowflake.md` (the tests name anything
-left behind), merge to `main`, then tag the merge and push the tag.
+left behind), regenerate the add-in's dev manifest with `npm run manifest` in
+`excel-addin/` (CI fails if it is stale), merge to `main`, then tag the merge and push
+the tag.
 
 ```bash
 git tag -a v1.4.0 -m "v1.4.0" && git push origin v1.4.0
