@@ -612,7 +612,9 @@ git tag -a v1.4.0 -m "v1.4.0" && git push origin v1.4.0
 
 [`release.yml`](.github/workflows/release.yml) runs the tests, checks the tag against
 `__version__`, publishes to PyPI by trusted publishing (no token) and opens a GitHub
-Release with the changelog section.
+Release with the changelog section. The same tag publishes the Excel add-in to GitHub
+Pages ([`addin-pages.yml`](.github/workflows/addin-pages.yml); see
+[docs/deployment.md](docs/deployment.md)).
 
 ## References
 

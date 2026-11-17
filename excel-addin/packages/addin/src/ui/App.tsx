@@ -12,6 +12,7 @@ import { ParetoPanel } from './pareto/ParetoPanel';
 import { BChartPanel } from './bchart/BChartPanel';
 import { PanelErrorBoundary } from './shared/PanelErrorBoundary';
 import { qikit } from '../theme/tokens';
+import { VERSION } from '../version';
 
 const useStyles = makeStyles({
   shell: {
@@ -45,6 +46,11 @@ const useStyles = makeStyles({
     fontWeight: '600',
     color: qikit.color.ink,
     letterSpacing: '-0.3px',
+  },
+  version: {
+    marginLeft: 'auto',
+    fontSize: '11px',
+    color: qikit.color.text,
   },
   nav: {
     display: 'flex',
@@ -119,6 +125,7 @@ export const App: React.FC = () => {
       <div className={styles.header}>
         <div className={styles.logoMark}>QI</div>
         <span className={styles.title}>QI Kit</span>
+        <span className={styles.version} title="QI Kit version">v{VERSION}</span>
       </div>
       <nav className={styles.nav} role="tablist" aria-label="QI Kit tools">
         {TABS.map(({ key, label, Icon, IconActive }) => (

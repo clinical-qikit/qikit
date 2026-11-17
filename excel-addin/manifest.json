@@ -1,35 +1,33 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/teams/vDevPreview/MicrosoftTeams.schema.json",
-  "manifestVersion": "devPreview",
-  "version": "1.0.0",
-  "id": "qikit-spc-doe",
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
+  "version": "1.4.1",
+  "id": "cfdedcc5-e8c1-49b8-9c8f-95003049476a",
   "developer": {
     "name": "qikit",
     "websiteUrl": "https://github.com/clinical-qikit/qikit",
-    "privacyUrl": "https://github.com/clinical-qikit/qikit#readme",
+    "privacyUrl": "https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md#privacy",
     "termsOfUseUrl": "https://github.com/clinical-qikit/qikit/blob/main/LICENSE"
   },
   "name": {
-    "short": "QI Kit",
-    "full": "QI Kit — SPC & Planned Experimentation"
+    "short": "QI Kit (dev)",
+    "full": "QI Kit: SPC and planned experimentation (dev)"
   },
   "description": {
-    "short": "SPC charts and DOE for quality improvement",
-    "full": "Statistical Process Control charts and Design of Experiments for quality improvement in healthcare and manufacturing."
+    "short": "SPC charts and designed experiments for quality improvement.",
+    "full": "Run charts, Shewhart control charts, Pareto charts, Bernoulli CUSUM and two-level designed experiments for quality improvement, computed in the task pane. Data never leaves the workbook."
   },
   "icons": {
-    "outline": "assets/icon-32.png",
-    "color": "assets/icon-80.png"
+    "outline": "icon-outline-32.png",
+    "color": "icon-color-192.png"
   },
   "accentColor": "#107C6C",
   "extensions": [
     {
       "requirements": {
+        "scopes": ["workbook"],
         "capabilities": [
-          {
-            "name": "Workbook",
-            "minVersion": "1.1"
-          }
+          { "name": "ExcelApi", "minVersion": "1.7" }
         ]
       },
       "runtimes": [
@@ -38,14 +36,20 @@
           "type": "general",
           "code": {
             "page": "https://localhost:3000/index.html"
-          }
+          },
+          "lifetime": "short",
+          "actions": [
+            {
+              "id": "OpenTaskPane",
+              "type": "openPage",
+              "view": "homepage"
+            }
+          ]
         }
       ],
       "ribbons": [
         {
-          "contexts": [
-            "default"
-          ],
+          "contexts": ["default"],
           "tabs": [
             {
               "id": "QIKitTab",
@@ -55,31 +59,25 @@
                   "id": "QIKitGroup",
                   "label": "Analysis",
                   "icons": [
-                    {
-                      "size": 16,
-                      "url": "assets/icon-16.png"
-                    },
-                    {
-                      "size": 32,
-                      "url": "assets/icon-32.png"
-                    }
+                    { "size": 16, "url": "https://localhost:3000/icon-16.png" },
+                    { "size": 32, "url": "https://localhost:3000/icon-32.png" },
+                    { "size": 80, "url": "https://localhost:3000/icon-80.png" }
                   ],
                   "controls": [
                     {
-                      "id": "OpenTaskPane",
+                      "id": "OpenTaskPaneButton",
                       "type": "button",
                       "label": "Open QI Kit",
                       "icons": [
-                        {
-                          "size": 16,
-                          "url": "assets/icon-16.png"
-                        },
-                        {
-                          "size": 32,
-                          "url": "assets/icon-32.png"
-                        }
+                        { "size": 16, "url": "https://localhost:3000/icon-16.png" },
+                        { "size": 32, "url": "https://localhost:3000/icon-32.png" },
+                        { "size": 80, "url": "https://localhost:3000/icon-80.png" }
                       ],
-                      "actionId": "TaskPaneRuntime"
+                      "supertip": {
+                        "title": "Open QI Kit",
+                        "description": "SPC charts, Pareto charts and designed experiments from the selected data."
+                      },
+                      "actionId": "OpenTaskPane"
                     }
                   ]
                 }
