@@ -45,11 +45,13 @@ export interface RecomputeOutcome {
 }
 
 /** Re-runs the engine for the given panel and produces the new sheet table plus a chart writer. */
-export function recompute(panel: PanelKind, values: any[][], config: LiveConfig): RecomputeOutcome {
+export function recompute(
+  panel: PanelKind, values: any[][], config: LiveConfig, numberFormats?: any[][],
+): RecomputeOutcome {
   switch (panel) {
     case 'spc': {
       const cfg = config as SpcLiveConfig;
-      const parsed = parseColumns(values);
+      const parsed = parseColumns(values, numberFormats);
       const selection: SpcDataSelection = {
         rawData: values, hasHeaders: parsed.hasHeaders, dateCols: parsed.dateCols,
         xCol: cfg.xCol, yCol: cfg.yCol, nCol: cfg.nCol, notesCol: cfg.notesCol,
@@ -60,6 +62,7 @@ export function recompute(panel: PanelKind, values: any[][], config: LiveConfig)
       const result = compute(prepared.input);
       const { finalCols, rows } = buildSheetRows(
         result, cfg.annotations, values, parsed.hasHeaders, parsed.headers, cfg.includeDataTable,
+        prepared.pointRows,
       );
       const sheetData = [finalCols, ...rows];
       return { sheetData, writeChart: (sheetName, ra) => createSPCChart(result, sheetName, ra) };

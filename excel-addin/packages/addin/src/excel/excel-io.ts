@@ -1,19 +1,37 @@
 /* global Excel */
 
-export async function getSelectedRangeValues(): Promise<{ values: any[][], address: string }> {
+export interface RangeData {
+  values: any[][];
+  address: string;
+  /** Number formats, same shape as values; what tells a date cell from a number. */
+  numberFormats?: any[][];
+  /** Worksheet row number of the range's first row. */
+  firstRow: number;
+}
+
+/** The first row number in an address such as "Sheet1!B5:D20" or "'My sheet'!A1". */
+export function firstRowOf(address: string): number {
+  const cells = address.includes('!') ? address.slice(address.lastIndexOf('!') + 1) : address;
+  const m = cells.match(/^\$?[A-Z]+\$?(\d+)/i);
+  return m ? parseInt(m[1], 10) : 1;
+}
+
+export async function getSelectedRangeValues(): Promise<RangeData> {
   try {
     return await Excel.run(async (context) => {
       const range = context.workbook.getSelectedRange();
-      range.load('values, address');
+      range.load('values, address, numberFormat');
       await context.sync();
-      
+
       if (!range.values || range.values.length === 0) {
         throw new Error("The selected range is empty. Please select a range containing data.");
       }
-      
+
       return {
         values: range.values,
-        address: range.address
+        address: range.address,
+        numberFormats: range.numberFormat,
+        firstRow: firstRowOf(range.address),
       };
     });
   } catch (error) {
@@ -52,6 +70,38 @@ export async function writeToSheetRange(
     console.error("Error writing to sheet range:", error);
     throw new Error(`Failed to write data to Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+/**
+ * Write a table to a new sheet, apply per-column number formats (null leaves a column
+ * as General), select it, and read it back as getSelectedRangeValues would.
+ */
+export async function writeSampleSheet(
+  sheetName: string,
+  data: any[][],
+  columnFormats: (string | null)[],
+): Promise<RangeData> {
+  const { sheetName: finalName } = await writeToNewSheet(sheetName, data);
+  return await Excel.run(async (context) => {
+    const sheet = context.workbook.worksheets.getItem(finalName);
+    columnFormats.forEach((fmt, col) => {
+      if (fmt && data.length > 1) {
+        const cells = sheet.getRangeByIndexes(1, col, data.length - 1, 1);
+        cells.numberFormat = Array.from({ length: data.length - 1 }, () => [fmt]);
+      }
+    });
+    const range = sheet.getRangeByIndexes(0, 0, data.length, data[0].length);
+    range.format.autofitColumns();
+    range.select();
+    range.load('values, address, numberFormat');
+    await context.sync();
+    return {
+      values: range.values,
+      address: range.address,
+      numberFormats: range.numberFormat,
+      firstRow: firstRowOf(range.address),
+    };
+  });
 }
 
 export async function writeToNewSheet(sheetName: string, data: any[][]): Promise<{ sheetName: string, rangeAddress: string }> {
