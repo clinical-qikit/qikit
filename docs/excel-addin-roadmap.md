@@ -87,6 +87,12 @@ Windows, Mac and Excel on the web.
 
 ### 2. Make the first five minutes work (about a week)
 
+*Built 2026-11-17 for the SPC panel: sample data (a made-up series rather than a
+`data/examples` set, since neither monthly example shows a finding), Help me choose,
+findings and notes, remembered settings, format-based dates and listed skipped rows.
+The Pareto, CUSUM and experiment panels are unchanged. The "done when" test with a real
+two-column sheet is still to run in Excel.*
+
 - **Sample data.** "Try with sample data" writes one of the `data/examples` sets to a
   new sheet and charts it. The dev harness already carries the datasets.
 - **Chart chooser.** Three plain questions (counting events or measuring? is there a

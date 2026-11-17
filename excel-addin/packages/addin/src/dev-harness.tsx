@@ -81,6 +81,7 @@ interface OutputSheetState {
   values: any[][];
   address: string;
   charts: any[];
+  formats?: any[][];
 }
 
 interface MockBindingRecord {
@@ -174,16 +175,32 @@ function logHarness(text: string) {
 
 // ─── Excel / Office Mocks ────────────────────────────────────────────────────
 
-function makeRange(store: { get(): any[][]; set(v: any[][]): void }, address: string) {
+interface MockStore {
+  get(): any[][];
+  set(v: any[][]): void;
+  /** Number formats by cell, when a sheet has any (the sample data sets them). */
+  formats?: any[][];
+}
+
+function makeRange(store: MockStore, address: string, origin = { row: 0, col: 0 }) {
   return {
     load: () => {},
     get values() { return store.get(); },
     set values(v: any[][]) { store.set(v); },
+    get numberFormat(): any[][] { return store.formats as any[][]; },
+    set numberFormat(f: any[][]) {
+      store.formats = store.formats ?? [];
+      f.forEach((row, r) => row.forEach((fmt, c) => {
+        const target = (store.formats![origin.row + r] = store.formats![origin.row + r] ?? []);
+        target[origin.col + c] = fmt;
+      }));
+    },
     address,
     format: {
       font: { size: 11, bold: false },
       autofitColumns: () => {},
     },
+    select: () => {},
     clear: () => {},
   };
 }
@@ -250,19 +267,24 @@ function makeSheet(name: string) {
   const outState = isSource ? null : outputSheets.get(name);
   const exists = isSource || !!outState;
 
-  const store = isSource
+  const store: MockStore = isSource
     ? { get: () => sourceState.values, set: (v: any[][]) => { sourceState.values = v; } }
-    : { get: () => outState?.values ?? [], set: (v: any[][]) => { if (outState) outState.values = v; } };
+    : {
+        get: () => outState?.values ?? [],
+        set: (v: any[][]) => { if (outState) outState.values = v; },
+        get formats() { return outState?.formats; },
+        set formats(f) { if (outState) outState.formats = f; },
+      };
 
   return {
     name,
     isNullObject: !exists,
     load: () => {},
     getRange: (addr?: string) => makeRange(store, isSource ? sourceState.address : `${name}!${addr ?? 'A1'}`),
-    getRangeByIndexes: (_startRow: number, _startCol: number, rowCount: number, colCount: number) => {
-      const addr = `${name}!A1:${colLetter(colCount - 1)}${rowCount}`;
-      if (!isSource && outState) outState.address = addr;
-      return makeRange(store, addr);
+    getRangeByIndexes: (startRow: number, startCol: number, rowCount: number, colCount: number) => {
+      const addr = `${name}!${colLetter(startCol)}${startRow + 1}:${colLetter(startCol + colCount - 1)}${startRow + rowCount}`;
+      if (!isSource && outState && startRow === 0 && startCol === 0) outState.address = addr;
+      return makeRange(store, addr, { row: startRow, col: startCol });
     },
     activate: () => {},
     charts: {

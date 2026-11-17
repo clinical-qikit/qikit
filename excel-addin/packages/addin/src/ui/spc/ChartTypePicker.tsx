@@ -3,6 +3,7 @@ import { ChartType } from '@qikit/engine';
 import { useSpcStyles } from './styles';
 import { CORE_CHARTS, ADDITIONAL_CHARTS, CHART_LABELS } from './constants';
 import { qikit } from '../../theme/tokens';
+import { ChartChooser } from './ChartChooser';
 
 interface ChartTypePickerProps {
   chartType: ChartType;
@@ -12,12 +13,27 @@ interface ChartTypePickerProps {
 export const ChartTypePicker: React.FC<ChartTypePickerProps> = ({ chartType, onChange }) => {
   const styles = useSpcStyles();
   const [moreChartsOpen, setMoreChartsOpen] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
 
   const pick = (ct: ChartType) => { onChange(ct); setMoreChartsOpen(false); };
 
   return (
     <div className={styles.section}>
-      <div className={styles.sectionLabel}>Chart Type</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <div className={styles.sectionLabel}>Chart Type</div>
+        <button
+          onClick={() => setChooserOpen(o => !o)}
+          aria-expanded={chooserOpen}
+          aria-controls="spc-chart-chooser"
+          style={{
+            border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+            fontSize: '12px', color: qikit.color.brand, fontFamily: 'inherit',
+          }}
+        >Help me choose</button>
+      </div>
+      {chooserOpen && (
+        <ChartChooser onChoose={pick} onClose={() => setChooserOpen(false)} />
+      )}
       <div className={styles.chartTypeRow}>
         {CORE_CHARTS.map(ct => (
           <button

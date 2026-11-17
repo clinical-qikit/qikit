@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   parseColumns, buildSpcInput, buildNoteMap, buildSheetRows,
   colLetter, aggregateByPeriod, periodKey, toDate, formatLimit,
+  isDateFormat, isLikelyDate, inferPeriod,
   SpcDataSelection,
 } from '../src/ui/spc/data-prep';
+import { firstRowOf } from '../src/excel/excel-io';
 import { DEFAULT_OPTIONS } from '../src/ui/spc/constants';
 
 // Shapes mirror the dev-harness mock datasets.
@@ -243,5 +245,122 @@ describe('formatLimit', () => {
   it('returns an em dash when nothing is defined', () => {
     expect(formatLimit(rows([NaN, NaN]), 'cl')).toBe('—');
     expect(formatLimit([], 'cl')).toBe('—');
+  });
+});
+
+// Serial numbers as Excel hands them to an add-in: Jan, Feb, Mar 2025.
+const JAN = 45658, FEB = 45689, MAR = 45717;
+
+describe('dates from Excel', () => {
+  it('recognizes date number formats and rejects number formats', () => {
+    for (const f of ['m/d/yyyy', 'mmm yyyy', 'yyyy-mm-dd', 'd-mmm', 'dd/mm/yyyy hh:mm', '[$-409]mmmm d, yyyy']) {
+      expect(isDateFormat(f), f).toBe(true);
+    }
+    for (const f of ['General', '0', '0.00', '#,##0', '0%', '$#,##0.00', 'h:mm', '[h]:mm:ss', 'mm:ss', '"days" 0', undefined]) {
+      expect(isDateFormat(f), String(f)).toBe(false);
+    }
+  });
+
+  it('reads a serial-number column with a date format as dates', () => {
+    const values = [['Month', 'Count'], [JAN, 4], [FEB, 6], [MAR, 5]];
+    const formats = [['General', 'General'], ['mmm yyyy', 'General'], ['mmm yyyy', 'General'], ['mmm yyyy', 'General']];
+    const parsed = parseColumns(values, formats);
+    expect(parsed.dateCols).toEqual([0]);
+    expect(parsed.numericCols).toEqual([1]);
+    expect(toDate(JAN)!.toISOString().slice(0, 10)).toBe('2025-01-01');
+  });
+
+  it('keeps large counts as numbers when their format is not a date', () => {
+    const values = [['Ward', 'Patient days'], ['A', 45000], ['B', 46000]];
+    const formats = [['General', 'General'], ['General', '#,##0'], ['General', '#,##0']];
+    expect(parseColumns(values, formats).numericCols).toEqual([1]);
+  });
+
+  it('does not read bare numbers or labels as date text', () => {
+    expect(isLikelyDate('3')).toBe(false);
+    expect(isLikelyDate('Ward 3')).toBe(false);
+    expect(isLikelyDate('2024-01-31')).toBe(true);
+    expect(isLikelyDate('1/31/2024')).toBe(true);
+    expect(isLikelyDate('Jan 2024')).toBe(true);
+    expect(isLikelyDate('31 Jan 2024')).toBe(true);
+  });
+
+  it('infers the reporting period from the spacing of the dates', () => {
+    const days = (n: number, step: number) => Array.from({ length: n }, (_, i) => toDate(JAN + i * step));
+    expect(inferPeriod(days(30, 1))).toBe('day');
+    expect(inferPeriod(days(20, 7))).toBe('week');
+    expect(inferPeriod([JAN, FEB, MAR].map(toDate))).toBe('month');
+    expect(inferPeriod(days(8, 91))).toBe('quarter');
+    expect(inferPeriod([])).toBe('month');
+  });
+
+  it('finds the first row of an address', () => {
+    expect(firstRowOf('Sheet1!A1:B31')).toBe(1);
+    expect(firstRowOf("'My sheet'!$B$5:$D$20")).toBe(5);
+    expect(firstRowOf('C12')).toBe(12);
+  });
+});
+
+describe('rows left out', () => {
+  const rows = [
+    ['Sample', 'Defectives', 'Total'],
+    [1, 3, 50],
+    [2, '', 50],
+    [3, 'n/a', 50],
+    [4, 4, 0],
+    [5, 2, ''],
+    [6, 5, 50],
+  ];
+
+  it('lists each skipped row with its sheet row number and reason', () => {
+    const prepared = buildSpcInput(selection({
+      rawData: rows, xCol: 0, yCol: 1, nCol: 2, chartType: 'p', firstRow: 3,
+    }));
+    expect(prepared!.skipped).toEqual([
+      { row: 5, reason: 'no value' },
+      { row: 6, reason: 'value "n/a" is not a number' },
+      { row: 7, reason: 'denominator is 0' },
+      { row: 8, reason: 'no denominator' },
+    ]);
+    expect(prepared!.input.y).toEqual([3, 5]);
+    expect(prepared!.input.n).toEqual([50, 50]);
+  });
+
+  it('keeps labels and source rows lined up with the points that remain', () => {
+    const prepared = buildSpcInput(selection({ rawData: rows, xCol: 0, yCol: 1, nCol: 2, chartType: 'p' }));
+    expect(prepared!.xLabels).toEqual(['1', '6']);
+    expect(prepared!.pointRows).toEqual([0, 5]);
+    const result = { data: [{ y: 0.06, cl: 0.07, ucl: 0.2, lcl: 0, sigma_signal: false, runs_signal: false },
+                            { y: 0.1, cl: 0.07, ucl: 0.2, lcl: 0, sigma_signal: false, runs_signal: false }] } as any;
+    const { rows: out } = buildSheetRows(result, {}, rows, true, [], true, prepared!.pointRows);
+    expect(out[1].slice(0, 3)).toEqual([6, 5, 50]);
+  });
+
+  it('never reads a missing denominator as zero when aggregating by date', () => {
+    const dated = [
+      ['Month', 'Cases', 'Patients'],
+      ['2025-01-05', 2, 40],
+      ['2025-01-20', 1, ''],
+      ['2025-02-05', 3, 50],
+    ];
+    const prepared = buildSpcInput(selection({
+      rawData: dated, dateCols: [0], xCol: 0, yCol: 1, nCol: 2, chartType: 'p',
+    }));
+    expect(prepared!.input.y).toEqual([2, 3]);
+    expect(prepared!.input.n).toEqual([40, 50]);
+    expect(prepared!.skipped).toEqual([{ row: 3, reason: 'no denominator' }]);
+  });
+
+  it('skips rows whose date cannot be read, and ignores wholly empty rows', () => {
+    const dated = [['Month', 'Value'], ['2025-01-05', 2], ['soon', 4], ['', ''], ['2025-02-05', 3]];
+    const prepared = buildSpcInput(selection({ rawData: dated, dateCols: [0], xCol: 0, yCol: 1 }));
+    expect(prepared!.skipped).toEqual([{ row: 3, reason: 'date "soon" is not a date' }]);
+  });
+
+  it('maps notes through the rows that were used', () => {
+    const noted = [['Sample', 'Value', 'Note'], [1, 10, 'a'], [2, '', 'b'], [3, 14, 'c']];
+    const sel = selection({ rawData: noted, xCol: 0, yCol: 1, notesCol: 2 });
+    const prepared = buildSpcInput(sel);
+    expect(buildNoteMap(sel, prepared!.pointRows)).toEqual({ 0: 'a', 1: 'c' });
   });
 });

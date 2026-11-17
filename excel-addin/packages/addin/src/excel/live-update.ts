@@ -170,14 +170,16 @@ async function handleDataChanged(bindingId: string): Promise<void> {
   if (!meta) return;
 
   let values: any[][];
+  let numberFormats: any[][] | undefined;
   try {
-    values = await Excel.run(async (context) => {
+    ({ values, numberFormats } = await Excel.run(async (context) => {
       const binding = context.workbook.bindings.getItemOrNullObject(bindingId);
       const range = binding.getRange();
-      range.load('values');
+      range.load('values, numberFormat');
       await context.sync();
-      return range.values as any[][];
-    });
+      // Formats identify date columns (Excel reports dates as serial numbers).
+      return { values: range.values as any[][], numberFormats: range.numberFormat as any[][] | undefined };
+    }));
   } catch {
     // The bound range (or its sheet) was deleted — drop the live link gracefully.
     await unregisterLiveUpdate(bindingId);
@@ -187,7 +189,7 @@ async function handleDataChanged(bindingId: string): Promise<void> {
 
   let outcome;
   try {
-    outcome = recompute(meta.panel, values, meta.config);
+    outcome = recompute(meta.panel, values, meta.config, numberFormats);
   } catch (err) {
     emit({
       type: 'recompute-error', bindingId, panel: meta.panel,

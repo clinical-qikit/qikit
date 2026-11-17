@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Checkbox, Spinner } from '@fluentui/react-components';
 import {
   ChevronDownRegular, ChevronRightRegular,
@@ -6,14 +6,21 @@ import {
   ArrowDownloadRegular, DocumentRegular,
 } from '@fluentui/react-icons';
 import { ChartType, compute, SPCResult } from '@qikit/engine';
-import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
+import { getSelectedRangeValues, writeToNewSheet, writeSampleSheet, RangeData } from '../../excel/excel-io';
 import { registerLiveUpdate } from '../../excel/live-update';
 import { ChartViewer } from '../shared/ChartViewer';
 import { DataPreview } from '../shared/DataPreview';
 import { LiveUpdateStatus, useLiveUpdateStatus } from '../shared/LiveUpdateStatus';
 import { useSpcStyles } from './styles';
-import { NEEDS_SUBGROUP, SpcOptions, DEFAULT_OPTIONS, DataGrain } from './constants';
-import { parseColumns, buildSpcInput, buildNoteMap, buildSheetRows, SpcDataSelection } from './data-prep';
+import { NEEDS_N, NEEDS_SUBGROUP, SpcOptions, DEFAULT_OPTIONS, DataGrain } from './constants';
+import {
+  parseColumns, buildSpcInput, buildNoteMap, buildSheetRows, SpcDataSelection,
+  SkippedRow, inferPeriod, toDate,
+} from './data-prep';
+import { describeFindings, Findings } from './findings';
+import { FindingsPanel } from './FindingsPanel';
+import { loadSpcSettings, saveSpcSettings } from './remembered';
+import { sampleRows, SAMPLE_FORMATS, SAMPLE_SHEET_NAME } from './sample-data';
 import { ChartTypePicker } from './ChartTypePicker';
 import { ColumnSelector } from './ColumnSelector';
 import { SignalMethodPicker } from './SignalMethodPicker';
@@ -23,17 +30,21 @@ import { SummaryPanel } from './SummaryPanel';
 
 export const SpcPanel: React.FC = () => {
   const styles = useSpcStyles();
+  // What this workbook remembers from last time (chart type, grain, options).
+  const [remembered] = useState(loadSpcSettings);
 
   // Data
   const [rangeAddress, setRangeAddress] = useState<string | null>(null);
   const [rawData, setRawData] = useState<any[][]>([]);
+  const [numberFormats, setNumberFormats] = useState<any[][] | undefined>(undefined);
+  const [firstRow, setFirstRow] = useState(1);
   const [hasHeaders, setHasHeaders] = useState(false);
   const [headers, setHeaders] = useState<string[]>([]);
   const [numericCols, setNumericCols] = useState<number[]>([]);
   const [dateCols, setDateCols] = useState<number[]>([]);
   const [yCol, setYCol] = useState<number>(0);
   const [nCol, setNCol] = useState<number | null>(null);
-  const [dataGrain, setDataGrain] = useState<DataGrain>('summarized');
+  const [dataGrain, setDataGrain] = useState<DataGrain>(remembered?.dataGrain ?? 'summarized');
   const [xCol, setXCol] = useState<number | null>(null);
   const [notesCol, setNotesCol] = useState<number | null>(null);
 
@@ -41,8 +52,10 @@ export const SpcPanel: React.FC = () => {
   const [xPeriod, setXPeriod] = useState<string>('month');
 
   // Chart
-  const [chartType, setChartType] = useState<ChartType>('run');
+  const [chartType, setChartType] = useState<ChartType>(remembered?.chartType ?? 'run');
   const [result, setResult] = useState<SPCResult | null>(null);
+  const [findings, setFindings] = useState<Findings | null>(null);
+  const [skipped, setSkipped] = useState<SkippedRow[]>([]);
 
   // Annotations
   const [annotations, setAnnotations] = useState<Record<number, string>>({});
@@ -51,20 +64,29 @@ export const SpcPanel: React.FC = () => {
   // UI
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [includeDataTable, setIncludeDataTable] = useState(false);
+  const [includeDataTable, setIncludeDataTable] = useState(remembered?.includeDataTable ?? false);
   const [isWriting, setIsWriting] = useState(false);
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const liveUpdate = useLiveUpdateStatus();
 
   // Options
-  const [options, setOptions] = useState<SpcOptions>(DEFAULT_OPTIONS);
+  const [options, setOptions] = useState<SpcOptions>(remembered?.options ?? DEFAULT_OPTIONS);
   const patchOptions = useCallback((patch: Partial<SpcOptions>) =>
     setOptions(o => ({ ...o, ...patch })), []);
+
+  // Remember the choices in this workbook, once the user changes one: writing on
+  // first render would mark every workbook the pane opens in as changed.
+  const settingsTouched = useRef(false);
+  useEffect(() => {
+    if (!settingsTouched.current) { settingsTouched.current = true; return; }
+    saveSpcSettings({ chartType, dataGrain, options, includeDataTable });
+  }, [chartType, dataGrain, options, includeDataTable]);
 
   // Parse columns when data loaded
   useEffect(() => {
     if (rawData.length === 0) return;
-    const parsed = parseColumns(rawData);
+    const parsed = parseColumns(rawData, numberFormats);
     setHasHeaders(parsed.hasHeaders);
     setHeaders(parsed.headers);
     setNumericCols(parsed.numericCols);
@@ -76,25 +98,46 @@ export const SpcPanel: React.FC = () => {
     const firstDate = parsed.dateCols[0] ?? null;
     const firstLabel = parsed.labelCols[0] ?? null;
     setXCol(firstDate ?? firstLabel ?? null);
-  }, [rawData]);
+    // Daily data stays daily, monthly stays monthly.
+    if (firstDate !== null) {
+      const rows = parsed.hasHeaders ? rawData.slice(1) : rawData;
+      setXPeriod(inferPeriod(rows.map(r => toDate(r[firstDate]))));
+    }
+  }, [rawData, numberFormats]);
 
   // Auto-compute
   useEffect(() => {
     if (rawData.length < 2) {
       setResult(null);
+      setFindings(null);
+      setSkipped([]);
       return;
     }
     setError(null);
+    // An attribute chart needs its denominator column chosen; say which box to fill
+    // rather than show the engine's error.
+    if (NEEDS_N.includes(chartType) && nCol === null && dataGrain !== 'individual') {
+      const box = ['u', 'up'].includes(chartType) ? 'Exposure' : 'Sample size';
+      setError(`A ${chartType.toUpperCase()} chart divides each count by a denominator: ` +
+        `choose that column in the ${box} box above.`);
+      setResult(null);
+      setFindings(null);
+      setSkipped([]);
+      return;
+    }
     try {
       const selection: SpcDataSelection = {
         rawData, hasHeaders, dateCols, xCol, yCol, nCol, notesCol,
-        chartType, dataGrain, xPeriod, options,
+        chartType, dataGrain, xPeriod, options, firstRow,
       };
       const prepared = buildSpcInput(selection);
 
       if (!prepared) {
-        setError('No numeric data in selected column.');
+        setError(`No usable rows: the ${headers[yCol] ?? 'value'} column has no numbers` +
+          (nCol !== null ? ', or no row has a usable denominator.' : '.'));
         setResult(null);
+        setFindings(null);
+        setSkipped([]);
         return;
       }
 
@@ -104,32 +147,56 @@ export const SpcPanel: React.FC = () => {
       (res as any)._xLabels = prepared.xLabels;
       (res as any)._partBoundaries = prepared.input.part;
       (res as any)._partLabels = prepared.partLabels;
+      (res as any)._pointRows = prepared.pointRows;
 
       setResult(res);
+      setSkipped(prepared.skipped);
+      setFindings(describeFindings(res, {
+        xLabels: prepared.xLabels, freeze: prepared.input.freeze,
+        part: typeof prepared.input.part === 'number' ? [prepared.input.part] : prepared.input.part,
+      }));
 
       // Notes from data column
       if (notesCol !== null) {
-        const noteMap = buildNoteMap(selection);
+        const noteMap = buildNoteMap(selection, prepared.pointRows);
         setAnnotations(prev => ({ ...noteMap, ...prev }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Computation failed.');
       setResult(null);
+      setFindings(null);
     }
-  }, [rawData, hasHeaders, chartType, yCol, nCol, xCol, notesCol, xPeriod, options, dateCols, dataGrain]);
+  }, [rawData, hasHeaders, headers, chartType, yCol, nCol, xCol, notesCol, xPeriod, options, dateCols, dataGrain, firstRow]);
+
+  const loadRange = useCallback((res: RangeData) => {
+    setRawData(res.values);
+    setNumberFormats(res.numberFormats);
+    setFirstRow(res.firstRow);
+    setRangeAddress(res.address);
+    setAnnotations({});
+    setActiveAnnotIdx(null);
+  }, []);
 
   const handleSelectData = useCallback(async () => {
     setError(null);
     try {
-      const res = await getSelectedRangeValues();
-      setRawData(res.values);
-      setRangeAddress(res.address);
-      setAnnotations({});
-      setActiveAnnotIdx(null);
+      loadRange(await getSelectedRangeValues());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to read selection.');
     }
-  }, []);
+  }, [loadRange]);
+
+  const handleSampleData = useCallback(async () => {
+    setError(null);
+    setIsLoadingSample(true);
+    try {
+      loadRange(await writeSampleSheet(SAMPLE_SHEET_NAME, sampleRows(), SAMPLE_FORMATS));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to write the sample data.');
+    } finally {
+      setIsLoadingSample(false);
+    }
+  }, [loadRange]);
 
   const handlePointClick = useCallback((idx: number) => {
     setActiveAnnotIdx(idx);
@@ -156,6 +223,7 @@ export const SpcPanel: React.FC = () => {
     try {
       const { finalCols, rows } = buildSheetRows(
         result, annotations, rawData, hasHeaders, headers, includeDataTable,
+        (result as any)._pointRows,
       );
       const sheetData = [finalCols, ...rows];
       const sheetLabel = `SPC ${result.chart_type.toUpperCase()}`;
@@ -201,7 +269,14 @@ export const SpcPanel: React.FC = () => {
             style={{ borderRadius: '6px', minWidth: '180px' }}>
             Use Current Selection
           </Button>
-          <span className={styles.dataSourceHint}>Select a data range in Excel, then click above</span>
+          <span className={styles.dataSourceHint}>
+            Select your data in Excel, then click above: a column of dates or labels and a
+            column of values, with headers in the first row.
+          </span>
+          <Button appearance="subtle" size="small" onClick={handleSampleData}
+            disabled={isLoadingSample} style={{ borderRadius: '6px' }}>
+            {isLoadingSample ? 'Adding sample…' : 'Try with sample data'}
+          </Button>
         </div>
       ) : (
         <div className={styles.section}>
@@ -300,6 +375,8 @@ export const SpcPanel: React.FC = () => {
             />
           )}
 
+          {findings && <FindingsPanel findings={findings} skipped={skipped} />}
+
           <AnnotationList annotations={annotations} onRemove={handleRemoveAnnotation} />
 
           <SummaryPanel result={result} />
@@ -316,7 +393,7 @@ export const SpcPanel: React.FC = () => {
           </div>
           <LiveUpdateStatus {...liveUpdate} />
         </>
-      ) : hasData ? (
+      ) : hasData && !error ? (
         <div className={styles.emptyChart}>Computing chart…</div>
       ) : null}
     </div>

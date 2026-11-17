@@ -25,25 +25,74 @@ export function formatLimit(rows: any[], key: string, decimals = 3): string {
 
 // ─── Date/aggregation helpers ─────────────────────────────────────────────────
 
+// Text that reads as a date: ISO (2024-01-31, 2024-01), US or European numeric
+// (1/31/2024, 31.01.2024), or with a month name (Jan 2024, 31 Jan 2024, January 31, 2024).
+// Bare numbers and labels such as "Ward 3" are not dates, whatever new Date() says.
+const DATE_TEXT = [
+  /^\d{4}-\d{1,2}(-\d{1,2})?([T ].*)?$/,
+  /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}$/,
+  /^(\d{1,2} )?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[ -](\d{1,2},? )?\d{2,4}$/i,
+];
+
+/** True for text that reads as a date. Numbers are dates only by their cell format: see isDateFormat. */
 export function isLikelyDate(val: any): boolean {
-  if (val == null || val === '') return false;
-  if (typeof val === 'number' && val > 25569 && val < 60000) return true; // Excel serial date range
-  if (typeof val === 'string') {
-    const d = new Date(val);
-    return !isNaN(d.getTime());
-  }
-  return false;
+  if (typeof val !== 'string') return false;
+  const s = val.trim();
+  return DATE_TEXT.some(re => re.test(s)) && !isNaN(new Date(s).getTime());
 }
 
+/**
+ * True for an Excel number format that displays a date (m/d/yyyy, mmm-yy, yyyy-mm-dd,
+ * d-mmm). Excel hands a date cell to an add-in as its serial number; the format is
+ * the only thing that says it is a date. Quoted text, escapes, and [colour]/[$-locale]
+ * sections are ignored; elapsed-time formats ([h]:mm) and plain numbers are not dates.
+ */
+export function isDateFormat(fmt: unknown): boolean {
+  if (typeof fmt !== 'string') return false;
+  const core = fmt.split(';')[0]
+    .replace(/"[^"]*"/g, '')
+    .replace(/\\./g, '')
+    .replace(/\[[^\]]*\]/g, '');
+  if (/^general$/i.test(core.trim())) return false;
+  return /[dy]/i.test(core) || /m{3,}/i.test(core) || (/m/i.test(core) && !/[hs]/i.test(core));
+}
+
+/** Excel serial number (days since 1899-12-30) or date text to a UTC date. */
 export function toDate(val: any): Date | null {
-  if (typeof val === 'number' && val > 25569 && val < 60000) {
-    return new Date((val - 25569) * 86400000);
+  if (typeof val === 'number' && isFinite(val) && val > 0) {
+    return new Date(Math.round((val - 25569) * 86400000));
   }
-  if (typeof val === 'string') {
-    const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d;
+  if (typeof val === 'string' && isLikelyDate(val)) {
+    const s = val.trim();
+    // A bare ISO date parses as UTC midnight already; anything else parses as local
+    // time, so take its calendar date into UTC to keep period keys stable.
+    const d = new Date(s);
+    if (/^\d{4}-\d{1,2}(-\d{1,2})?$/.test(s)) return d;
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   }
   return null;
+}
+
+/**
+ * The reporting period that matches how far apart the dates are: daily data stays
+ * daily, monthly data monthly. Aggregating daily data to months by default would turn
+ * sixty points into two.
+ */
+export function inferPeriod(dates: (Date | null)[]): string {
+  const times = dates.filter((d): d is Date => d !== null).map(d => d.getTime()).sort((a, b) => a - b);
+  const gaps: number[] = [];
+  for (let i = 1; i < times.length; i++) {
+    const g = (times[i] - times[i - 1]) / 86400000;
+    if (g > 0) gaps.push(g);
+  }
+  if (gaps.length === 0) return 'month';
+  gaps.sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  if (median <= 3) return 'day';
+  if (median <= 10) return 'week';
+  if (median <= 45) return 'month';
+  if (median <= 120) return 'quarter';
+  return 'year';
 }
 
 export function periodKey(d: Date, period: string): string {
@@ -149,11 +198,18 @@ export interface ParsedColumns {
   dateCols: number[];
 }
 
-export function parseColumns(rawData: any[][]): ParsedColumns {
+/**
+ * Classify the selected columns as numeric, date, or label. `numberFormats` (the
+ * range's formats, same shape as rawData) is what identifies a date cell, since Excel
+ * reports dates as serial numbers; without it only date text is recognized.
+ */
+export function parseColumns(rawData: any[][], numberFormats?: any[][]): ParsedColumns {
   if (rawData.length < 2) return { hasHeaders: false, headers: [], numericCols: [], labelCols: [], dateCols: [] };
   const firstRow = rawData[0];
   const hasHeaders = firstRow.some(v => typeof v === 'string' && String(v).trim() !== '');
-  const dataRows = hasHeaders ? rawData.slice(1) : rawData;
+  const start = hasHeaders ? 1 : 0;
+  const dataRows = rawData.slice(start);
+  const formatRows = numberFormats?.slice(start);
   const headers = hasHeaders
     ? firstRow.map((h: any, i: number) => String(h || colLetter(i)))
     : firstRow.map((_: any, i: number) => colLetter(i));
@@ -161,12 +217,14 @@ export function parseColumns(rawData: any[][]): ParsedColumns {
   const labelCols: number[] = [];
   const dateCols: number[] = [];
   for (let col = 0; col < headers.length; col++) {
-    const vals = dataRows.map(row => row[col]);
-    const isNumeric = vals.some(v => typeof v === 'number');
-    const isDate = !isNumeric && vals.filter(v => v != null && v !== '').length > 0
-      && vals.filter(v => v != null && v !== '').every(v => isLikelyDate(v));
-    if (isNumeric) numericCols.push(col);
-    else if (isDate) dateCols.push(col);
+    const filled = dataRows
+      .map((row, r) => ({ v: row[col], fmt: formatRows?.[r]?.[col] }))
+      .filter(c => c.v != null && c.v !== '');
+    const numbers = filled.filter(c => typeof c.v === 'number');
+    const isDate = filled.length > 0 && filled.every(c =>
+      typeof c.v === 'number' ? isDateFormat(c.fmt) : isLikelyDate(c.v));
+    if (isDate) dateCols.push(col);
+    else if (numbers.length > 0) numericCols.push(col);
     else labelCols.push(col);
   }
   return { hasHeaders, headers, numericCols, labelCols, dateCols };
@@ -186,55 +244,105 @@ export interface SpcDataSelection {
   dataGrain: DataGrain;
   xPeriod: string;
   options: SpcOptions;
+  /** Worksheet row number of the selection's first row, so skipped rows can be named. Default 1. */
+  firstRow?: number;
+}
+
+/** A row of the selection left out of the chart, and why. `row` is the worksheet row number. */
+export interface SkippedRow {
+  row: number;
+  reason: string;
 }
 
 export interface PreparedSpcInput {
   input: SPCInput;
   xLabels?: string[];
   partLabels?: string[];
+  /** Rows left out, in sheet order. Empty when every row was used. */
+  skipped: SkippedRow[];
+  /** For each point, the index into the data rows it came from (undefined when points are periods). */
+  pointRows?: number[];
 }
 
-/** Build the engine input from the selected range and options. Returns null when the Y column has no numeric data. */
+function describeValue(v: unknown): string {
+  const s = String(v).trim();
+  return s.length > 20 ? `"${s.slice(0, 19)}…"` : `"${s}"`;
+}
+
+function isBlank(v: unknown): boolean {
+  return v == null || (typeof v === 'string' && v.trim() === '');
+}
+
+/** Why a row's value cannot be used, or null when it can. */
+function valueProblem(v: unknown, what: string): string | null {
+  if (isBlank(v)) return `no ${what}`;
+  if (typeof v !== 'number' || !isFinite(v)) return `${what} ${describeValue(v)} is not a number`;
+  return null;
+}
+
+function denominatorProblem(v: unknown): string | null {
+  const p = valueProblem(v, 'denominator');
+  if (p) return p;
+  if ((v as number) === 0) return 'denominator is 0';
+  if ((v as number) < 0) return 'denominator is negative';
+  return null;
+}
+
+/**
+ * Build the engine input from the selected range and options. Rows with no usable
+ * value, denominator or date are left out and listed in `skipped`; a denominator is
+ * never read as zero. Returns null when no row is usable.
+ */
 export function buildSpcInput(sel: SpcDataSelection): PreparedSpcInput | null {
   const { rawData, hasHeaders, dateCols, xCol, yCol, nCol, chartType, dataGrain, xPeriod, options } = sel;
   const dataRows = hasHeaders ? rawData.slice(1) : rawData;
+  const sheetRow = (i: number) => (sel.firstRow ?? 1) + (hasHeaders ? 1 : 0) + i;
   const isDateX = xCol !== null && dateCols.includes(xCol);
   const isAttr = NEEDS_N.includes(chartType);
   const isIndividual = GRAIN_CHARTS.includes(chartType) && dataGrain === 'individual';
+  // Individual grain: each row is one patient or unit, so n is 1 per row.
+  const usesNCol = nCol !== null && !(isIndividual && isAttr);
+
+  const skipped: SkippedRow[] = [];
+  const used: number[] = [];
+  dataRows.forEach((row, i) => {
+    if (row.every(isBlank)) return; // an empty row is not data, so not worth listing
+    const problem =
+      (isDateX && (isBlank(row[xCol!]) ? 'no date'
+        : toDate(row[xCol!]) === null ? `date ${describeValue(row[xCol!])} is not a date` : null))
+      || valueProblem(row[yCol], 'value')
+      || (usesNCol ? denominatorProblem(row[nCol!]) : null);
+    if (problem) skipped.push({ row: sheetRow(i), reason: problem });
+    else used.push(i);
+  });
+
+  if (used.length === 0) return null;
 
   let computeY: number[];
   let computeN: number[] | undefined;
   let xLabels: string[] | undefined;
+  let pointRows: number[] | undefined;
+
+  const ys = used.map(i => dataRows[i][yCol] as number);
+  const ns = (isIndividual && isAttr) ? used.map(() => 1)
+    : usesNCol ? used.map(i => dataRows[i][nCol!] as number)
+    : undefined;
 
   if (isDateX) {
-    const dates = dataRows.map(row => toDate(row[xCol!]));
-    const rawY = dataRows.map(row => Number(row[yCol]));
-    // Individual mode: derive n from row count (each row = one patient/unit)
-    const rawN = (isIndividual && isAttr)
-      ? dataRows.map(() => 1 as number | null)
-      : (nCol !== null)
-        ? dataRows.map(row => typeof row[nCol!] === 'number' ? row[nCol!] : null)
-        : undefined;
+    const dates = used.map(i => toDate(dataRows[i][xCol!]));
     const derivedAggFn = isAttr || chartType === 'c' ? 'sum' : 'mean';
-    const agg = aggregateByPeriod(dates, rawY, rawN, xPeriod, derivedAggFn, isAttr);
+    const agg = aggregateByPeriod(dates, ys, ns, xPeriod, derivedAggFn, isAttr);
     computeY = agg.y;
     computeN = agg.n;
     xLabels = agg.labels;
   } else {
-    computeY = dataRows.map(row => row[yCol]).filter(v => typeof v === 'number') as number[];
-    if (isIndividual && isAttr) {
-      // Each row is one patient/unit — n = 1 per row
-      computeN = computeY.map(() => 1);
-    } else if (nCol !== null) {
-      const nVals = dataRows.filter(row => typeof row[yCol] === 'number').map(row => row[nCol as number]);
-      if (nVals.every(v => typeof v === 'number')) computeN = nVals as number[];
-    }
+    computeY = ys;
+    computeN = ns;
+    pointRows = used;
     if (xCol !== null) {
-      xLabels = dataRows.map(row => row[xCol!] != null ? String(row[xCol!]) : '');
+      xLabels = used.map(i => dataRows[i][xCol!] != null ? String(dataRows[i][xCol!]) : '');
     }
   }
-
-  if (computeY.length === 0) return null;
 
   const input: SPCInput = {
     y: computeY,
@@ -253,17 +361,22 @@ export function buildSpcInput(sel: SpcDataSelection): PreparedSpcInput | null {
     ? options.partLabels.split(',').map(s => s.trim()).filter(Boolean)
     : undefined;
 
-  return { input, xLabels, partLabels };
+  return { input, xLabels, partLabels, skipped, pointRows };
 }
 
-/** Notes read from a data column, keyed by point index. Only for non-date X (aggregation discards row identity). */
-export function buildNoteMap(sel: SpcDataSelection): Record<number, string> {
+/**
+ * Notes read from a data column, keyed by point index. Only for non-date X (aggregation
+ * discards row identity). `pointRows` (from buildSpcInput) maps points to the rows used.
+ */
+export function buildNoteMap(sel: SpcDataSelection, pointRows?: number[]): Record<number, string> {
   const { rawData, hasHeaders, dateCols, xCol, yCol, notesCol } = sel;
   const noteMap: Record<number, string> = {};
   if (notesCol === null) return noteMap;
   const dataRows = hasHeaders ? rawData.slice(1) : rawData;
   const isDateX = xCol !== null && dateCols.includes(xCol);
-  const noteRows = isDateX ? [] : dataRows.filter(row => typeof row[yCol] === 'number');
+  const noteRows = isDateX ? []
+    : pointRows ? pointRows.map(i => dataRows[i])
+    : dataRows.filter(row => typeof row[yCol] === 'number');
   noteRows.forEach((row, i) => {
     const note = row[notesCol!];
     if (note != null && String(note).trim() !== '') noteMap[i] = String(note).trim();
@@ -280,6 +393,7 @@ export function buildSheetRows(
   hasHeaders: boolean,
   headers: string[],
   includeDataTable: boolean,
+  pointRows?: number[],
 ): { finalCols: string[]; rows: any[][] } {
   const hasAnnot = Object.keys(annotations).length > 0;
   const cols = ['Point', 'Value', 'CL', 'UCL', 'LCL', 'Signal'];
@@ -301,8 +415,10 @@ export function buildSheetRows(
       (d.sigma_signal || d.runs_signal) ? 1 : null,
     ];
     if (hasAnnot) spcRow.push(annotations[i] || null);
-    if (includeDataTable && dataRows[i]) {
-      return [...dataRows[i], ...spcRow];
+    // Skipped rows have no point, so a point's source row is pointRows[i], not row i.
+    const source = dataRows[pointRows ? pointRows[i] : i];
+    if (includeDataTable && source) {
+      return [...source, ...spcRow];
     }
     return spcRow;
   });

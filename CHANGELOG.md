@@ -10,6 +10,33 @@
   administrator where Teams uploads are turned off: "Upload My Add-in" in Excel, or
   sideloading on Mac and Windows. `docs/deployment.md` describes each route and how to
   tell whether an organization has blocked it.
+- **The SPC panel says what it found.** Under the chart, a verdict and a sentence per
+  finding ("A shift: 12 points in a row below the center line, Jan 2026 to Dec 2026.",
+  points outside the limits by name, too few crossings), and the Python notes word for
+  word when fewer than 12 points set the center line or fewer than 20 set the limits.
+- **Try with sample data.** The empty SPC panel offers a made-up, labelled two-year
+  monthly series on a new sheet, so a new user sees a chart and a finding at once.
+- **Help me choose.** Up to two plain questions (a measurement or a count; which kind of
+  denominator, or one value or an average) pick the chart, defaulting to a run chart
+  when unsure. Choosing a P or U chart without its denominator now says which box to fill.
+- **Settings are remembered per workbook** (chart type, data grain, rules and limit
+  options, include source data), saved in the workbook once you change one.
+
+### Fixed (Excel add-in)
+
+- **Dates in Excel are recognized as dates.** Excel hands date cells to an add-in as
+  serial numbers, so a real date column was read as numbers and could not set the
+  x-axis or be grouped by month. Columns are now classified by their number format;
+  date text is recognized only when it looks like a date ("Ward 3" and "3" no longer
+  do). The reporting period follows the data's spacing, so daily data is no longer
+  folded into months by default.
+- **Rows that cannot be used are listed, not silently dropped**, with the sheet row and
+  the reason (no value, not a number, no date, no denominator, denominator 0).
+- **A missing denominator is never read as zero.** By date, a row with no denominator
+  added its count but nothing to the total, inflating that period's rate; elsewhere one
+  bad denominator dropped the whole denominator column.
+- **Labels, notes and included source data stay with their points** when rows are left
+  out; they shifted by one for every skipped row. Live updates read formats too.
 
 ## 1.4.2 (2026-11-17)
 
