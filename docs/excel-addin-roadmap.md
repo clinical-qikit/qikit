@@ -35,11 +35,12 @@ What stops someone outside this repository from using it:
 
 1. **Nothing is hosted.** The manifest points at `https://localhost:3000`. There is no
    published task pane, so installing means cloning the repo and running a dev server.
-2. **The manifest reaches only part of the Excel audience.** It is a unified (JSON)
-   manifest on the `devPreview` schema with a non-GUID id. Microsoft's support table
+2. **The manifest is a development one.** It is a unified (JSON) manifest on the
+   `devPreview` schema with a non-GUID id. Microsoft's support table
    (unified-manifest-overview, October 2026) lists Excel on the web, Windows Microsoft
    365 from version 2501 and Mac from 16.103, and says no for perpetual Office on
-   Windows and for mobile. Many hospitals run perpetual or older builds.
+   Windows and for mobile. The intended users are all on Microsoft 365, so the JSON
+   manifest is enough once it is on a released schema.
 3. **The build is not deployable as it stands.** `vite build` emits the task pane but
    not the icons or a manifest, and nothing in CI builds or publishes it.
 4. **`docs/deployment.md` describes a different add-in**: an XML `<SourceLocation>` and
@@ -63,13 +64,13 @@ actually depends on; the rest make it good.
 - **Host the task pane on GitHub Pages** from a workflow that builds on each release tag
   and publishes `dist/` with the icons. A versioned path per release plus `latest`, so
   an organization can pin.
-- **Ship an add-in-only (XML) manifest** as the primary manifest, with a real GUID, the
-  hosted URLs, a support URL and `Workbook`/ExcelApi requirement sets that match the
-  APIs used (bindings and chart series need ExcelApi 1.7 or so; confirm by test).
-  It installs everywhere the unified manifest does and also on perpetual Office and
-  iPad. Keep the JSON manifest only if something needs it.
-- **Generate manifests from one template** (dev → localhost, production → Pages) and
-  validate both in CI with `office-addin-manifest validate`.
+- **Keep the unified (JSON) manifest only** and make it a production one: a released
+  schema version instead of `devPreview`, a real GUID, the hosted URLs, a support URL,
+  and ExcelApi requirement sets that match the APIs used (bindings and chart series
+  need ExcelApi 1.7 or so; confirm by test). No XML manifest: every intended user is on
+  Microsoft 365, and perpetual Office and mobile are out of scope.
+- **Generate the manifest from one template** (dev → localhost, production → Pages)
+  and validate both outputs in CI with `office-addin-manifest validate`.
 - **Rewrite `docs/deployment.md`** around three routes: sideload from the hosted
   manifest (one person), Microsoft 365 admin center centralized deployment (an
   organization), and self-hosting `dist/` on an intranet.
