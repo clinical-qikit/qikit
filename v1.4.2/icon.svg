@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#107C6C"/>
+      <stop offset="1" stop-color="#0C6154"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="76" height="76" rx="16" fill="url(#brand)"/>
+  <text x="40" y="54" text-anchor="middle" font-family="Helvetica, Arial, sans-serif"
+        font-size="38" font-weight="700" letter-spacing="-1.5" fill="#ffffff">QI</text>
+</svg>
