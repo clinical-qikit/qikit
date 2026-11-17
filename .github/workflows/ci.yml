@@ -78,5 +78,6 @@ jobs:
       - run: |
           node scripts/manifest.mjs prod https://example.github.io/qikit/latest/ ../site
           npx office-addin-manifest validate ../site/manifest.json
+          npx office-addin-manifest validate ../site/manifest.xml
           node scripts/validate-manifest.mjs ../site/manifest.json
           unzip -l ../site/qikit-excel-addin.zip

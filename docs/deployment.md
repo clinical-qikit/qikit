@@ -12,9 +12,7 @@ Microsoft 365 (subscription) Excel:
 - Excel on Windows, version 2501 or later
 - Excel on Mac, version 16.103 or later
 
-The add-in uses a unified (JSON) manifest, which Microsoft does not support in perpetual
-Office (Office 2019, 2021, 2024, LTSC) on Windows or on iPad and phones. Those are out of
-scope.
+Perpetual Office (Office 2019, 2021, 2024, LTSC), iPad and phones are out of scope.
 
 ## What is published
 
@@ -27,8 +25,11 @@ Each release `vX.Y.Z` publishes two copies of the add-in:
 
 Each folder holds:
 
-- `qikit-excel-addin.zip`: the app package (manifest plus two icons). This is what you upload.
-- `manifest.json`: the same manifest, for reading.
+- `qikit-excel-addin.zip`: the app package (manifest plus two icons), for the admin
+  center and Teams.
+- `manifest.json`: the manifest inside that package, for reading.
+- `manifest.xml`: the same add-in as an add-in-only (XML) manifest, for installing
+  without an administrator (below).
 - the task pane itself (`index.html`, scripts, icons).
 
 ## Install for an organization (Microsoft 365 admin center)
@@ -49,16 +50,38 @@ users stay on that version until an administrator uploads a newer pinned package
 
 ## Install for yourself
 
-If your organization allows users to upload custom apps in Microsoft Teams, you can
-install the add-in without an administrator:
+Many organizations, hospitals especially, turn off installing add-ins without IT. Each
+route below depends on a different setting, so one may work where another is blocked. If
+none does, ask IT to use the admin center route above.
 
-1. Download `qikit-excel-addin.zip` from `latest/`.
-2. In Teams, open **Apps → Manage your apps → Upload an app → Upload a custom app** and
-   choose the zip.
-3. Open Excel; the **QI Kit** tab appears on the ribbon.
+**Teams upload** (uses `qikit-excel-addin.zip`). In Teams, open **Apps → Manage your
+apps → Upload an app → Upload a custom app** and choose the zip, then open Excel. If
+there is no **Upload an app** button, or it offers only **Submit an app to your org**
+(which sends it to IT for approval), personal uploads are off.
 
-If the upload option is missing, your organization has turned it off; ask IT to use the
-admin center route above.
+**Upload in Excel** (uses `manifest.xml`). In a workbook, **Home → Add-ins → More
+Add-ins → My Add-ins → Upload My Add-in**, and choose `manifest.xml` from `latest/`. If
+**More Add-ins** is greyed out with a workbook open and you signed in, your organization
+has turned this off.
+
+**Sideload on a Mac** (uses `manifest.xml`). Save `manifest.xml` into
+`~/Library/Containers/com.microsoft.Excel/Data/Documents/wef` (create the `wef` folder if
+it is missing) and restart Excel.
+
+**Sideload on Windows** (uses `manifest.xml`). This is the developer route Microsoft's
+tools use; it needs no admin rights but works around the add-in settings above, so check
+your organization's policy first. Save `manifest.xml` somewhere on the computer, then in
+Command Prompt:
+
+```
+reg add "HKCU\Software\Microsoft\Office\16.0\WEF\Developer" /v a3880040-4930-41dc-8eab-b2f2c56252e8 /t REG_SZ /d "C:\path\to\manifest.xml"
+```
+
+Restart Excel. To remove it, delete that registry value. An organization that blocks web
+add-ins entirely blocks this too.
+
+In every route the QI Kit tab appears on the ribbon and the task pane loads from
+`latest/`, so it updates with each release.
 
 ## Host it yourself
 
@@ -73,8 +96,8 @@ node scripts/manifest.mjs prod https://your.server/qikit/ dist
 
 Copy `dist/` to `https://your.server/qikit/`. The build uses relative paths, so any
 folder works. The server must use HTTPS with a certificate your users' machines trust.
-The last command writes `dist/manifest.json` and `dist/qikit-excel-addin.zip` pointing at
-your URL; distribute that zip by either route above.
+The last command writes `dist/manifest.json`, `dist/qikit-excel-addin.zip` and
+`dist/manifest.xml` pointing at your URL; distribute them by the routes above.
 
 ## Develop
 

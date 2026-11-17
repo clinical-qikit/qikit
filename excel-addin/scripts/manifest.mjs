@@ -6,7 +6,8 @@
 //   node scripts/manifest.mjs prod <base-url> <out-dir>
 //       write <out-dir>/manifest.json and <out-dir>/qikit-excel-addin.zip, the package
 //       that the Microsoft 365 admin center and Teams "Upload a custom app" accept
-//       (manifest.json plus the two app icons).
+//       (manifest.json plus the two app icons), and <out-dir>/manifest.xml, the
+//       add-in-only manifest for installing without an administrator.
 //
 // The version is the Python package's (src/qikit/__init__.py), so one tag versions both.
 // Dev and production use different ids and names so a developer can sideload the dev
@@ -32,7 +33,7 @@ export function packageVersion() {
   return match[1];
 }
 
-export function renderManifest(env, baseUrl) {
+export function renderManifest(env, baseUrl, format = 'json') {
   if (!/^https:\/\/.+\/$/.test(baseUrl)) {
     throw new Error(`Base URL must be https and end with "/": ${baseUrl}`);
   }
@@ -42,12 +43,12 @@ export function renderManifest(env, baseUrl) {
     NAME_SUFFIX: env === 'dev' ? ' (dev)' : '',
     BASE_URL: baseUrl,
   };
-  const template = readFileSync(path.join(root, 'manifest.template.json'), 'utf8');
+  const template = readFileSync(path.join(root, `manifest.template.${format}`), 'utf8');
   const text = template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     if (!(key in values)) throw new Error(`Unknown placeholder {{${key}}}`);
     return values[key];
   });
-  JSON.parse(text); // the template must stay valid JSON after substitution
+  if (format === 'json') JSON.parse(text); // must stay valid JSON after substitution
   return text;
 }
 
@@ -73,6 +74,7 @@ function main(argv) {
     const text = renderManifest('prod', baseUrl);
     mkdirSync(outDir, { recursive: true });
     writeFileSync(path.join(outDir, 'manifest.json'), text);
+    writeFileSync(path.join(outDir, 'manifest.xml'), renderManifest('prod', baseUrl, 'xml'));
 
     // Zip with the files at the archive root, as the package format requires.
     const staging = mkdtempSync(path.join(tmpdir(), 'qikit-manifest-'));

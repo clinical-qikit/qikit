@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Excel add-in
+
+- **An XML manifest is published beside the app package** (`manifest.xml` in `latest/`
+  and each version folder), generated from `manifest.template.xml` and checked by
+  Microsoft's validator in CI and before publishing. It is for installing without an
+  administrator where Teams uploads are turned off: "Upload My Add-in" in Excel, or
+  sideloading on Mac and Windows. `docs/deployment.md` describes each route and how to
+  tell whether an organization has blocked it.
+
 ## 1.4.2 (2026-11-17)
 
 ### Fixed
