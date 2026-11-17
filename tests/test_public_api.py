@@ -44,7 +44,7 @@ def test_import_does_not_load_plotly():
 
 
 def test_version_and_exports():
-    assert qikit.__version__ == "1.4.1"
+    assert qikit.__version__ == "1.4.2"
     for name in ("qic", "funnel", "funnel_sensitivity", "funnel_rollup", "SPCResult",
                  "FunnelResult"):
         assert name in qikit.__all__
