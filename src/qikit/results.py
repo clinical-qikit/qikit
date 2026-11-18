@@ -285,7 +285,8 @@ class FunnelResult(_Serializable):
         no_different, raw, reference).
         """
         _require_plotly()
-        from .plot.charts import plot_caterpillar, plot_funnel
+        from .plot.caterpillar import plot_caterpillar
+        from .plot.charts import plot_funnel
 
         if kind == "caterpillar":
             return plot_caterpillar(self, **options)
@@ -602,7 +603,7 @@ class ParetoResult(_Serializable):
 
     def plot(self, **options: Any) -> "go.Figure":
         _require_plotly()
-        from .plot.charts import plot_pareto
+        from .plot.pareto import plot_pareto
 
         return plot_pareto(self, **options)
 
@@ -627,7 +628,7 @@ class BChartResult(_Serializable):
 
     def plot(self, **options: Any) -> "go.Figure":
         _require_plotly()
-        from .plot.charts import plot_bchart
+        from .plot.pareto import plot_bchart
 
         return plot_bchart(self, **options)
 

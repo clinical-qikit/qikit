@@ -13,7 +13,8 @@ import plotly.graph_objects as go
 import pytest
 
 from qikit import funnel, qic
-from qikit.plot.charts import _log_ticks, _signal_label_offsets
+from qikit.plot.layout import _log_ticks
+from qikit.plot.render import _signal_label_offsets
 from qikit.plot.theme import CONCERNING, IMPROVING, NORMAL, RUNS, SIGMA, WATCH
 
 # Hardcoded on purpose: these pin the palette against accidental drift.
