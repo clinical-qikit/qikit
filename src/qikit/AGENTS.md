@@ -225,9 +225,15 @@ r.summary["notes"]                # show these with the scorecard
 qikit/
   __init__.py      public exports
   spc.py           qic(): normalize -> aggregate by x -> baseline -> limits -> rules -> table
-  funnel.py        funnel(), funnel_sensitivity(): sums per unit -> dispersion -> contours
-                   -> p/q values -> tiers -> estimates and robustness -> table;
-                   funnel_rollup(): min_denominator() at each level of a hierarchy
+  funnel.py        funnel(), funnel_sensitivity(), funnel_rollup(): the public entry points
+                   and their documentation; the work is in _funnel/
+  _funnel/         funnel()'s machinery, one concern per module:
+    inputs.py      arguments -> one normalized frame (columns, facets, mean-measure inputs)
+    settings.py    validated settings (_Settings) and a facet's fit (_Fit)
+    pipeline.py    per facet: sums per unit -> dispersion -> contours -> p/q values -> tiers
+    summary.py     center-gap guard, benchmarks, expected false flags, shape, power, notes
+    estimates.py   shrunk estimates and single-case robustness
+    constants.py   choices, defaults, internal column names
   within.py        within_dispersion: phi from case rows or SQL totals (pandas)
   results.py       SPCResult, FunnelResult (limits(), min_denominator()), ParetoResult,
                    BChartResult

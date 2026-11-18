@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from conformance_helpers import extract, fixture_paths, run_fixture
+from fixture_adapter import extract, fixture_paths, run_fixture
 
 FIXTURES = fixture_paths()
 

@@ -3,9 +3,9 @@
 This is qikit's record of how its funnel plots are computed, which published method each
 step follows, and where it deliberately departs from that method and why. The numbered
 references at the end are the ones cited, as `[n]`, in the docstrings of
-`src/qikit/funnel.py` and the core modules it calls (`core/contours.py`,
-`core/dispersion.py`, `core/pvalues.py`, `core/power.py`, `core/dist.py`), and in the
-TypeScript twin (`excel-addin/packages/engine/src/stats.ts`, `spc-core.ts`).
+`src/qikit/funnel.py` and `src/qikit/_funnel/`, the core modules they call
+(`core/contours.py`, `core/dispersion.py`, `core/pvalues.py`, `core/power.py`,
+`core/dist.py`), and the TypeScript twin (`excel-addin/packages/engine/src/stats.ts`, `spc-core.ts`).
 
 Time-ordered control charts (`qic()`: run, I, p, u, Laney p′/u′ and the rest) are
 recorded in [qic-methods.md](qic-methods.md), with their conformance to qicharts2.

@@ -21,7 +21,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tests"))
-from conformance_helpers import extract, fixture_paths, run_fixture  # noqa: E402
+from fixture_adapter import extract, fixture_paths, run_fixture  # noqa: E402
 
 # Four orders of magnitude below the tightest fixture check tolerance, and three
 # above the platform noise it is there to absorb.
