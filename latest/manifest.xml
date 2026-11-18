@@ -11,7 +11,7 @@
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
   <Id>a3880040-4930-41dc-8eab-b2f2c56252e8</Id>
-  <Version>1.4.2.0</Version>
+  <Version>1.4.3.0</Version>
   <ProviderName>qikit</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="QI Kit"/>
