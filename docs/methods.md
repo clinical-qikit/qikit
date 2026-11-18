@@ -330,7 +330,8 @@ Implementation notes (`dist.py`, `stats.ts`):
   beta-binomial case against 60-digit `mpmath`. There scipy itself is off by ~1e-5, from
   the cancellation this design avoids.
 - **Fallbacks.** A spread no beta distribution can have (τ² ≥ θ₀(1 − θ₀)), or a
-  distribution too wide to walk (only absurd τ), falls back to eq. 11 as published.
+  distribution too wide to walk (only absurd τ), falls back to eq. 11 as published,
+  with a proportion's contours kept between 0 and 1.
   `summary["limit_method"]` then says `"normal"` instead of `"exact"`. A non-integer
   denominator is interpolated between its whole neighbors (§4.13), and
   `limit_method` says `"interpolated"`.
