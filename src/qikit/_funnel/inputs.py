@@ -105,6 +105,11 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
         k = len(frame)
         for col, values in ((_UNIT, unit), (_LABEL, label)):
             if values is not None:
+                if isinstance(values, str):
+                    # A string is a column name; read as a sequence it would be its letters.
+                    name = "unit" if col == _UNIT else "label"
+                    raise ValueError(f"Without data=, {name}= must be a sequence, not a "
+                                     f"column name ({values!r}).")
                 if len(values) != k:
                     raise ValueError(f"unit=/label= must have one value per y, got {len(values)}.")
                 frame[col] = list(values)
@@ -115,6 +120,9 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
             if not isinstance(hover, dict):
                 raise ValueError("Without data=, hover= must be a dict of per-point sequences.")
             for name, values in hover.items():
+                if str(name) in _COLUMNS:
+                    raise ValueError(f"hover= column {str(name)!r} collides with a column "
+                                     "funnel() writes.")
                 frame[str(name)] = list(values)
                 hover_names.append(str(name))
     else:
@@ -169,7 +177,11 @@ def _normalize(data, y, n, unit, label, hover, facets, exclude, extra=None):
                 raise ValueError("exclude= as a string must name a boolean column of data.")
             frame[_EXCL] = data[exclude].fillna(False).to_numpy(dtype=bool)
         else:
-            ids = set(exclude)
+            if isinstance(exclude, (bool, np.bool_)):
+                raise ValueError("exclude= takes unit ids or a boolean column's name, "
+                                 "not True or False.")
+            # One id on its own (exclude=7) means [7], as qic(exclude=) reads it.
+            ids = set(exclude) if np.iterable(exclude) else {exclude}
             unknown = ids - set(frame[_UNIT])
             if unknown:
                 raise ValueError(f"exclude= lists unit(s) not in the data: {sorted(map(str, unknown))}.")

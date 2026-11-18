@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`funnel(exclude=7)` takes a single unit id**, as `qic(exclude=)` does; it raised
+  `TypeError: 'int' object is not iterable`. `exclude=True` now says it wants ids or a
+  column name.
+- **Without `data=`, a `hover=` entry named like a result column is refused.** With
+  `hover={"numerator": [...]}` the hover values silently replaced the numerator column
+  in `result.data`; it now raises, as it already did with `data=`.
+- **Without `data=`, `unit=` or `label=` as a string is refused.** It was read as a
+  sequence of letters (`label="name"` labelled four providers n, a, m, e); it now says to
+  pass a sequence.
+
+### Tests
+
+- `tests/conformance_helpers.py` is gone. The Python tests use `qic()` and `funnel()`
+  directly; `tests/fixture_adapter.py` (311 lines, from 447) runs the shared fixtures in
+  the TypeScript engine's vocabulary, and `tests/test_fixture_adapter.py` pins the parts
+  of that vocabulary that are not simply new names.
+
 ## 1.4.3 (2026-11-17)
 
 ### Excel add-in

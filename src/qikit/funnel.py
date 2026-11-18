@@ -232,8 +232,8 @@ def funnel(
     label : display name column (the first value per unit); hover : extra tooltip columns.
     facets : a column, or list of columns: one funnel per value, each with its own
         center line, dispersion and Benjamini–Hochberg step.
-    exclude : a boolean column, or a list of unit ids, left out of the center line,
-        dispersion and testing (still drawn, faded).
+    exclude : a boolean column, or a unit id or list of unit ids, left out of the center
+        line, dispersion and testing (still drawn, faded).
     center : a fixed center line (a target). Pair it with overdispersion=False: with the
         spread allowance on, a gap between the providers' pooled value and the center
         widens every limit, and a UserWarning says so (methods §4.2.1). For O/E against

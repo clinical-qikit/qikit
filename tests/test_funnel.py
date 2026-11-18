@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from qikit import FunnelResult, funnel, qic
-from conformance_helpers import engine_qic as _qic
+from qikit.core.contours import funnel_contours
 
 # Twelve physicians: observed deaths against expected, as in funnel_oe_physician_power.
 OBS = [8, 3, 9, 6, 15, 11, 20, 14, 33, 30, 52, 110]
@@ -68,36 +68,16 @@ def _aggregate(stays):
 
 
 # ---------------------------------------------------------------------------
-# Mapping onto the engine
+# Choices (how they map onto the engine contract: test_fixture_adapter.py)
 # ---------------------------------------------------------------------------
 
-class TestMapping:
-    @pytest.mark.parametrize("measure,over,chart", [
-        ("oe", True, "oep"), ("oe", False, "oe"), ("rate", True, "up"),
-        ("rate", False, "u"), ("proportion", True, "pp"), ("proportion", False, "p"),
-    ])
-    def test_measure_and_overdispersion_pick_the_model(self, measure, over, chart):
-        n = [v * 10 for v in EXP] if measure == "proportion" else EXP
-        r = funnel(y=OBS, n=n, measure=measure, overdispersion=over)
-        core = _qic(y=OBS, n=n, chart=chart, funnel=True)
-        assert r.data["upper_outlier"].tolist() == core.data["ucl"].tolist()
-        assert r.data["p_value"].tolist() == core.data["p_value"].tolist()
+class TestChoices:
+    @pytest.mark.parametrize("worse", [None, "higher", "lower"])
+    def test_worse_is_recorded(self, worse):
+        assert _r(worse=worse).summary["worse"] == worse
 
-    @pytest.mark.parametrize("measure,chart", [("oe", "oep"), ("rate", "up"), ("proportion", "pp")])
-    def test_spiegelhalter_is_the_published_engine(self, measure, chart):
-        n = [v * 10 for v in EXP] if measure == "proportion" else EXP
-        r = funnel(y=OBS, n=n, measure=measure, tau_method="spiegelhalter")
-        core = _qic(y=OBS, n=n, chart=chart, funnel=True, tau_method="spiegelhalter")
-        assert r.data["upper_outlier"].tolist() == core.data["ucl"].tolist()
-        assert r.data["p_value"].tolist() == core.data["p_value"].tolist()
-        assert r.summary["tau_method"] == "spiegelhalter"
-
-    @pytest.mark.parametrize("worse,side", [(None, "both"), ("higher", "above"), ("lower", "below")])
-    def test_worse_is_the_signal_side(self, worse, side):
-        r = _r(worse=worse)
-        core = _qic(y=OBS, n=EXP, chart="oep", funnel=True, signal_side=side)
-        assert r.data["p_value"].tolist() == core.data["p_value"].tolist()
-        assert r.summary["worse"] == worse
+    def test_spiegelhalter_is_recorded(self):
+        assert _r(tau_method="spiegelhalter").summary["tau_method"] == "spiegelhalter"
 
     def test_center_benchmarks_against_the_model(self):
         assert (_r(center=1.0).data["cl"] == 1.0).all()
@@ -217,6 +197,16 @@ class TestInputs:
         with pytest.raises(ValueError, match="not in the data"):
             _r(exclude=["nobody"])
 
+    def test_exclude_one_numeric_id(self):
+        """A single id stands for a list of one, as in qic(exclude=)."""
+        df = _frame().assign(code=range(101, 113))
+        one = funnel(df, y="deaths", n="expected", measure="oe", unit="code", exclude=105)
+        listed = funnel(df, y="deaths", n="expected", measure="oe", unit="code", exclude=[105])
+        assert one.data["excluded"].tolist() == listed.data["excluded"].tolist()
+        assert one.data.loc[one.data["excluded"], "unit"].tolist() == [105]
+        with pytest.raises(ValueError, match="not True or False"):
+            funnel(df, y="deaths", n="expected", measure="oe", unit="code", exclude=True)
+
     def test_facets_summarize_each_panel(self):
         df = pd.concat([_frame().assign(site="A"), _frame().assign(site="B")])
         r = funnel(df, y="deaths", n="expected", measure="oe", unit="surgeon", facets="site")
@@ -241,6 +231,18 @@ class TestInputs:
         df = _frame().assign(signal=1)
         with pytest.raises(ValueError, match="collides"):
             funnel(df, y="deaths", n="expected", measure="oe", hover="signal")
+
+    def test_hover_collision_without_data(self):
+        """A per-point hover sequence named like a result column used to replace it."""
+        with pytest.raises(ValueError, match="collides"):
+            funnel(y=[5, 2, 9, 4], n=[30.0, 10.0, 60.0, 20.0], measure="oe",
+                   hover={"numerator": [1, 2, 3, 4]})
+
+    @pytest.mark.parametrize("arg", ["unit", "label"])
+    def test_column_name_without_data(self, arg):
+        """Without data= a string was read as a sequence of its letters."""
+        with pytest.raises(ValueError, match=f"{arg}= must be a sequence"):
+            funnel(y=[5, 2, 9, 4], n=[30.0, 10.0, 60.0, 20.0], measure="oe", **{arg: "name"})
 
 
 # ---------------------------------------------------------------------------
@@ -292,8 +294,9 @@ class TestWithinDispersion:
     def test_supplied_phi_is_effective_counts(self):
         """Variance φ × mean is a Poisson count of O/φ events against E/φ expected."""
         r = _r(overdispersion=False, within_dispersion=2.0)
-        scaled = _qic(y=[o / 2 for o in OBS], n=[e / 2 for e in EXP], chart="oe", funnel=True)
-        assert r.data["upper_outlier"].tolist() == scaled.data["ucl"].tolist()
+        scaled = funnel(y=[o / 2 for o in OBS], n=[e / 2 for e in EXP], measure="oe",
+                        overdispersion=False)
+        assert r.data["upper_outlier"].tolist() == scaled.data["upper_outlier"].tolist()
         assert r.data["p_value"].tolist() == pytest.approx(scaled.data["p_value"].tolist(), rel=1e-12)
         assert r.data["numerator"].tolist() == sorted(OBS, key=lambda o: EXP[OBS.index(o)])
         assert r.summary["within_dispersion"] == 2.0
@@ -360,8 +363,9 @@ class TestClusteredProportions:
         y = [3, 10, 14, 25, 40, 61, 70, 101]
         n = [12, 18, 24, 36, 60, 90, 99, 150]
         r = funnel(y=y, n=n, measure="proportion", overdispersion=False, within_dispersion=2.42)
-        scaled = _qic(y=[v / 2.42 for v in y], n=[v / 2.42 for v in n], chart="p", funnel=True)
-        assert r.data["upper_outlier"].tolist() == scaled.data["ucl"].tolist()
+        scaled = funnel(y=[v / 2.42 for v in y], n=[v / 2.42 for v in n], measure="proportion",
+                        overdispersion=False)
+        assert r.data["upper_outlier"].tolist() == scaled.data["upper_outlier"].tolist()
         assert r.data["p_value"].tolist() == pytest.approx(scaled.data["p_value"].tolist(), rel=1e-12)
         assert r.data["numerator"].tolist() == y
         assert r.summary["within_dispersion"] == 2.42
@@ -974,8 +978,11 @@ class TestTauMethods:
     def test_fixed_tau_is_used_and_this_periods_estimate_reported(self):
         o, e = _physicians(np.random.default_rng(75), k=300, tau=0.25)
         r = funnel(y=o, n=e, measure="oe", tau=0.2)
-        core = _qic(y=o, n=e, chart="oep", funnel=True, tau_fixed=0.04)
-        np.testing.assert_array_equal(np.sort(r.data["upper_outlier"]), np.sort(core.data["ucl"]))
+        # The limits are the Poisson–gamma contours at τ² = 0.2², about the pooled center.
+        d = r.data
+        core = funnel_contours("poisson", d["cl"].iloc[0], d["denominator"].to_numpy(), 0.04,
+                               (0.998, 0.95), "exact")
+        np.testing.assert_array_equal(d["upper_outlier"].to_numpy(), core.ucl)
         assert r.summary["tau"] == pytest.approx(0.2)
         assert r.summary["tau_source"] == "pre-specified"
         est = funnel(y=o, n=e, measure="oe").summary["tau"]
