@@ -3,7 +3,7 @@ import { Button, Select, Spinner, makeStyles } from '@fluentui/react-components'
 import { DocumentRegular, ArrowSyncRegular, ArrowDownloadRegular } from '@fluentui/react-icons';
 import { bchart } from '@qikit/engine';
 import { detectHeaderRow } from '../shared/detect-headers';
-import { buildBChartValues, buildBChartSheetRows } from './data-prep';
+import { buildBChartValues, buildBChartSheetRows, firstBinaryColumn } from './data-prep';
 import { qikit } from '../../theme/tokens';
 import { getSelectedRangeValues, writeToNewSheet } from '../../excel/excel-io';
 import { registerLiveUpdate } from '../../excel/live-update';
@@ -14,6 +14,8 @@ import {
   PointElement, LineElement, Tooltip, Legend,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { ErrorNotice } from '../shared/ErrorNotice';
+import { ErrorState, panelError } from '../shared/error-report';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
@@ -142,7 +144,7 @@ export const BChartPanel: React.FC = () => {
   const [limitStr, setLimitStr] = useState('3.5');
   const [result, setResult] = useState<ReturnType<typeof bchart> | null>(null);
   const [isWriting, setIsWriting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState>(null);
   const liveUpdate = useLiveUpdateStatus();
 
   const handleSelectData = useCallback(async () => {
@@ -155,10 +157,10 @@ export const BChartPanel: React.FC = () => {
       setHeaders(hdrs);
       setRawData(data);
       setRangeAddress(res.address);
-      setXCol(0);
+      setXCol(firstBinaryColumn(data, hdr));
       setResult(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to read selection.');
+      setError(panelError(err, 'Failed to read selection.'));
     }
   }, []);
 
@@ -171,7 +173,7 @@ export const BChartPanel: React.FC = () => {
       const limit = parseFloat(limitStr) || 3.5;
       setResult(bchart({ x: values, target, or_ratio, limit }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Computation failed.');
+      setError(panelError(err, 'Computation failed.'));
       setResult(null);
     }
   }, [rawData, hasHeaders, xCol, targetStr, orRatioStr, limitStr]);
@@ -198,7 +200,7 @@ export const BChartPanel: React.FC = () => {
       });
       liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+      setError(panelError(err, 'Failed to write to sheet.'));
     } finally {
       setIsWriting(false);
     }
@@ -275,7 +277,7 @@ export const BChartPanel: React.FC = () => {
         </>
       )}
 
-      {error && <div className={styles.error} role="alert">{error}</div>}
+      <ErrorNotice error={error} panel="Bernoulli CUSUM" className={styles.error} />
 
       {result && (
         <>

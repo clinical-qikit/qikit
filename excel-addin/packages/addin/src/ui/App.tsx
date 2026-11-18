@@ -146,7 +146,7 @@ export const App: React.FC = () => {
         ))}
       </nav>
       <div className={styles.content} role="tabpanel" id="qikit-tabpanel" aria-labelledby={`tab-${tab}`}>
-        <PanelErrorBoundary key={tab}>
+        <PanelErrorBoundary key={tab} panel={TABS.find(t => t.key === tab)!.label}>
           {tab === 'spc'    && <SpcPanel />}
           {tab === 'doe'    && <DoeWizard />}
           {tab === 'pareto' && <ParetoPanel />}

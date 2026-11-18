@@ -6,7 +6,7 @@
   "developer": {
     "name": "qikit",
     "websiteUrl": "https://github.com/clinical-qikit/qikit",
-    "privacyUrl": "https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md#privacy",
+    "privacyUrl": "https://localhost:3000/privacy.html",
     "termsOfUseUrl": "https://github.com/clinical-qikit/qikit/blob/main/LICENSE"
   },
   "name": {
