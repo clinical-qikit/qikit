@@ -27,7 +27,8 @@ from qikit.core.dispersion import TAU_METHODS
 from qikit.core.rules import METHODS
 from qikit.core.shewhart import CHARTS
 from qikit.funnel import MEASURES, SIGNALS
-from qikit.plot.charts import _CATERPILLAR_OPTIONS, _FUNNEL_OPTIONS, _SPC_OPTIONS
+from qikit.plot.caterpillar import _CATERPILLAR_OPTIONS
+from qikit.plot.drawing import _FUNNEL_OPTIONS, _SPC_OPTIONS
 from qikit.plot.options import LABEL_SIGNALS
 
 ROOT = Path(__file__).resolve().parent.parent
