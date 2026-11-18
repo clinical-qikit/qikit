@@ -912,8 +912,10 @@ class TestSpeed:
         dist._poisson_mean_solve.cache_clear()
         t = time.perf_counter()
         funnel(y=o, n=e, measure="oe", worse="higher")
-        # ~0.3 s cold on a 2024 laptop (1.3 s in 0.9); generous for CI runners.
-        assert time.perf_counter() - t < 1.5
+        # ~0.3-0.5 s cold on a 2024 laptop (1.3 s in 0.9). The lowest-dependencies CI job
+        # (numpy 1.24, Python 3.10) runs about three times slower and has reached 1.6 s,
+        # so the bound sits well above that but below the old path's CI time.
+        assert time.perf_counter() - t < 3.0
 
 
 # ---------------------------------------------------------------------------

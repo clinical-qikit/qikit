@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.3 (2026-11-17)
 
 ### Excel add-in
 
