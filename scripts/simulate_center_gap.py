@@ -31,7 +31,8 @@ import pandas as pd
 
 from qikit import funnel
 from qikit.core.dispersion import overdispersion, tau2_ml
-from qikit.funnel import _center_gap, _Fit, _settings
+from qikit._funnel.settings import _Fit, _settings
+from qikit._funnel.summary import _center_gap
 
 KS = (20, 50, 200, 1000)
 VOLUMES = {"physician": (5.0, 50.0), "hospital": (50.0, 500.0)}

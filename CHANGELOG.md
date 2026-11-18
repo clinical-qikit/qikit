@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`funnel(exclude=7)` takes a single unit id**, as `qic(exclude=)` does; it raised
+  `TypeError: 'int' object is not iterable`. `exclude=True` now says it wants ids or a
+  column name.
+- **Without `data=`, a `hover=` entry named like a result column is refused.** With
+  `hover={"numerator": [...]}` the hover values silently replaced the numerator column
+  in `result.data`; it now raises, as it already did with `data=`.
+- **Without `data=`, `unit=` or `label=` as a string is refused.** It was read as a
+  sequence of letters (`label="name"` labelled four providers n, a, m, e); it now says to
+  pass a sequence.
+
+### Tests
+
+- `tests/conformance_helpers.py` is gone. The Python tests use `qic()` and `funnel()`
+  directly; `tests/fixture_adapter.py` (311 lines, from 447) runs the shared fixtures in
+  the TypeScript engine's vocabulary, and `tests/test_fixture_adapter.py` pins the parts
+  of that vocabulary that are not simply new names.
+
 ### Excel add-in
 
 - **A privacy and security page** is published with the add-in (`privacy.html` beside
@@ -25,7 +44,6 @@
   the IDs and failed with "Target must be between 0 and 1". It now starts on the first
   column of 0s and 1s, and a column with other values gets a message saying what the
   panel needs. Blank cells are skipped; they were counted as 0 (no event).
-
 - **The task pane works in Excel.** Since 1.4.2 the published task pane also loaded the
   browser demo's mock of Office.js, which replaced Excel's own: in Excel the pane showed
   the demo with made-up data and never read or wrote the workbook. The demo is now a
