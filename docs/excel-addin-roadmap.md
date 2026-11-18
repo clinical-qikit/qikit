@@ -111,6 +111,14 @@ a sentence about it without reading documentation.
 
 ### 3. Make it trustworthy to IT and to the next maintainer (several days)
 
+*Built 2026-11-17: `assets/privacy.html` (the JSON manifest's privacy URL), a CSP on every
+published page (`vite.config.ts`), Copy details on errors, `tests/panels.test.tsx`
+through the demo harness, and the harness published as `demo.html`. Found on the way:
+1.4.2 and 1.4.3 loaded the harness's Office.js mock in Excel (fixed separately, with a
+build check). The CSP is checked in a browser only; whether Office.js needs more on
+Windows, Mac or the web is still to confirm in Excel. The end-to-end pass is jsdom rather
+than a real browser.*
+
 - **Privacy and security page**: all computation is local to the task pane, no network
   calls after load, no telemetry. Link it from the manifest.
 - **Content Security Policy** on the hosted page, and Office.js as the only external

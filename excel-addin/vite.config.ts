@@ -4,10 +4,42 @@ import mkcert from 'vite-plugin-mkcert'
 import { resolve } from 'path'
 import { packageVersion } from './scripts/manifest.mjs'
 
-const skipMkcert = process.env.NODE_ENV === 'test' || process.env.VITE_NO_MKCERT === 'true'
+// Content Security Policy for the published pages (added at build time only; the dev
+// server needs inline scripts and a websocket for hot reload). GitHub Pages cannot send
+// headers, so it is a <meta> tag.
+//  - script-src: our own files, and Office.js. Office.js loads its host files and its
+//    telemetry module from appsforoffice.microsoft.com, and MicrosoftAjax.js from
+//    ajax.aspnetcdn.com. Its one `new Function` has a fallback, so no 'unsafe-eval'.
+//  - style-src 'unsafe-inline': Fluent UI (Griffel) inserts <style> elements at runtime.
+//  - connect-src: our code makes no requests. Office.js fetches from its own CDN and,
+//    in Excel desktop, from the virtual host document.localhost.
+export const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://appsforoffice.microsoft.com https://ajax.aspnetcdn.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://appsforoffice.microsoft.com http://document.localhost https://document.localhost",
+  // Office.js tries to frame Microsoft's telemetry service (telemetryservice.
+  // firstpartyapps.oaspapps.com); Office reports in without it, and this blocks it.
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join('; ')
+
+const cspPlugin = {
+  name: 'qikit-csp',
+  apply: 'build' as const,
+  transformIndexHtml: (html: string) =>
+    html.replace('<meta charset="UTF-8" />',
+      `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${CSP}">`),
+}
+
+const skipMkcert =process.env.NODE_ENV === 'test' || process.env.VITE_NO_MKCERT === 'true'
 
 export default defineConfig({
-  plugins: [react(), !skipMkcert ? mkcert() : null],
+  plugins: [react(), cspPlugin, !skipMkcert ? mkcert() : null],
   root: resolve(__dirname, 'packages/addin'),
   // Relative asset paths, so one build serves from any directory (a versioned Pages
   // path, `latest/`, or an intranet server).

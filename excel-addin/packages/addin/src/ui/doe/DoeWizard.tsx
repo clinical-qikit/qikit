@@ -190,7 +190,7 @@ export const DoeWizard: React.FC = () => {
   const [result, setResult] = useState<DOEResult | null>(null);
   const [doeChartType, setDoeChartType] = useState<DoeChartType>('effects');
   const [isWriting, setIsWriting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState>(null);
   const liveUpdate = useLiveUpdateStatus();
 
   const onGenerate = () => {
@@ -213,7 +213,7 @@ export const DoeWizard: React.FC = () => {
       setCurrentDesign(d);
       setStep(2);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate design.");
+      setError(panelError(err, "Failed to generate design."));
     }
   };
 
@@ -226,7 +226,7 @@ export const DoeWizard: React.FC = () => {
       const rows = currentDesign.matrix.map(row => headers.map(h => row[h]));
       await writeToNewSheet(`DOE ${currentDesign.n_factors}F`, [headers, ...rows]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to write template.");
+      setError(panelError(err, "Failed to write template."));
     } finally {
       setIsWriting(false);
     }
@@ -245,7 +245,7 @@ export const DoeWizard: React.FC = () => {
         setStep(3);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to read or analyze results.");
+      setError(panelError(err, "Failed to read or analyze results."));
     }
   };
 
@@ -267,7 +267,7 @@ export const DoeWizard: React.FC = () => {
       });
       liveUpdate.activate(bindingId, resultsRangeAddress);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to write results.");
+      setError(panelError(err, "Failed to write results."));
     } finally {
       setIsWriting(false);
     }
@@ -329,7 +329,7 @@ export const DoeWizard: React.FC = () => {
     <div className={styles.container}>
       {renderStepper()}
 
-      {error && <div className={styles.error} role="alert" style={{ marginTop: '12px' }}>{error}</div>}
+      <ErrorNotice error={error} panel="Planned Experimentation" className={styles.error} style={{ marginTop: '12px' }} />
 
       {step === 1 && (
         <>
@@ -487,6 +487,8 @@ import {
   LineElement, BarElement, Tooltip, Legend,
 } from 'chart.js';
 import { Line as LineChart, Scatter as ScatterChart } from 'react-chartjs-2';
+import { ErrorNotice } from '../shared/ErrorNotice';
+import { ErrorState, panelError } from '../shared/error-report';
 
 ChartJS2.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 

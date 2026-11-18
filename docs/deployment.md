@@ -132,25 +132,39 @@ branch**, branch `gh-pages`, folder `/ (root)`. The branch exists after the work
 first run. To publish a tag that existed before Pages was enabled, run the workflow by
 hand with that tag.
 
-## Privacy
+## Privacy and security
 
-QI Kit for Excel does all its calculation in the task pane, on your computer. It sends no
-workbook data anywhere: it makes no network requests of its own, has no telemetry, and
-uses no accounts or sign-in.
+The full statement, for users and IT reviewers, is published with the add-in:
+<https://clinical-qikit.github.io/qikit/latest/privacy.html> (source:
+`excel-addin/assets/privacy.html`). The JSON manifest links to it as its privacy URL
+(the XML manifest has no such field). In short:
 
-- The task pane's files come from GitHub Pages (or your own server, if you host it).
-  GitHub serves them like any website and sees the request, not your data.
-- Office.js, Microsoft's add-in library, is loaded from Microsoft's CDN
-  (`appsforoffice.microsoft.com`), as for every Office add-in.
-- Live updates store which ranges are linked to which charts in the workbook's own
-  settings, so the information travels with the workbook and nowhere else.
+- QI Kit does all its calculation in the task pane, on your computer. It sends no workbook
+  data anywhere: no requests of its own, no telemetry, no accounts or sign-in.
+- It loads its own files from GitHub Pages (or your server) and Office.js from
+  Microsoft's CDN, nothing else.
+- It reads only the cells you select (and ranges you link for live updates), and writes
+  only to sheets it creates. Its settings live in the workbook.
+- **Content Security Policy.** Every published page carries one (`CSP` in
+  `excel-addin/vite.config.ts`). Scripts may come only from the add-in's folder and
+  Office.js's hosts (`appsforoffice.microsoft.com`, and `ajax.aspnetcdn.com` for
+  MicrosoftAjax.js, which Office.js loads). No eval. No frames: this also blocks the
+  telemetry frame Office.js tries to open. Network requests may go only to the add-in's
+  folder, Office.js's CDN, and the virtual host `document.localhost` that Excel desktop
+  uses. `npm run build` fails if a page lacks the policy.
 
-The source is open at <https://github.com/clinical-qikit/qikit> for review.
+If you change what the add-in loads, update the policy and the privacy page together.
 
 ## Troubleshooting
 
 - **Blank task pane**: the page did not load. Open the task pane's URL from the manifest
-  in a browser; if it fails there, the hosting is the problem.
+  in a browser; if it fails there, the hosting is the problem. If it loads in a browser
+  but not in Excel, the Content Security Policy may be blocking something Office.js
+  needs on that platform. Open the task pane's developer tools (right-click → Inspect on
+  Windows, or Safari's Develop menu on Mac) and look for "Content Security Policy" in the
+  console.
+- **Something went wrong in a panel**: the message has **Copy details** (versions, panel,
+  error and trace; no cell values). Paste them into an issue.
 - **QI Kit tab missing**: check the Excel version against the requirements above, then
   close and reopen Excel. Admin center deployments can take a while to reach users.
 - **Old version after a release**: GitHub Pages caches pages for a few minutes. Closing

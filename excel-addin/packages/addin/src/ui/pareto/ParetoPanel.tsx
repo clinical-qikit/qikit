@@ -13,6 +13,8 @@ import {
   PointElement, LineElement, Title, Tooltip, Legend,
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
+import { ErrorNotice } from '../shared/ErrorNotice';
+import { ErrorState, panelError } from '../shared/error-report';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -118,7 +120,7 @@ export const ParetoPanel: React.FC = () => {
   const [xCol, setXCol] = useState<number>(0);
   const [result, setResult] = useState<ReturnType<typeof paretochart> | null>(null);
   const [isWriting, setIsWriting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState>(null);
   const liveUpdate = useLiveUpdateStatus();
 
   const handleSelectData = useCallback(async () => {
@@ -134,7 +136,7 @@ export const ParetoPanel: React.FC = () => {
       setXCol(0);
       setResult(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to read selection.');
+      setError(panelError(err, 'Failed to read selection.'));
     }
   }, []);
 
@@ -144,7 +146,7 @@ export const ParetoPanel: React.FC = () => {
       const values = buildParetoValues(rawData, hasHeaders, xCol);
       setResult(paretochart({ x: values }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Computation failed.');
+      setError(panelError(err, 'Computation failed.'));
     }
   }, [rawData, hasHeaders, xCol]);
 
@@ -171,7 +173,7 @@ export const ParetoPanel: React.FC = () => {
       });
       liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+      setError(panelError(err, 'Failed to write to sheet.'));
     } finally {
       setIsWriting(false);
     }
@@ -216,7 +218,7 @@ export const ParetoPanel: React.FC = () => {
         </div>
       )}
 
-      {error && <div className={styles.error} role="alert">{error}</div>}
+      <ErrorNotice error={error} panel="Pareto" className={styles.error} />
 
       {result && (
         <>

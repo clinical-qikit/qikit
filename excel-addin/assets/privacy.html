@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'">
+  <title>QI Kit for Excel: privacy and security</title>
+  <style>
+    body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; color: #1b1b1f;
+      background: #f8f9fb; margin: 0; line-height: 1.55; }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    h2 { font-size: 17px; margin: 28px 0 8px; }
+    p, li { font-size: 15px; }
+    .lede { font-size: 17px; }
+    code { font-family: Consolas, Menlo, monospace; font-size: 13px; background: #eef1f4;
+      padding: 1px 4px; border-radius: 3px; }
+    a { color: #107c6c; }
+    .muted { color: #5c5c65; font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>QI Kit for Excel: privacy and security</h1>
+  <p class="muted">For users and for IT reviewers. Describes the version published beside
+    this page; each <code>vX.Y.Z/</code> folder carries its own copy.</p>
+
+  <p class="lede">QI Kit does all of its calculation inside Excel, on your computer. It
+    sends no workbook data anywhere. It has no server of its own, no telemetry or analytics,
+    no accounts or sign-in, and sets no cookies.</p>
+
+  <h2>What is downloaded, and from where</h2>
+  <ul>
+    <li><strong>The task pane's own files</strong> (one HTML page, scripts and icons) come
+      from the folder the manifest names: <code>clinical-qikit.github.io/qikit/</code> on
+      GitHub Pages, or your organization's server if it hosts its own copy. GitHub serves
+      them like any website: it sees a request for the files, not your data.</li>
+    <li><strong>Office.js</strong>, Microsoft's library that every Office add-in uses to
+      talk to Excel, comes from <code>appsforoffice.microsoft.com</code>. What Office.js
+      itself sends to Microsoft is covered by Microsoft's privacy statement, as it is for
+      any add-in.</li>
+  </ul>
+  <p>Nothing else is loaded. After the page has loaded, the add-in's own code makes no
+    network requests. The page enforces this with a Content Security Policy: the browser
+    refuses scripts from anywhere but the add-in's own folder and Microsoft's Office.js
+    address, and refuses network requests from the add-in's code to any address
+    except its own folder.</p>
+
+  <h2>What it reads and writes in your workbook</h2>
+  <ul>
+    <li><strong>Reads</strong> the cells you select when you click a button such as
+      <em>Use Current Selection</em>, and nothing else, except ranges you have linked
+      for live updates (below).</li>
+    <li><strong>Writes</strong> only new sheets it creates for its output (charts, tables,
+      experiment templates, the sample data), and the charts on them. It does not change
+      your existing cells. Its manifest asks for read and write access to the document
+      (<code>ReadWriteDocument</code>) because it needs to create those sheets.</li>
+    <li><strong>Live updates</strong>: when you write a chart to a sheet, the add-in links
+      its source range so the chart recomputes when the data changes, rewriting that
+      output sheet (one the add-in created) and nothing else. The list of links is
+      stored in the workbook's own add-in settings (<code>qikit.liveUpdates</code>), so it
+      travels with the workbook.</li>
+    <li><strong>Remembered choices</strong>: the SPC panel stores its chart type and options
+      in the workbook's add-in settings (<code>qikit.spc.settings</code>). No cell values
+      are stored there.</li>
+  </ul>
+
+  <h2>When something goes wrong</h2>
+  <p>An error message offers <em>Copy details</em>: the add-in version, the panel, the
+    error text and technical trace, and the Excel and browser versions. It copies them to
+    your clipboard and sends nothing. You decide whether to paste them anywhere, such as a
+    GitHub issue. Read them first: an error message can include a column name from your
+    sheet.</p>
+
+  <h2>Reviewing it</h2>
+  <ul>
+    <li>The source is open: <a href="https://github.com/clinical-qikit/qikit">github.com/clinical-qikit/qikit</a>
+      (the add-in is in <code>excel-addin/</code>). Each published folder is built from a
+      tagged release by a public GitHub Actions workflow.</li>
+    <li>To pin a reviewed version, use a <code>vX.Y.Z/</code> folder instead of
+      <code>latest/</code>. Those folders never change once published.</li>
+    <li>To host it yourself, build <code>excel-addin/</code> and serve <code>dist/</code>
+      from your own server. The install guide explains how.</li>
+    <li>Report problems as an <a href="https://github.com/clinical-qikit/qikit/issues">issue</a>.
+      For a security problem, open an issue asking for a private contact instead of
+      describing it in public.</li>
+  </ul>
+
+  <p class="muted"><a href="https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md">Install guide</a>
+    · <a href="./demo.html">Demo</a></p>
+</main>
+</body>
+</html>

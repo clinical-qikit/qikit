@@ -16,6 +16,13 @@ export function firstRowOf(address: string): number {
   return m ? parseInt(m[1], 10) : 1;
 }
 
+/** A friendlier error that keeps the original (with its Office.js code) as `cause`. */
+function wrapError(message: string, error: unknown): Error {
+  const wrapped = new Error(`${message}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  (wrapped as Error & { cause?: unknown }).cause = error;
+  return wrapped;
+}
+
 export async function getSelectedRangeValues(): Promise<RangeData> {
   try {
     return await Excel.run(async (context) => {
@@ -36,7 +43,7 @@ export async function getSelectedRangeValues(): Promise<RangeData> {
     });
   } catch (error) {
     console.error("Error reading selected range:", error);
-    throw new Error(`Failed to read Excel selection: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw wrapError('Failed to read Excel selection', error);
   }
 }
 
@@ -68,7 +75,7 @@ export async function writeToSheetRange(
     });
   } catch (error) {
     console.error("Error writing to sheet range:", error);
-    throw new Error(`Failed to write data to Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw wrapError('Failed to write data to Excel', error);
   }
 }
 
@@ -137,6 +144,6 @@ export async function writeToNewSheet(sheetName: string, data: any[][]): Promise
     });
   } catch (error) {
     console.error("Error writing to new sheet:", error);
-    throw new Error(`Failed to write data to Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw wrapError('Failed to write data to Excel', error);
   }
 }

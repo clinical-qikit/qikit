@@ -27,6 +27,8 @@ import { SignalMethodPicker } from './SignalMethodPicker';
 import { LimitOptions } from './LimitOptions';
 import { AnnotationBar, AnnotationList } from './AnnotationEditor';
 import { SummaryPanel } from './SummaryPanel';
+import { ErrorNotice } from '../shared/ErrorNotice';
+import { ErrorState, panelError } from '../shared/error-report';
 
 export const SpcPanel: React.FC = () => {
   const styles = useSpcStyles();
@@ -67,7 +69,7 @@ export const SpcPanel: React.FC = () => {
   const [includeDataTable, setIncludeDataTable] = useState(remembered?.includeDataTable ?? false);
   const [isWriting, setIsWriting] = useState(false);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState>(null);
   const liveUpdate = useLiveUpdateStatus();
 
   // Options
@@ -162,7 +164,7 @@ export const SpcPanel: React.FC = () => {
         setAnnotations(prev => ({ ...noteMap, ...prev }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Computation failed.');
+      setError(panelError(err, 'Computation failed.'));
       setResult(null);
       setFindings(null);
     }
@@ -182,7 +184,7 @@ export const SpcPanel: React.FC = () => {
     try {
       loadRange(await getSelectedRangeValues());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to read selection.');
+      setError(panelError(err, 'Failed to read selection.'));
     }
   }, [loadRange]);
 
@@ -192,7 +194,7 @@ export const SpcPanel: React.FC = () => {
     try {
       loadRange(await writeSampleSheet(SAMPLE_SHEET_NAME, sampleRows(), SAMPLE_FORMATS));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to write the sample data.');
+      setError(panelError(err, 'Failed to write the sample data.'));
     } finally {
       setIsLoadingSample(false);
     }
@@ -242,7 +244,7 @@ export const SpcPanel: React.FC = () => {
       });
       liveUpdate.activate(bindingId, rangeAddress);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to write to sheet.');
+      setError(panelError(err, 'Failed to write to sheet.'));
     } finally {
       setIsWriting(false);
     }
@@ -345,7 +347,7 @@ export const SpcPanel: React.FC = () => {
       )}
 
       {/* ── Error ── */}
-      {error && <div className={styles.error} role="alert">{error}</div>}
+      <ErrorNotice error={error} panel="SPC" className={styles.error} />
 
       {/* ── Chart ── */}
       {result ? (

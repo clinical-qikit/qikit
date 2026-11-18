@@ -21,8 +21,29 @@
   the TypeScript engine's vocabulary, and `tests/test_fixture_adapter.py` pins the parts
   of that vocabulary that are not simply new names.
 
+### Excel add-in
+
+- **A privacy and security page** is published with the add-in (`privacy.html` beside
+  the task pane) and set as the JSON manifest's privacy URL. It covers what is loaded and from where,
+  what is read and written in the workbook, and how to review or pin a version.
+- **A Content Security Policy on every published page**: scripts only from the add-in's
+  folder and Office.js's hosts, no eval, no frames, and network requests only to the
+  add-in's folder and Office.js's. `npm run build` fails if a page lacks it.
+- **Copy details on every error.** Each panel's error message, and the crash screen,
+  offer Copy details: the add-in and Excel versions, the panel, the message, the Office.js
+  error code and the trace, ready to paste into an issue. Nothing is sent. Office.js error
+  codes were previously dropped when the add-in reworded the message.
+- **A public demo**: `latest/demo.html` runs the task pane against a sample workbook in
+  any browser.
+- **Component tests**: the four panels are tested end to end through the demo's mock
+  workbook (jsdom and Testing Library), including errors and the crash screen.
+
 ### Fixed (Excel add-in)
 
+- **The Bernoulli CUSUM panel picks the 0/1 column.** With an ID column first, it used
+  the IDs and failed with "Target must be between 0 and 1". It now starts on the first
+  column of 0s and 1s, and a column with other values gets a message saying what the
+  panel needs. Blank cells are skipped; they were counted as 0 (no event).
 - **The task pane works in Excel.** Since 1.4.2 the published task pane also loaded the
   browser demo's mock of Office.js, which replaced Excel's own: in Excel the pane showed
   the demo with made-up data and never read or wrote the workbook. The demo is now a

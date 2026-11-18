@@ -41,4 +41,12 @@ if (!demo.some(f => readFileSync(join(dist, f), 'utf8').includes(MARKER))) {
   console.error('demo.html does not load the dev harness; check-bundle.mjs is not looking where it should.');
   process.exit(1);
 }
-console.log(`ok: task pane loads ${taskpane.length} scripts without the harness; demo has it.`);
+// Every published page carries the Content Security Policy (vite.config.ts adds it to
+// the built pages; privacy.html has its own).
+for (const page of ['index.html', 'demo.html', 'privacy.html']) {
+  if (!readFileSync(join(dist, page), 'utf8').includes('http-equiv="Content-Security-Policy"')) {
+    console.error(`${page} has no Content-Security-Policy meta tag.`);
+    process.exit(1);
+  }
+}
+console.log(`ok: task pane loads ${taskpane.length} scripts without the harness; demo has it; CSP on every page.`);
