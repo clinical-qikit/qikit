@@ -22,7 +22,9 @@ import pandas as pd
 
 from qikit import bchart, design, paretochart, qic
 from qikit.core.dispersion import DEFAULT_TAU_METHOD
-from qikit.funnel import _funnel, _normalize, _settings
+from qikit._funnel.inputs import _normalize
+from qikit._funnel.pipeline import _funnel
+from qikit._funnel.settings import _settings
 
 _FUNNEL_CHARTS = {"oe": ("oe", False), "oep": ("oe", True), "p": ("proportion", False),
                   "pp": ("proportion", True), "u": ("rate", False), "up": ("rate", True)}
