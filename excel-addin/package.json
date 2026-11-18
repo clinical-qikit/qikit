@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "dev:no-https": "VITE_NO_MKCERT=true vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-bundle.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
