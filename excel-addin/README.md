@@ -16,7 +16,7 @@ npm-workspaces monorepo:
 npm install
 
 # Browser dev harness — no Excel needed (mocks Office.js, 4 sample datasets)
-npm run dev:no-https        # http://localhost:3000
+npm run dev:no-https        # http://localhost:3000/demo.html
 npm run dev                 # same, with HTTPS via mkcert (needed for sideload)
 
 # Tests + type checks (same gates CI runs)
@@ -27,7 +27,10 @@ npx tsc --noEmit -p packages/addin
 
 The dev harness (`packages/addin/src/dev-harness.tsx`) renders the task pane
 in a 370px emulator with mock datasets for every panel — it is the fastest way
-to iterate on UI.
+to iterate on UI. It is served as `demo.html` (entry `src/demo.tsx`), and is
+published as the public demo. Importing it replaces the `Office` and `Excel`
+globals with mocks, so the task pane entry (`src/index.tsx`) must never import
+it; `npm run build` runs `scripts/check-bundle.mjs`, which fails if it does.
 
 ## Sideloading into Excel
 

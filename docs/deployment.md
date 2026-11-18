@@ -30,7 +30,10 @@ Each folder holds:
 - `manifest.json`: the manifest inside that package, for reading.
 - `manifest.xml`: the same add-in as an add-in-only (XML) manifest, for installing
   without an administrator (below).
-- the task pane itself (`index.html`, scripts, icons).
+- the task pane itself (`index.html`, scripts, icons). Opened in a browser it says it
+  runs in Excel and links to the demo.
+- `demo.html`: the task pane against a mock workbook, to try in a browser without Excel:
+  <https://clinical-qikit.github.io/qikit/latest/demo.html>.
 
 ## Install for an organization (Microsoft 365 admin center)
 
@@ -107,6 +110,11 @@ npm install
 npm run dev        # HTTPS dev server on https://localhost:3000
 npm run sideload   # opens Excel with manifest.json (the dev manifest) installed
 ```
+
+Without Excel, open `https://localhost:3000/demo.html` (or `npm run dev:no-https` and
+`http://localhost:3000/demo.html`) for the task pane against a mock workbook. The mock
+replaces Office.js's globals when it loads, so only `demo.html` may import
+`dev-harness.tsx`; `npm run build` fails if the task pane's scripts contain it.
 
 The dev manifest has its own id and is named "QI Kit (dev)", so it installs beside a
 released copy. `manifest.json` is generated from `manifest.template.json`: edit the

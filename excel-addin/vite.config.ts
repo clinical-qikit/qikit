@@ -21,7 +21,10 @@ export default defineConfig({
     outDir: resolve(__dirname, 'dist'),
     rollupOptions: { 
       input: {
-        taskpane: resolve(__dirname, 'packages/addin/index.html')
+        taskpane: resolve(__dirname, 'packages/addin/index.html'),
+        // The browser demo: the task pane against a mock workbook. A separate entry so
+        // its Office/Excel mocks never load in Excel.
+        demo: resolve(__dirname, 'packages/addin/demo.html'),
       },
       output: {
         manualChunks: {

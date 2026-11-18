@@ -21,6 +21,15 @@
   the TypeScript engine's vocabulary, and `tests/test_fixture_adapter.py` pins the parts
   of that vocabulary that are not simply new names.
 
+### Fixed (Excel add-in)
+
+- **The task pane works in Excel.** Since 1.4.2 the published task pane also loaded the
+  browser demo's mock of Office.js, which replaced Excel's own: in Excel the pane showed
+  the demo with made-up data and never read or wrote the workbook. The demo is now a
+  separate page, `demo.html`, and `npm run build` fails if the task pane's scripts
+  contain the mock. Opened in a browser, the task pane now says it runs in Excel and
+  links to the demo.
+
 ## 1.4.3 (2026-11-17)
 
 ### Excel add-in

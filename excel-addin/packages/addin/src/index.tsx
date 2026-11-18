@@ -1,47 +1,31 @@
-import { createRoot } from 'react-dom/client';
-import { FluentProvider } from '@fluentui/react-components';
-import { App } from './ui/App';
-import { DevHarness } from './dev-harness';
-import { qikitLightTheme } from './theme/fluent-theme';
+// The task pane entry (index.html), loaded by Excel. Opened anywhere else (a browser, or
+// with Office.js blocked) it says so and points at the demo instead.
+//
+// Do not import dev-harness here: it replaces the Office and Excel globals with mocks.
+import { createRoot, Root as ReactRoot } from 'react-dom/client';
+import { Root } from './root';
+import { NotInExcel } from './not-in-excel';
 import { reattachLiveUpdates } from './excel/live-update';
 
-const Root = () => (
-  <FluentProvider theme={qikitLightTheme}>
-    <App />
-  </FluentProvider>
-);
-
-// Initialize Office JS
-Office.onReady((info) => {
+let root: ReactRoot | null = null;
+function render(node: React.ReactNode) {
   const container = document.getElementById('root');
-  if (container) {
-    const root = createRoot(container);
-    // If we're not in Excel (e.g. browser dev), wrap in Harness
-    if (info.host === null) {
-      root.render(
-        <DevHarness>
-          <Root />
-        </DevHarness>
-      );
-    } else {
-      root.render(<Root />);
-    }
-  }
-  void reattachLiveUpdates();
-});
+  if (!container) return;
+  root = root ?? createRoot(container);
+  root.render(node);
+}
 
-// For development in browser where Office.onReady might not fire as expected
-// or when Office.js is not loaded at all.
-setTimeout(() => {
-  if (!window.Office || !window.Office.context || !window.Office.context.host) {
-    const container = document.getElementById('root');
-    if (container && !container.innerHTML) {
-      const root = createRoot(container);
-      root.render(
-        <DevHarness>
-          <Root />
-        </DevHarness>
-      );
+if (typeof Office !== 'undefined') {
+  // Excel can take a few seconds to report in; wait for it rather than guessing.
+  Office.onReady((info) => {
+    if (info.host === Office.HostType.Excel) {
+      render(<Root />);
+      void reattachLiveUpdates();
+    } else {
+      render(<NotInExcel host={info.host ? String(info.host) : null} />);
     }
-  }
-}, 1000);
+  });
+} else {
+  // Office.js failed to load (offline, or blocked by a network filter).
+  render(<NotInExcel host={null} officeMissing />);
+}

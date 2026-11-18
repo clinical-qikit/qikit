@@ -5,6 +5,11 @@ import { qikit } from './theme/tokens';
 import { colLetter } from './ui/shared/col-letter';
 import { subscribeLiveUpdateEvents } from './excel/live-update';
 
+// Importing this module replaces window.Office and window.Excel with mocks. Only the demo
+// entry (demo.tsx) may import it; scripts/check-bundle.mjs fails the build if this marker
+// reaches the task pane's scripts.
+export const MOCK_MARKER = 'qikit-mock-workbook';
+
 // ─── Mock Datasets ────────────────────────────────────────────────────────────
 
 const DATASETS: Record<string, { label: string; values: any[][]; address: string }> = {
@@ -496,7 +501,7 @@ export const DevHarness: React.FC<DevHarnessProps> = ({ children }) => {
 
   return (
     <FluentProvider theme={qikitLightTheme}>
-      <div className={styles.harness}>
+      <div className={styles.harness} data-mock={MOCK_MARKER}>
         <div className={styles.toolbar}>
           <span className={styles.datasetLabel}>Mock data:</span>
           <select
