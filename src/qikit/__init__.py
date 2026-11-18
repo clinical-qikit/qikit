@@ -29,7 +29,7 @@ from .results import BChartResult, FunnelResult, ParetoResult, SPCResult
 from .schema import schema
 from .spc import qic
 
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 __all__ = [
     "qic", "funnel", "funnel_sensitivity", "funnel_rollup", "schema", "SPCResult", "FunnelResult",
     "paretochart", "bchart", "ParetoResult", "BChartResult",
