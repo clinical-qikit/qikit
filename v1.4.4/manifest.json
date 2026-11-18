@@ -1,0 +1,91 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
+  "version": "1.4.4",
+  "id": "a3880040-4930-41dc-8eab-b2f2c56252e8",
+  "developer": {
+    "name": "qikit",
+    "websiteUrl": "https://github.com/clinical-qikit/qikit",
+    "privacyUrl": "https://clinical-qikit.github.io/qikit/v1.4.4/privacy.html",
+    "termsOfUseUrl": "https://github.com/clinical-qikit/qikit/blob/main/LICENSE"
+  },
+  "name": {
+    "short": "QI Kit",
+    "full": "QI Kit: SPC and planned experimentation"
+  },
+  "description": {
+    "short": "SPC charts and designed experiments for quality improvement.",
+    "full": "Run charts, Shewhart control charts, Pareto charts, Bernoulli CUSUM and two-level designed experiments for quality improvement, computed in the task pane. Data never leaves the workbook."
+  },
+  "icons": {
+    "outline": "icon-outline-32.png",
+    "color": "icon-color-192.png"
+  },
+  "accentColor": "#107C6C",
+  "extensions": [
+    {
+      "requirements": {
+        "scopes": ["workbook"],
+        "capabilities": [
+          { "name": "ExcelApi", "minVersion": "1.7" }
+        ]
+      },
+      "runtimes": [
+        {
+          "id": "TaskPaneRuntime",
+          "type": "general",
+          "code": {
+            "page": "https://clinical-qikit.github.io/qikit/v1.4.4/index.html"
+          },
+          "lifetime": "short",
+          "actions": [
+            {
+              "id": "OpenTaskPane",
+              "type": "openPage",
+              "view": "homepage"
+            }
+          ]
+        }
+      ],
+      "ribbons": [
+        {
+          "contexts": ["default"],
+          "tabs": [
+            {
+              "id": "QIKitTab",
+              "label": "QI Kit",
+              "groups": [
+                {
+                  "id": "QIKitGroup",
+                  "label": "Analysis",
+                  "icons": [
+                    { "size": 16, "url": "https://clinical-qikit.github.io/qikit/v1.4.4/icon-16.png" },
+                    { "size": 32, "url": "https://clinical-qikit.github.io/qikit/v1.4.4/icon-32.png" },
+                    { "size": 80, "url": "https://clinical-qikit.github.io/qikit/v1.4.4/icon-80.png" }
+                  ],
+                  "controls": [
+                    {
+                      "id": "OpenTaskPaneButton",
+                      "type": "button",
+                      "label": "Open QI Kit",
+                      "icons": [
+                        { "size": 16, "url": "https://clinical-qikit.github.io/qikit/v1.4.4/icon-16.png" },
+                        { "size": 32, "url": "https://clinical-qikit.github.io/qikit/v1.4.4/icon-32.png" },
+                        { "size": 80, "url": "https://clinical-qikit.github.io/qikit/v1.4.4/icon-80.png" }
+                      ],
+                      "supertip": {
+                        "title": "Open QI Kit",
+                        "description": "SPC charts, Pareto charts and designed experiments from the selected data."
+                      },
+                      "actionId": "OpenTaskPane"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
