@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import HealthCheck, assume, example, given, settings
 from hypothesis import strategies as st
 
 from qikit import funnel, qic
@@ -294,13 +294,22 @@ FUNNEL_NUMBERS = ["y", "cl", "lower_outlier", "upper_outlier", "lower_alert",
 
 @PROPS
 @given(_providers(), st.booleans())
+@example(("proportion", [0, 0, 1, 2], [1, 105, 24, 2], ["u0", "u1", "u2", "u3"]), True)
 def test_funnel_limits_nest_around_the_center_line(case, overdispersion):
+    """Outer contours outside the inner ones, in range; around cl without τ²."""
     measure, y, n, units = case
     d = _f(measure, y, n, units, overdispersion=overdispersion).data
     lo, la, cl, ua, uo = (d[c].to_numpy(dtype=float) for c in
                           ("lower_outlier", "lower_alert", "cl", "upper_alert", "upper_outlier"))
     eps = 1e-9 * (1 + np.abs(cl))
-    for a, b in ((lo, la), (la, cl), (cl, ua), (ua, uo)):
+    pairs = [(lo, la), (ua, uo)]
+    if not overdispersion:
+        # Around the center line only without τ²: near the largest spread a proportion
+        # can have, the beta-binomial is U-shaped (most providers at 0%, a few at 100%),
+        # its 97.5% point is 0 events, and the alert contour rightly sits at 1 event,
+        # below cl. CI found [0, 0, 1, 2] of [1, 105, 24, 2].
+        pairs += [(la, cl), (cl, ua)]
+    for a, b in pairs:
         assert np.all(np.isnan(a) | np.isnan(b) | (a <= b + eps))
     assert np.all(np.isnan(lo) | (lo >= 0))
     if measure == "proportion":
