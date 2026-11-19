@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
   "manifestVersion": "1.29",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "id": "a3880040-4930-41dc-8eab-b2f2c56252e8",
   "developer": {
     "name": "qikit",
