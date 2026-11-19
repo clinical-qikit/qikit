@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`funnel()` no longer stalls on proportions with a provider far below the center
+  line.** The shrunk-estimate interval inverts a beta distribution; when a provider's
+  posterior had a shape near 0, each evaluation ran its continued fraction off the side
+  where it converges, 100,000 terms at a time, and a funnel could take minutes. Each
+  tail now comes from the fraction that converges at that point; values agree with the
+  previous ones to 1e-11 and no snapshot moved.
+- **A proportion funnel's upper limits stop at 1.** When the providers spread wider
+  than any beta distribution allows, the limits fall back to the published normal
+  formula, whose upper contour could pass 1 (2.34 in one case); the lower contour was
+  already stopped at 0.
+
+### Tests
+
+- **Property-based tests** (`tests/test_properties.py`, Hypothesis): rules that hold for
+  any input rather than one example, such as limits nesting around the center line,
+  a change of units moving the I chart and keeping its signals, `freeze=` ignoring later
+  points, each `part=` being its own chart, a funnel ignoring the order of providers,
+  excluding a provider being the same as leaving it out, and an incomplete row being
+  dropped and counted. They found both fixes above.
+- CI runs on Python 3.14.
+
 ## 1.4.4 (2026-11-17)
 
 ### Fixed

@@ -879,8 +879,8 @@ def _beta_cf(a: float, b: float, x: float) -> float:
 def beta_tails(x: float, a: float, b: float) -> tuple[float, float]:
     """
     (P(X ≤ x), P(X > x)) for X ~ Beta(a, b): the regularized incomplete beta I_x(a, b)
-    and its complement, the smaller of the two always taken from its own continued
-    fraction. NaN for non-positive parameters or a NaN argument.
+    and its complement, each from the continued fraction that converges at x (the
+    other is one minus it). NaN for non-positive parameters or a NaN argument.
     """
     if not (a > 0) or not (b > 0) or math.isnan(x):
         return math.nan, math.nan
@@ -892,11 +892,15 @@ def beta_tails(x: float, a: float, b: float) -> tuple[float, float]:
         math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
         + a * math.log(x) + b * math.log1p(-x)
     )
+    # Each continued fraction converges quickly only on its own side of the split
+    # x = (a + 1)/(a + b + 2). Off that side it can need far more than _INC_MAX_ITER
+    # terms (a shape near 0 puts the split at x ≈ 1/(b + 2) while 1 − x rounds to 1),
+    # so there the other tail is 1 − this one: a tail ≥ 0.5 loses no precision that way.
     if x < (a + 1.0) / (a + b + 2.0):
         lower = front * _beta_cf(a, b, x) / a
-        return lower, 1.0 - lower if lower < 0.5 else front * _beta_cf(b, a, 1.0 - x) / b
+        return lower, 1.0 - lower
     upper = front * _beta_cf(b, a, 1.0 - x) / b
-    return (1.0 - upper if upper < 0.5 else front * _beta_cf(a, b, x) / a), upper
+    return 1.0 - upper, upper
 
 
 def _tail_root(tails, log_pdf, p: float, to_x, log_jac, u0: float, u_lo: float,

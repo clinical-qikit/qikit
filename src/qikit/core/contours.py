@@ -402,7 +402,8 @@ def _mixture_funnel_pair(
     params = beta_params(cl, tau2)
     if params is None:
         # No beta distribution has this mean and variance: the providers spread wider
-        # than a proportion can. Fall back to [1, eq. 11] exactly as published.
+        # than a proportion can. Fall back to [1, eq. 11] as published (funnel_contours
+        # keeps it between 0 and 1).
         if diag is not None:
             diag["normal"] = True
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -484,6 +485,10 @@ def funnel_contours(
             pairs.append(_mixture_funnel_pair(cl, n, tau2, family, p_lower, p_upper, z, diag))
     (ucl, lcl), (ucl_95, lcl_95) = pairs
     lcl, lcl_95 = np.maximum(lcl, 0.0), np.maximum(lcl_95, 0.0)
+    if family == "binomial":
+        # A proportion's contour cannot pass 1, as it cannot pass 0; the normal fallback
+        # of [1, eq. 11] (when no beta has this spread) is symmetric and would.
+        ucl, ucl_95 = np.minimum(ucl, 1.0), np.minimum(ucl_95, 1.0)
     if scale != "natural" and tau2 > 0:
         method = "transformed_normal"
     elif limit_method == "byar" or diag.get("byar"):
