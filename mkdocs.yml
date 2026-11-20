@@ -1,0 +1,88 @@
+site_name: qikit
+site_description: SPC charts and funnel plots for healthcare quality, in Python.
+site_url: https://clinical-qikit.github.io/qikit/docs/
+repo_url: https://github.com/clinical-qikit/qikit
+repo_name: clinical-qikit/qikit
+edit_uri: ""
+docs_dir: docs
+site_dir: site
+strict: true
+
+# docs/archive holds superseded plans; the rest of docs/ is the site.
+exclude_docs: |
+  archive/
+  examples/
+
+hooks:
+  - scripts/mkdocs_hooks.py
+
+nav:
+  - Home: index.md
+  - Guide:
+      - Over time (qic): guide/qic.md
+      - Across providers (funnel): guide/funnel.md
+      - Snowflake and other tools: guide/more.md
+      - For AI agents: guide/agents.md
+  - Deploy:
+      - Snowflake: snowflake.md
+      - Excel add-in: deployment.md
+      - Excel add-in scope: excel-addin-roadmap.md
+  - Methods:
+      - Funnel plots: methods.md
+      - Control charts: qic-methods.md
+  - API reference: api.md
+  - Changelog: changelog.md
+  - Development: guide/development.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: null
+            extensions:
+              - scripts/griffe_docstrings.py:QikitDocstrings
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_bases: false
+            show_signature_annotations: false
+            separate_signature: true
+            heading_level: 3
+            members_order: source
+            filters: ["!^_"]
+            show_if_no_docstring: false

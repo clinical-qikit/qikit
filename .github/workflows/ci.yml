@@ -81,3 +81,15 @@ jobs:
           npx office-addin-manifest validate ../site/manifest.xml
           node scripts/validate-manifest.mjs ../site/manifest.json
           unzip -l ../site/qikit-excel-addin.zip
+
+  # The documentation site builds with no warnings: every README section a guide page
+  # includes still exists, and every link between pages resolves.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv sync --extra docs --python 3.13
+      - run: uv run --no-sync mkdocs build --strict
+        env:
+          NO_MKDOCS_2_WARNING: "1"

@@ -12,6 +12,8 @@ Two questions, two functions, one vocabulary:
 Both return a result whose `.data` is a table ready to write back to a database, whose
 `.summary` says what was found, and whose `.plot()` draws a Plotly figure.
 
+**Documentation:** [clinical-qikit.github.io/qikit/docs](https://clinical-qikit.github.io/qikit/docs/) <!-- github-only -->
+
 ## Install
 
 ```bash

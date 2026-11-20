@@ -23,8 +23,9 @@ on:
 permissions:
   contents: write
 
+# Shared with docs-pages.yml: both push to gh-pages.
 concurrency:
-  group: addin-pages
+  group: gh-pages
   cancel-in-progress: false
 
 jobs:
@@ -78,12 +79,13 @@ jobs:
           rm -rf "pages/$TAG" pages/latest
           cp -R "site/$TAG" site/latest pages/
           touch pages/.nojekyll
-          cat > pages/index.html <<'EOF'
+          # The root page belongs to docs-pages.yml; write one only on a new branch.
+          [ -f pages/index.html ] || cat > pages/index.html <<'EOF'
           <!doctype html>
           <meta charset="utf-8">
-          <title>QI Kit for Excel</title>
-          <meta http-equiv="refresh" content="0; url=https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md">
-          <p>QI Kit for Excel: see the <a href="https://github.com/clinical-qikit/qikit/blob/main/docs/deployment.md">install guide</a>.</p>
+          <title>qikit</title>
+          <meta http-equiv="refresh" content="0; url=docs/">
+          <p>qikit: see the <a href="docs/">documentation</a>.</p>
           EOF
           git -C pages add -A
           if git -C pages diff --cached --quiet; then
