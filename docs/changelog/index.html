@@ -1,0 +1,2764 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="SPC charts and funnel plots for healthcare quality, in Python.">
+      
+      
+      
+        <link rel="canonical" href="https://clinical-qikit.github.io/qikit/docs/changelog/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+        <link rel="next" href="../guide/development/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Changelog - qikit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="qikit" class="md-header__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            qikit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="qikit" class="md-nav__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    qikit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/qic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Over time (qic)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/funnel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across providers (funnel)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/more/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake and other tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For AI agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../snowflake/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../excel-addin-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in scope
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funnel plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qic-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Control charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unreleased
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#145-2026-11-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.5 (2026-11-19)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.5 (2026-11-19)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#144-2026-11-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.4 (2026-11-17)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.4 (2026-11-17)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excel-add-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel add-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-excel-add-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (Excel add-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#143-2026-11-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.3 (2026-11-17)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.3 (2026-11-17)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#excel-add-in_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel add-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-excel-add-in_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (Excel add-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#142-2026-11-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.2 (2026-11-17)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.2 (2026-11-17)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excel-add-in_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel add-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#141-2026-11-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.1 (2026-11-16)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.1 (2026-11-16)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#140-2026-11-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.0 (2026-11-11)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.0 (2026-11-11)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#130-2026-11-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.0 (2026-11-10)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.3.0 (2026-11-10)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#120-2026-11-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.0 (2026-11-08)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.0 (2026-11-08)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#110-2026-11-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.0 (2026-11-01)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.1.0 (2026-11-01)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#100-2026-11-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.0.0 (2026-11-01)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.0.0 (2026-11-01)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#breaking-calling-qic-and-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking: calling qic() and funnel()
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#breaking-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking: results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#breaking-packaging-and-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking: packaging and modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behavior-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (funnel())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (.plot())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#typescript-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeScript engine
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0100-2026-10-31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.10.0 (2026-10-31)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.10.0 (2026-10-31)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#behavior-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior change
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added (funnel())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluated-and-declined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluated and declined
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unreleased
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Unreleased">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#145-2026-11-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.5 (2026-11-19)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.5 (2026-11-19)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#144-2026-11-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.4 (2026-11-17)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.4 (2026-11-17)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excel-add-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel add-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-excel-add-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (Excel add-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#143-2026-11-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.3 (2026-11-17)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.3 (2026-11-17)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#excel-add-in_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel add-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-excel-add-in_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (Excel add-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#142-2026-11-17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.2 (2026-11-17)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.2 (2026-11-17)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excel-add-in_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel add-in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#141-2026-11-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.1 (2026-11-16)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.1 (2026-11-16)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#140-2026-11-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4.0 (2026-11-11)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.4.0 (2026-11-11)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#130-2026-11-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.0 (2026-11-10)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.3.0 (2026-11-10)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#120-2026-11-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.0 (2026-11-08)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2.0 (2026-11-08)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#110-2026-11-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.0 (2026-11-01)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.1.0 (2026-11-01)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#100-2026-11-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.0.0 (2026-11-01)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.0.0 (2026-11-01)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#breaking-calling-qic-and-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking: calling qic() and funnel()
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#breaking-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking: results
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#breaking-packaging-and-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breaking: packaging and modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#behavior-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (funnel())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed (.plot())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#typescript-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TypeScript engine
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0100-2026-10-31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.10.0 (2026-10-31)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.10.0 (2026-10-31)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#behavior-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior change
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added (funnel())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluated-and-declined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluated and declined
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
+<h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A documentation site</strong> at https://clinical-qikit.github.io/qikit/docs/: the guide,
+  the methods, an API reference built from the docstrings, and this changelog. The
+  guide pages are drawn from the README's sections, so the README stays the one copy.
+  Each release tag publishes it; <code>mkdocs build --strict</code> runs in CI.</li>
+</ul>
+<h2 id="145-2026-11-19">1.4.5 (2026-11-19)<a class="headerlink" href="#145-2026-11-19" title="Permanent link">&para;</a></h2>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>funnel()</code> no longer stalls on proportions with a provider far below the center
+  line.</strong> The shrunk-estimate interval inverts a beta distribution; when a provider's
+  posterior had a shape near 0, each evaluation ran its continued fraction off the side
+  where it converges, 100,000 terms at a time, and a funnel could take minutes. Each
+  tail now comes from the fraction that converges at that point; values agree with the
+  previous ones to 1e-11 and no snapshot moved.</li>
+<li><strong>A proportion funnel's upper limits stop at 1.</strong> When the providers spread wider
+  than any beta distribution allows, the limits fall back to the published normal
+  formula, whose upper contour could pass 1 (2.34 in one case); the lower contour was
+  already stopped at 0.</li>
+</ul>
+<h3 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Property-based tests</strong> (<code>tests/test_properties.py</code>, Hypothesis): rules that hold for
+  any input rather than one example, such as limits nesting around the center line,
+  a change of units moving the I chart and keeping its signals, <code>freeze=</code> ignoring later
+  points, each <code>part=</code> being its own chart, a funnel ignoring the order of providers,
+  excluding a provider being the same as leaving it out, and an incomplete row being
+  dropped and counted. They found both fixes above.</li>
+<li>CI runs on Python 3.14.</li>
+</ul>
+<h2 id="144-2026-11-17">1.4.4 (2026-11-17)<a class="headerlink" href="#144-2026-11-17" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>funnel(exclude=7)</code> takes a single unit id</strong>, as <code>qic(exclude=)</code> does; it raised
+  <code>TypeError: 'int' object is not iterable</code>. <code>exclude=True</code> now says it wants ids or a
+  column name.</li>
+<li><strong>Without <code>data=</code>, a <code>hover=</code> entry named like a result column is refused.</strong> With
+  <code>hover={"numerator": [...]}</code> the hover values silently replaced the numerator column
+  in <code>result.data</code>; it now raises, as it already did with <code>data=</code>.</li>
+<li><strong>Without <code>data=</code>, <code>unit=</code> or <code>label=</code> as a string is refused.</strong> It was read as a
+  sequence of letters (<code>label="name"</code> labelled four providers n, a, m, e); it now says to
+  pass a sequence.</li>
+</ul>
+<h3 id="tests_1">Tests<a class="headerlink" href="#tests_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>tests/conformance_helpers.py</code> is gone. The Python tests use <code>qic()</code> and <code>funnel()</code>
+  directly; <code>tests/fixture_adapter.py</code> (311 lines, from 447) runs the shared fixtures in
+  the TypeScript engine's vocabulary, and <code>tests/test_fixture_adapter.py</code> pins the parts
+  of that vocabulary that are not simply new names.</li>
+</ul>
+<h3 id="excel-add-in">Excel add-in<a class="headerlink" href="#excel-add-in" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A privacy and security page</strong> is published with the add-in (<code>privacy.html</code> beside
+  the task pane) and set as the JSON manifest's privacy URL. It covers what is loaded and from where,
+  what is read and written in the workbook, and how to review or pin a version.</li>
+<li><strong>A Content Security Policy on every published page</strong>: scripts only from the add-in's
+  folder and Office.js's hosts, no eval, no frames, and network requests only to the
+  add-in's folder and Office.js's. <code>npm run build</code> fails if a page lacks it.</li>
+<li><strong>Copy details on every error.</strong> Each panel's error message, and the crash screen,
+  offer Copy details: the add-in and Excel versions, the panel, the message, the Office.js
+  error code and the trace, ready to paste into an issue. Nothing is sent. Office.js error
+  codes were previously dropped when the add-in reworded the message.</li>
+<li><strong>A public demo</strong>: <code>latest/demo.html</code> runs the task pane against a sample workbook in
+  any browser.</li>
+<li><strong>Component tests</strong>: the four panels are tested end to end through the demo's mock
+  workbook (jsdom and Testing Library), including errors and the crash screen.</li>
+</ul>
+<h3 id="fixed-excel-add-in">Fixed (Excel add-in)<a class="headerlink" href="#fixed-excel-add-in" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The Bernoulli CUSUM panel picks the 0/1 column.</strong> With an ID column first, it used
+  the IDs and failed with "Target must be between 0 and 1". It now starts on the first
+  column of 0s and 1s, and a column with other values gets a message saying what the
+  panel needs. Blank cells are skipped; they were counted as 0 (no event).</li>
+<li><strong>The task pane works in Excel.</strong> Since 1.4.2 the published task pane also loaded the
+  browser demo's mock of Office.js, which replaced Excel's own: in Excel the pane showed
+  the demo with made-up data and never read or wrote the workbook. The demo is now a
+  separate page, <code>demo.html</code>, and <code>npm run build</code> fails if the task pane's scripts
+  contain the mock. Opened in a browser, the task pane now says it runs in Excel and
+  links to the demo.</li>
+</ul>
+<h2 id="143-2026-11-17">1.4.3 (2026-11-17)<a class="headerlink" href="#143-2026-11-17" title="Permanent link">&para;</a></h2>
+<h3 id="excel-add-in_1">Excel add-in<a class="headerlink" href="#excel-add-in_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>An XML manifest is published beside the app package</strong> (<code>manifest.xml</code> in <code>latest/</code>
+  and each version folder), generated from <code>manifest.template.xml</code> and checked by
+  Microsoft's validator in CI and before publishing. It is for installing without an
+  administrator where Teams uploads are turned off: "Upload My Add-in" in Excel, or
+  sideloading on Mac and Windows. <code>docs/deployment.md</code> describes each route and how to
+  tell whether an organization has blocked it.</li>
+<li><strong>The SPC panel says what it found.</strong> Under the chart, a verdict and a sentence per
+  finding ("A shift: 12 points in a row below the center line, Jan 2026 to Dec 2026.",
+  points outside the limits by name, too few crossings), and the Python notes word for
+  word when fewer than 12 points set the center line or fewer than 20 set the limits.</li>
+<li><strong>Try with sample data.</strong> The empty SPC panel offers a made-up, labelled two-year
+  monthly series on a new sheet, so a new user sees a chart and a finding at once.</li>
+<li><strong>Help me choose.</strong> Up to two plain questions (a measurement or a count; which kind of
+  denominator, or one value or an average) pick the chart, defaulting to a run chart
+  when unsure. Choosing a P or U chart without its denominator now says which box to fill.</li>
+<li><strong>Settings are remembered per workbook</strong> (chart type, data grain, rules and limit
+  options, include source data), saved in the workbook once you change one.</li>
+</ul>
+<h3 id="fixed-excel-add-in_1">Fixed (Excel add-in)<a class="headerlink" href="#fixed-excel-add-in_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Dates in Excel are recognized as dates.</strong> Excel hands date cells to an add-in as
+  serial numbers, so a real date column was read as numbers and could not set the
+  x-axis or be grouped by month. Columns are now classified by their number format;
+  date text is recognized only when it looks like a date ("Ward 3" and "3" no longer
+  do). The reporting period follows the data's spacing, so daily data is no longer
+  folded into months by default.</li>
+<li><strong>Rows that cannot be used are listed, not silently dropped</strong>, with the sheet row and
+  the reason (no value, not a number, no date, no denominator, denominator 0).</li>
+<li><strong>A missing denominator is never read as zero.</strong> By date, a row with no denominator
+  added its count but nothing to the total, inflating that period's rate; elsewhere one
+  bad denominator dropped the whole denominator column.</li>
+<li><strong>Labels, notes and included source data stay with their points</strong> when rows are left
+  out; they shifted by one for every skipped row. Live updates read formats too.</li>
+</ul>
+<h2 id="142-2026-11-17">1.4.2 (2026-11-17)<a class="headerlink" href="#142-2026-11-17" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>One-factor-at-a-time designs are analyzed as what they are.</strong> <code>analyze()</code> applied
+  the factorial formula to <code>design_type="one_factor"</code>, whose runs are not balanced, so
+  every effect was wrong (in a three-factor example an effect of 4 came out as −7.75,
+  with interactions that such a design cannot estimate). Each
+  effect is now the mean with that factor high minus the mean of the baseline runs,
+  which is the least-squares fit. Only main effects are reported, and <code>ss</code> and
+  <code>pct_contribution</code> are NaN because the terms do not partition the total. The Excel
+  engine has the same fix (shared fixture <code>effects_one_factor</code>) and writes those two
+  cells blank.</li>
+<li><strong><code>plot("cube")</code> draws two-factor experiments</strong> as a square with the mean response at
+  each corner, where it showed "coming soon". One factor raises, naming
+  <code>chart="single_factor"</code>.</li>
+<li><strong><code>plot("line_effects")</code> is in standard order, as its title says.</strong> It plotted the
+  response in run order, which is a different chart once the design is randomized.
+  Replicates follow in turn and center points come last; hover shows each run's number.</li>
+</ul>
+<h3 id="excel-add-in_2">Excel add-in<a class="headerlink" href="#excel-add-in_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Installable without the repository.</strong> Each release tag publishes the task pane to
+  GitHub Pages under <code>vX.Y.Z/</code> and <code>latest/</code>, each with an app package
+  (<code>qikit-excel-addin.zip</code>) for the Microsoft 365 admin center or Teams custom-app
+  upload. <code>docs/deployment.md</code> is rewritten around those routes, self-hosting, and a
+  privacy statement.</li>
+<li><strong>Production manifest.</strong> The unified manifest moves from the <code>devPreview</code> schema to
+  1.29, with a GUID, hosted URLs, the 192 px and outline app icons, an 80 px ribbon icon,
+  a tooltip, and an ExcelApi 1.7 requirement (chart series and the series axis). It is
+  generated from <code>manifest.template.json</code>; the committed <code>manifest.json</code> is the dev
+  manifest ("QI Kit (dev)", its own id). CI builds the add-in and checks both manifests
+  with Microsoft's validator and the published schema.</li>
+<li><strong>The task pane shows its version</strong>, which is the Python package's.</li>
+</ul>
+<h3 id="documentation_1">Documentation<a class="headerlink" href="#documentation_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>docs/snowflake.md</code> named the 1.1.0 wheel</strong> in its <code>PUT</code> and <code>IMPORTS</code> lines; it now
+  names the current one, and a test fails when the version moves on without it. The
+  stored procedure and UDTF in that doc are now run by the tests, which check that the
+  UDTF returns the columns its <code>RETURNS TABLE</code> clause declares. Faceted-funnel timings
+  are added to the performance table.</li>
+</ul>
+<h2 id="141-2026-11-16">1.4.1 (2026-11-16)<a class="headerlink" href="#141-2026-11-16" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The <code>plot</code>, <code>app</code> and <code>dev</code> extras now require <code>plotly&gt;=5.21</code>.</strong> They declared
+  5.15, but the charts use trace <code>zorder</code>, which plotly added in 5.21; on an older
+  plotly <code>.plot()</code> raised <code>ValueError: Invalid property ... 'zorder'</code>. The tables never
+  needed plotly and are unaffected.</li>
+<li><strong>One-sided funnel p-values were reversed where the normal model stood in for the
+  exact one</strong> (<code>summary["p_value_method"] == "normal"</code>). With <code>worse="higher"</code> or
+  <code>"lower"</code> the provider furthest in the bad direction got the largest p-value, not the
+  smallest, so <code>signal="fdr"</code> could miss it and <code>p_value</code>/<code>q_value</code> were wrong for
+  every provider on that funnel. This arises only when the exact model is unavailable:
+  a proportion funnel whose spread is wider than any beta distribution allows, or
+  over-dispersed counts in the millions. Two-sided p-values (<code>worse</code> unset) and the
+  limits themselves were always correct.</li>
+<li><strong><code>design(...).fill(...).plot("timeseries")</code> raised a <code>TypeError</code></strong> from an argument
+  <code>qic()</code> no longer takes.</li>
+<li><strong><code>ExperimentDesign.to_json()</code> wrote <code>NaN</code></strong>, which is not JSON, for the unfilled
+  <code>Response</code> column; it and <code>to_dict()</code> now give <code>null</code>/<code>None</code>.</li>
+<li><strong>Center points no longer shrink the effects of an experiment.</strong> <code>analyze()</code> divided
+  each contrast by every run, center points included, so a 2×2 with an A effect of 13
+  reported 8.67 once two center points were added. Effects, sums of squares and
+  <code>pct_contribution</code> now come from the factorial runs alone, which is the least-squares
+  fit; designs without center points are unchanged. The Excel engine had the same
+  formula and has the same fix, with a shared fixture (<code>effects_center_points</code>).</li>
+<li><strong><code>design(randomize="within_blocks")</code> with center points mixed the replicates.</strong> The
+  block length counted the center points, so blocks straddled replicates. Each
+  replicate is now shuffled on its own and the center points stay at the end.</li>
+</ul>
+<h2 id="140-2026-11-11">1.4.0 (2026-11-11)<a class="headerlink" href="#140-2026-11-11" title="Permanent link">&para;</a></h2>
+<p>Minimum denominators from a reliability target. Additive; no result changes.</p>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>result.min_denominator(reliability=0.7)</code></strong> on <code>funnel()</code> results: the denominator
+  at which a provider's <code>reliability</code> reaches a target (one or several), in the units
+  of <code>n=</code>, with its range from the 95% interval for τ, the number of providers at or
+  above and below it (<code>n_above</code>, <code>n_below</code>), the volume they hold, and each row as a
+  sentence (<code>note</code>). It agrees exactly with the <code>reliability</code> column. When the data
+  show no spread between providers there is no floor, and the result says so.</li>
+<li><strong><code>funnel_rollup(data, units=[...], reliability=0.7, ...)</code>:</strong> the same table for each
+  level of a hierarchy (physician, group, hospital), each fitted separately, for
+  deciding the level at which small providers are rolled up.</li>
+<li><strong><code>summary["estimate_tau_ci"]</code>:</strong> the profile-likelihood 95% interval for the spread
+  the estimate columns use (<code>estimate_tau</code>). <code>None</code> when <code>tau=</code> is given.</li>
+<li><strong><code>skills/minimum-denominators/SKILL.md</code></strong> and a "Minimum denominator recipe" in
+  <code>AGENTS.md</code>: what an agent asks (measure, level, peer group, use, period), calls and
+  reports when asked for a minimum denominator or a rollup level.</li>
+</ul>
+<h2 id="130-2026-11-10">1.3.0 (2026-11-10)<a class="headerlink" href="#130-2026-11-10" title="Permanent link">&para;</a></h2>
+<p>Messy input no longer becomes a silent wrong answer, and results gain a predictable,
+compact surface for pipelines and agents. Nothing is removed.</p>
+<h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>qikit.schema("qic" | "funnel")</code>:</strong> every column <code>result.data</code> can hold, with its
+  type, whether every call produces it, and its meaning. It is now the single source of
+  the column lists.</li>
+<li><strong><code>result.to_table()</code></strong> on <code>qic()</code> and <code>funnel()</code> results: <code>.data</code> with every schema
+  column, in schema order and with fixed types (nullable booleans and integers, strings
+  as objects), empty where the call did not produce it; the <code>facets=</code> columns first and
+  the <code>hover=</code> columns last. The shape a database table or a Snowpark <code>RETURNS TABLE</code>
+  clause needs, whatever options the call used.</li>
+<li><strong><code>result.brief(digits=4, limit=25)</code>:</strong> what was found as a small JSON-safe dict: the
+  verdict or counts, the notes, and only the flagged points (the most recent) or
+  providers (outliers first, then by p-value). About 1 KB where <code>to_json()</code> is tens.</li>
+<li><strong><code>result.facet_summary()</code>:</strong> the summary as a table, one row per facet, with the
+  same columns faceted or not.</li>
+<li><strong><code>to_dict(digits=)</code> and <code>to_json(digits=)</code>:</strong> round every number to that many
+  significant figures. Default unchanged.</li>
+<li><strong>Choices ignore case and surrounding spaces</strong> (<code>measure="OE"</code>, <code>signal=" FDR "</code>),
+  and a misspelt choice or keyword suggests the closest: <code>measure must be one of ...,
+  got 'proportions'. Did you mean 'proportion'?</code>; <code>qic() got an unexpected keyword
+  argument 'charts'. Did you mean 'chart'?</code>.</li>
+<li><strong>The signatures spell out the choices</strong> as <code>Literal</code> types (<code>chart</code>, <code>method</code>,
+  <code>measure</code>, <code>worse</code>, <code>signal</code>, <code>tau_method</code>, <code>benchmark</code>, <code>compare_to</code>, <code>agg_fun</code>), so
+  <code>help()</code>, editors and type checkers show them.</li>
+<li><strong><code>bchart(x, ..., data=)</code></strong> takes a column name, as <code>paretochart()</code> does. It now
+  refuses values that are not 0/1 and a <code>baseline=</code> outside the cases, in place of a
+  confusing error or a silent pass.</li>
+<li><code>print()</code> of a <code>paretochart()</code> or <code>bchart()</code> result says what was found.</li>
+<li><strong><code>qic()</code> <code>summary["notes"]</code> and <code>summary["provisional"]</code>:</strong> sentences to show a
+  reader (fewer than 12 baseline points, control limits from fewer than 20, points with
+  no value, a frozen baseline), as <code>funnel()</code> already had; <code>provisional</code> is True under
+  12 baseline points. Faceted, the notes are prefixed by facet. <code>print(result)</code> shows
+  them.</li>
+<li><strong>Column-name errors list the columns and suggest the closest</strong>, ignoring case, in
+  <code>qic()</code>, <code>funnel()</code> and <code>paretochart()</code>: <code>y='deaths' is not a column of data. Did you
+  mean 'DEATHS'?</code>. <code>funnel()</code>'s message changes from "must name a column of data".</li>
+</ul>
+<h3 id="fixed_4">Fixed<a class="headerlink" href="#fixed_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>funnel()</code> read a missing value as zero.</strong> A provider whose <code>y</code> was missing was
+  summed to 0 events and could be flagged a low outlier. A row missing <code>y</code>, <code>n</code> or
+  <code>unit</code> is now left out of the sums and counted in the new
+  <code>summary["n_rows_dropped"]</code>, with a note; a provider with no complete row is listed
+  with no value and is not tested. A missing denominator no longer raises "events but a
+  zero denominator", and rows with a missing <code>unit</code> are no longer dropped unannounced.</li>
+<li><strong><code>qic()</code> charted Python <code>date</code> objects in row order.</strong> Snowpark's <code>to_pandas()</code>
+  returns a DATE column as <code>datetime.date</code> objects, which were treated as text and left
+  unsorted, so limits and run rules were computed on shuffled time. They are now sorted
+  like any other date, and <code>.data["x"]</code> keeps the <code>date</code> objects.</li>
+<li><strong><code>qic()</code> turned text that is not a number into a gap.</strong> <code>"x"</code> or <code>"n/a"</code> in <code>y</code>,
+  <code>n</code> or <code>target</code> now raises a <code>ValueError</code> showing the values; <code>funnel()</code> and
+  <code>bchart()</code> give the same message in place of a raw numpy error. None, NaN, blank
+  text, numeric text and Decimals are read as before.</li>
+<li>
+<p><strong>A handful of points was called stable.</strong> <code>print(qic(y=[5]))</code> no longer says "the
+  process looks stable".</p>
+</li>
+<li>
+<p><code>to_json()</code> raised on Python <code>date</code> values in <code>x</code> and <code>Decimal</code> unit ids, as Snowpark
+  returns DATE and NUMBER columns. Dates serialize as ISO text, Decimals as numbers.</p>
+</li>
+<li>A faceted <code>qic()</code> summary lacked the top-level <code>runs_signal</code>.</li>
+<li><code>qic()</code>'s docstring did not document the <code>special_cause</code> column.</li>
+</ul>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<p>Every <code>funnel()</code> result is unchanged, bit for bit.</p>
+<ul>
+<li><strong>The pure maths moved out of <code>funnel.py</code> into <code>core/</code>:</strong> <code>core/shrinkage.py</code> (the
+  prior, shrunk estimates, posterior intervals and P(worse), now one pass instead of
+  two), <code>core/benchmark.py</code> (the achievable benchmark and minimum sufficient
+  denominator), and the pooled center and fixed-center gap test into
+  <code>core/dispersion.py</code>. The <code>within_dispersion</code> readers, which work on pandas rows, are
+  in the new <code>within.py</code>. <code>funnel.py</code> goes from 1,790 lines to about 1,400, and its
+  helpers take one fitted-model object instead of nine to eleven arguments.</li>
+<li>Warnings are attributed to the caller's line wherever in the package they arise.</li>
+<li><code>multiply=</code> in <code>qic()</code> and <code>tau=</code> in <code>funnel()</code> share one number check; <code>qic()</code>'s
+  message is now "multiply must be a number &gt; 0".</li>
+</ul>
+<h2 id="120-2026-11-08">1.2.0 (2026-11-08)<a class="headerlink" href="#120-2026-11-08" title="Permanent link">&para;</a></h2>
+<h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>compare_to=</code> on <code>funnel()</code>:</strong> names which question the chart answers.
+  <code>"peers"</code>: the pooled center line and <code>overdispersion=True</code> (the default settings).
+  <code>"model"</code>: O/E against the risk model's expected, <code>center=1.0</code> and
+  <code>overdispersion=False</code>; <code>measure="oe"</code> only, and a proportion or rate is told to pass
+  <code>center=&lt;target&gt;, overdispersion=False</code>. A <code>center=</code> or <code>overdispersion=</code> that
+  contradicts it is an error naming the fix; agreeing values are allowed.
+  <code>summary["compare_to"]</code> records <code>"peers"</code>, <code>"model"</code> or <code>"custom"</code> on every call, and
+  <code>print(result)</code> ends its first line with the question. Passing <code>compare_to=</code> adds a
+  note saying which question the chart answers. <code>funnel_sensitivity()</code> forwards
+  <code>"peers"</code> and rejects <code>"model"</code>, whose runs would all be the same chart.</li>
+<li><code>overdispersion=</code> now defaults to <code>None</code> (meaning <code>True</code> unless
+    <code>compare_to="model"</code>), so an agreeing value can be told from an unset one. Every
+    existing call resolves as before.</li>
+<li><strong>A warning for a fixed center under the spread allowance:</strong> <code>center=</code> with
+  <code>overdispersion=True</code> let τ̂ absorb any system-wide gap between the providers and the
+  center, silently widening every limit (<code>center=1.0</code> on a system running 10% above
+  its risk model nearly quadrupled τ̂). When the gap is beyond chance (p &lt; 0.001, a
+  sandwich-variance t test) and widens the limits at the median volume by at least
+  10%, <code>funnel()</code> raises a <code>UserWarning</code> and adds a note with the gap, the widening and
+  the fix. New summary keys <code>center_gap</code>, <code>center_gap_p</code> and <code>tau_pooled</code>. Skipped
+  under a pre-specified <code>tau=</code>. Calibrated by <code>scripts/simulate_center_gap.py</code>: at most
+  0.4% false warnings in any cell; methods §4.2.1, §5.</li>
+<li>README, the docstring, AGENTS.md (a new funnel decision recipe, with a canonical
+    physician LOS vs Vizient expected call and scorecard-wide FDR), the provider-funnels
+    skill and <code>llms.txt</code> now pair "against the risk model" with <code>compare_to="model"</code>
+    rather than <code>center=1.0</code> alone. The README's "identical when τ̂ = 0" now says it
+    holds around the pooled center only.</li>
+<li>
+<p>Python only; the Excel add-in does not draw funnels.</p>
+</li>
+<li>
+<p><strong><code>measure="mean"</code> on <code>funnel()</code>:</strong> compares providers on a per-case amount, such as
+  EHR minutes per discharge or cost per case, in the amount's own units. Pass one row
+  per case (<code>y=</code> the amount; <code>n=</code> may be omitted), or SQL totals (<code>y=SUM</code>,
+  <code>n=COUNT(*)</code>, <code>sum_sq=SUM(y*y)</code>). The center line is the pooled mean, and cases are on
+  the x axis. It is the quasi-Poisson model with <code>within_dispersion</code> always estimated,
+  so every option applies: <code>worse=</code>, <code>signal="fdr"</code>, <code>tau_method</code>, <code>max_case_y=</code>,
+  <code>benchmark="eb"</code>, <code>facets=</code> and <code>multiply=</code>. It gives exactly the result of the
+  earlier workaround (each case ÷ the pooled mean as O/E, then <code>multiply=</code>), without
+  the rescaling. Methods §4.19.</p>
+</li>
+<li><code>summary["case_sd"]</code>: the SD of a single case, in y's units.</li>
+<li>Amounts must be ≥ 0. A scalar <code>within_dispersion</code>, <code>cases=</code> and <code>max_case_n=</code> are
+    refused under <code>"mean"</code>, because <code>n</code> already is the case count and a single case's
+    denominator is 1.</li>
+<li><code>n=</code> is now optional in the signature; every other measure still requires it.</li>
+<li>The <code>benchmark=</code> docs now say which option suits which measure: <code>"abc"</code> for
+    proportions, <code>"eb"</code> for <code>"oe"</code>, <code>"rate"</code> and <code>"mean"</code>.</li>
+<li>Python only; the Excel add-in does not draw funnels.</li>
+<li><strong>Shrunk estimates with a range, and a caterpillar plot:</strong> new columns <code>eb_low</code> and
+  <code>eb_high</code>, an equal-tailed interval for each provider's true value from its exact
+  posterior (gamma on counts, beta on proportions, on effective counts), with
+  <code>interval=</code> (default 0.95), and <code>estimate_flag</code>: <code>"worse"</code>, <code>"better"</code> or
+  <code>"no different"</code> (<code>"higher"</code>/<code>"lower"</code> without <code>worse=</code>) as the interval lies against
+  the reference. <code>estimate_flag</code> answers "clearly worse than the reference?", where
+  <code>signal</code> answers "unusual?"; <code>signal</code> is unchanged. No interval and a note when there
+  is no measurable spread. <code>result.plot(kind="caterpillar")</code> draws them: providers
+  sorted by <code>eb_rate</code>, intervals colored by <code>estimate_flag</code>, raw values faint, the
+  reference dotted, small multiples per facet, and <code>top=</code>/<code>bottom=</code> for long lists.
+  New summary keys <code>reference</code> and <code>estimate_tau</code>. Methods §4.14, §5.</li>
+<li><strong>The estimate columns' prior now uses the ML τ̂</strong> (or <code>tau=</code>) whatever
+    <code>tau_method</code> the limits use, so <strong><code>eb_rate</code>, <code>eb_excess</code>, <code>reliability</code>,
+    <code>prob_worse</code> and <code>benchmark="eb"</code> values change</strong>. The published estimator
+    understates τ: under it 95% intervals covered 49–89% of true values, under ML
+    91–95%. Limits, p-values, q-values and <code>signal</code> are unchanged. An ML τ̂ that would
+    leave every provider's reliability below 0.01 counts as no spread.</li>
+<li><strong>Shrinkage against the risk model:</strong> under <code>compare_to="model"</code> (and the
+    equivalent <code>center=1.0, overdispersion=False</code>) the estimate columns, which were
+    empty, now use a prior centered on the pooled value with τ̂ around it, and judge each
+    provider against 1.0. <code>tau=</code> is accepted there and sets only that spread. Limits and
+    flags are unchanged.</li>
+<li>New core helpers <code>gamma_quantile</code> and <code>beta_quantile</code> (no new dependencies).</li>
+<li><code>docs/examples/hierarchical_readmissions.ipynb</code>: the patient-level hierarchical
+    model in PyMC beside <code>funnel()</code>, with an optional hospital level. On its simulated
+    data the two agree to a correlation of 0.996.</li>
+<li>With <code>within_dispersion</code> the intervals cover about 90%, not 95% (methods §5).</li>
+<li>Cited: Keenan 2008, Dimick 2010, Marshall &amp; Spiegelhalter 1998, Goodwin 2013, Jones
+    &amp; Spiegelhalter 2011; README physician section now cites Hofer 1999 and Goodwin 2013.</li>
+<li>
+<p>Python only; the Excel add-in does not draw funnels.</p>
+</li>
+<li>
+<p><strong><code>color_by="fdr"</code> on <code>FunnelResult.plot()</code>:</strong> colors the points by their q-value
+  tiers (outlier q &lt; <code>fdr_levels[0]</code>, alert q &lt; <code>fdr_levels[1]</code>) on a <code>signal="limits"</code>
+  result. The <code>signal</code> column and the drawn 95% and 99.8% lines are unchanged; the
+  legend and caption state the q rule. A figure can now match an action list built
+  from <code>q_value</code> without recoloring traces by name.</p>
+</li>
+<li><code>fdr_watch=</code> (e.g. <code>0.20</code>) adds a pale, open-diamond watch tier for q below it, on
+    the figure only. It has a <code>watch</code> role in <code>styles=</code>.</li>
+<li>README, methods §4.11 and the provider-funnels skill now say that under
+    <code>signal="limits"</code> a point beyond the 95% line can have a large q-value.</li>
+<li>Python only; the Excel add-in does not draw funnels.</li>
+</ul>
+<h2 id="110-2026-11-01">1.1.0 (2026-11-01)<a class="headerlink" href="#110-2026-11-01" title="Permanent link">&para;</a></h2>
+<h3 id="added_3">Added<a class="headerlink" href="#added_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>benchmark=</code> on <code>funnel()</code>:</strong> a goal the best providers already reach, drawn as a
+  dashed line, with <code>benchmark_share=</code> (default 0.10) defining "the best". Both need
+  <code>worse=</code>; methods §4.18.</li>
+<li><code>"abc"</code>: Kiefe and Weissman's achievable benchmark of care. Providers are ranked by
+    (x + 1)/(n + 2), and the best are pooled until they hold 10% of patients, ties
+    included. It reproduces GAMUT's worked example. It reports the providers who set it
+    and their volumes, and the minimum sufficient denominator (whose exact rule
+    reproduces Kiefe's Table 3). It also gives the ABC without providers below that
+    denominator (Hall et al. 2013).</li>
+<li><code>"eb"</code>: the 90th percentile of the shrunk <code>eb_rate</code> toward the better side (O'Brien
+    et al. 2008), for outcome measures.</li>
+<li><code>summary["benchmark"]</code> is one dict: <code>method</code>, <code>share</code>, <code>value</code>, and under <code>"abc"</code>
+    <code>providers</code>, <code>coverage</code>, <code>group_denominator</code>, <code>msd</code>, <code>n_below_msd</code> and
+    <code>without_small</code>. The columns are <code>benchmark</code>, <code>meets_benchmark</code>, and
+    <code>benchmark_group</code> under <code>"abc"</code>.</li>
+<li>Python only. The TypeScript engine and the Excel add-in do not have it yet.</li>
+</ul>
+<h2 id="100-2026-11-01">1.0.0 (2026-11-01)<a class="headerlink" href="#100-2026-11-01" title="Permanent link">&para;</a></h2>
+<p>1.0 is a breaking release. <code>qic()</code> and <code>funnel()</code> now share one vocabulary, display
+options moved to <code>.plot()</code>, the package imports without plotly, and both functions were
+checked against R (qicharts2, FunnelPlotR, NHSRplotthedots). Every removed or renamed
+argument raises a <code>TypeError</code> naming its replacement, so running an app once lists the
+changes to make.</p>
+<h3 id="breaking-calling-qic-and-funnel">Breaking: calling <code>qic()</code> and <code>funnel()</code><a class="headerlink" href="#breaking-calling-qic-and-funnel" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Keyword-only after <code>data</code>.</strong> <code>qic(data=None, *, x=None, y, n=None, chart="run", ...)</code>
+  and <code>funnel(data=None, *, y, n, measure, ...)</code>. A positional <code>qic(x, y)</code> call raises.</li>
+<li><strong>Display options moved to <code>.plot()</code>:</strong> <code>title</code>, <code>subtitle</code>, <code>caption</code>, <code>xlab</code>, <code>ylab</code>,
+  <code>styles</code>, <code>label_signals</code>, <code>x_range</code>, <code>y_range</code>, <code>show_legend</code>, <code>width</code>, <code>height</code> on
+  both, plus <code>x_log</code> on funnels and <code>part_labels</code>, <code>show_95</code>, <code>show_labels</code>,
+  <code>show_grid</code>, <code>show_x_labels</code>, <code>decimals</code>, <code>point_size</code>, <code>x_format</code>, <code>x_angle</code>,
+  <code>x_pad</code>, <code>x_order</code>, <code>y_expand</code>, <code>y_neg</code>, <code>y_percent</code>, <code>connect</code>, <code>runs_highlight</code>,
+  <code>flip</code>, <code>nrow</code>, <code>ncol</code> and <code>scales</code> on <code>qic()</code>.</li>
+<li><strong>Renamed arguments:</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Old</th>
+<th>New</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cl=</code></td>
+<td><code>center=</code></td>
+<td>both</td>
+</tr>
+<tr>
+<td><code>point_labels=</code></td>
+<td><code>label=</code></td>
+<td>both</td>
+</tr>
+<tr>
+<td><code>hover_extra=</code></td>
+<td><code>hover=</code></td>
+<td>both</td>
+</tr>
+<tr>
+<td><code>test_min_expected=</code></td>
+<td><code>fdr_min_denominator=</code></td>
+<td><code>funnel()</code></td>
+</tr>
+<tr>
+<td><code>signal_side=</code></td>
+<td><code>worse=</code></td>
+<td><code>funnel()</code></td>
+</tr>
+<tr>
+<td><code>signal_method=</code></td>
+<td><code>signal=</code></td>
+<td><code>funnel()</code></td>
+</tr>
+<tr>
+<td><code>levels=</code></td>
+<td><code>limits=</code></td>
+<td><code>funnel()</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Removed:</strong> <code>print_summary</code>, <code>y_percent_accuracy</code> and <code>strip_horizontal</code> (no effect),
+  and the hidden <code>chart="ip"</code> (an i chart of a rate is <code>chart="i", y=events, n=cases</code>).</li>
+<li><strong><code>facets=</code></strong> takes one column or a list on both functions. The facet columns lead
+  <code>.data</code> under their own names.</li>
+</ul>
+<h3 id="breaking-results">Breaking: results<a class="headerlink" href="#breaking-results" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>qic()</code> columns.</strong> <code>sigma_signal</code> (bool) is now <code>signal</code> (<code>"outlier"</code> or <code>"none"</code>),
+  the same column a funnel has. <code>runs_signal</code> now marks only the points that form a
+  pattern (0.10's <code>runs_signal_localized</code>); too few crossings is
+  <code>summary["crossings_signal"]</code>.</li>
+<li><strong><code>qic()</code> summary.</strong> <code>run_signal</code> is <code>longest_run_signal</code>, <code>run_threshold</code> is
+  <code>longest_run_max</code>, <code>crossings_threshold</code> is <code>n_crossings_min</code>, and <code>limit_basis</code> is
+  gone. New: <code>chart</code>, <code>method</code>, <code>n_outlier</code>, <code>runs_signal</code>, and per-method keys.</li>
+<li><strong><code>funnel()</code> summary.</strong> <code>phi_raw</code> and <code>phi_debiased</code> are one key, <code>phi</code>, as the chosen
+  <code>tau_method</code> defines it. <code>test_min_expected</code> is <code>fdr_min_denominator</code>. New:
+  <code>limit_method</code>, <code>tau_scale</code>, <code>min_detectable_median</code>.</li>
+<li><strong>Every result</strong> has <code>to_dict()</code> and <code>to_json()</code>. <code>FunnelResult</code> lives in
+  <code>qikit.results</code> with the others.</li>
+</ul>
+<h3 id="breaking-packaging-and-modules">Breaking: packaging and modules<a class="headerlink" href="#breaking-packaging-and-modules" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>plotly is optional.</strong> <code>pip install "clinical-qikit[plot]"</code> for <code>.plot()</code>. The core
+  depends only on numpy and pandas, and <code>import qikit</code> does not load plotly. <code>.plot()</code>
+  without plotly raises an <code>ImportError</code> naming the extra.</li>
+<li><strong>Modules.</strong> <code>qikit.spc</code> (a package) and <code>qikit.render</code> are gone. The numeric core is
+  <code>qikit.core</code> (<code>dist</code>, <code>constants</code>, <code>shewhart</code>, <code>rules</code>, <code>contours</code>, <code>dispersion</code>,
+  <code>pvalues</code>, <code>power</code>); the front doors are <code>qikit.spc</code> (a module) and <code>qikit.funnel</code>;
+  figures are <code>qikit.plot</code>. Import from <code>qikit</code> itself; the internal paths are not API.</li>
+</ul>
+<h3 id="behavior-changes">Behavior changes<a class="headerlink" href="#behavior-changes" title="Permanent link">&para;</a></h3>
+<p>Each moves results on some data. "More" or "less sensitive" is relative to 0.10.</p>
+<ul>
+<li><strong><code>tau_method="spiegelhalter"</code> is the default again,</strong> in both engines. 0.10's
+  debiased default was not sensitive enough for screening in production use: it found
+  a planted outlier 38% of the time against 70% (methods §5, K = 150, τ = 0.3). The
+  published estimator is also uncorrected like the CQC, NHS and FunnelPlotR estimators.
+  Flag rates return to 0.9's. <code>"winsorized"</code> remains for when the stated chance-flag
+  rate must hold. More sensitive.</li>
+<li><strong>Run-chart rule (anhoej) matches qicharts2:</strong> longest run &gt; round(log₂ n) + 3, and no
+  minimum n. 0.10 used floor(log₂ n) + 3 with ≥. Less sensitive: in simulation false
+  signals fall from 2–10% to 0–2%, and power to see a 1 SD shift falls from 37% to 13%
+  at n = 30. The crossings rule is unchanged. <code>method="nhs"</code> or <code>"ihi"</code> restore a
+  shorter run under a published rule set.</li>
+<li><strong>xbar and s charts</strong> take their spread from the baseline and each part, honouring
+  <code>freeze=</code>, <code>part=</code> and <code>exclude=</code>. More sensitive after a real change.</li>
+<li><strong>g chart</strong> limits come from the mean, with the median drawn as the centre line
+  (Montgomery, qicharts2). Limits about 10–15% wider. Less sensitive.</li>
+<li><strong>Laney σ_z</strong> is screened at 3.267·MR̄ and no longer floored at 1. Narrower limits on
+  under-dispersed series.</li>
+<li><strong><code>method="ihi"</code></strong> uses Provost and Murray's run-chart rules (shift 6, trend 5) on run
+  charts, adds 2 of 3 beyond 2σ and 15 within 1σ on Shewhart charts, and passes over
+  repeated values in a trend. More sensitive.</li>
+<li><strong><code>n=</code> divides y on every chart,</strong> as in qicharts2. p and pp upper limits are capped
+  at 1; the MR chart's lower limit is 0; a moving range across a part boundary is NaN.</li>
+<li><strong>Grouped x is sorted</strong> when numeric or a date, so runs and moving ranges follow time.</li>
+<li><strong>c₄ is exact</strong> (from the gamma function), not a table. A₃, B₃ and B₄ follow it.
+  Differences are in the fourth significant figure.</li>
+<li><strong>A fixed <code>center=</code></strong> counts K degrees of freedom in <code>"winsorized"</code>'s τ̂², not K − 1.
+  τ̂² is smaller by about 1/K.</li>
+<li><strong>An estimated within-dispersion below 1</strong> (binary-outcome O/E from case rows) is kept
+  and labelled as the binomial-variance correction, not floored.</li>
+</ul>
+<h3 id="added_4">Added<a class="headerlink" href="#added_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>method="nhs"</code>:</strong> NHS England's Making Data Count rules on <code>qic()</code>, with
+  <code>variation</code> and <code>special_cause</code> per point, <code>summary["variation"]</code>, and
+  <code>summary["assurance"]</code> against <code>target=</code>. Plot colours for improving, concerning and
+  neutral special causes. Checked against NHSRplotthedots.</li>
+<li><strong><code>tau_method="cqc"</code> and <code>"shmi"</code>:</strong> CQC and NHS SHMI over-dispersion on the √,
+  arcsine or log scale, as FunnelPlotR computes them, with limits drawn on that scale
+  and mapped back (<code>limit_method="transformed_normal"</code>). Methods §4.17.</li>
+<li><strong><code>funnel_sensitivity()</code>:</strong> one row per provider with its tier under each τ option and
+  a <code>consistent</code> flag.</li>
+<li><strong>Reference tests against R.</strong> <code>fixtures/reference/</code> holds 31 cases from qicharts2,
+  FunnelPlotR and NHSRplotthedots, regenerated by <code>scripts/make_reference_fixtures.R</code>;
+  <code>tests/test_reference.py</code> checks them to 1e-6, with each departure listed.</li>
+<li><strong>Validation:</strong> y &lt; 0, y &gt; n on proportions, <code>center</code> out of range, <code>freeze</code>, <code>part</code>,
+  <code>method</code>, <code>agg_fun</code>, and facet names that collide with output columns.</li>
+<li><strong>Documentation for people and agents:</strong> <code>docs/qic-methods.md</code>, <code>docs/snowflake.md</code>,
+  <code>src/qikit/AGENTS.md</code> (shipped in the wheel), <code>llms.txt</code>, and the
+  <code>skills/spc-monitoring</code> skill. <code>py.typed</code> marks the package as typed.</li>
+<li><strong><code>tests/test_docs.py</code>:</strong> every argument, quoted value, summary key and column named in
+  the README, AGENTS.md, llms.txt, the skills and the methods docs is checked against the
+  code, and the skills' column lists are checked in both directions.</li>
+</ul>
+<h3 id="fixed-funnel">Fixed (<code>funnel()</code>)<a class="headerlink" href="#fixed-funnel" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>exclude=</code> is honoured by <code>within_dispersion="estimate"</code> and the clustering check.</li>
+<li><code>expected_false_flags["alert"]</code> counts the alert tier only, under both <code>signal=</code>
+  modes.</li>
+<li>Above 10⁵ expected events, the limits and p-values both use Byar's approximation and
+  <code>summary["limit_method"]</code> says <code>"byar"</code>.</li>
+<li><code>max_case_y=</code>/<code>max_case_n=</code> drop the worst case only on the provider's own side of the
+  line.</li>
+<li>Docstrings for <code>reliability</code> and the p-values corrected.</li>
+</ul>
+<h3 id="fixed-plot">Fixed (<code>.plot()</code>)<a class="headerlink" href="#fixed-plot" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A chart with <code>part=</code> and text x values (dates read from a CSV) no longer crashes when
+  drawing the part labels.</li>
+</ul>
+<h3 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>0.10</th>
+<th>1.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Proportion funnel, 2,000 providers</td>
+<td>3.6 s</td>
+<td>0.42 s</td>
+</tr>
+<tr>
+<td>Proportion funnel, 5,000 providers</td>
+<td>10 s</td>
+<td>1.1 s</td>
+</tr>
+<tr>
+<td>O/E funnel, 5,000 providers</td>
+<td>0.47 s</td>
+<td>0.2 s</td>
+</tr>
+</tbody>
+</table>
+<p>Exact binomial intervals and detectability use safeguarded Newton steps on the log tail,
+about five CDF evaluations instead of fifty. The distribution cache evicts least
+recently used entries instead of clearing. <code>.plot()</code> and <code>limits()</code> reuse the contours
+computed for the table.</p>
+<h3 id="typescript-engine">TypeScript engine<a class="headerlink" href="#typescript-engine" title="Permanent link">&para;</a></h3>
+<p>The Excel add-in's engine matches every behaviour change above: the Anhøj thresholds,
+<code>ihi</code> rules, exact c₄, g, MR, p and Laney limits, and the <code>tauMethod</code> default.
+The shared fixtures in <code>fixtures/spc/</code> were regenerated.</p>
+<h2 id="0100-2026-10-31">0.10.0 (2026-10-31)<a class="headerlink" href="#0100-2026-10-31" title="Permanent link">&para;</a></h2>
+<h3 id="behavior-change">Behavior change<a class="headerlink" href="#behavior-change" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The over-dispersion estimate is debiased by default, in both engines</strong>
+  (<code>tau_method="winsorized"</code>). The 10%-winsorized φ̂ is multiplied by its Gaussian
+  consistency factor 1.4735 (Spiegelhalter 2005, eq. 9) before τ² is estimated. τ̂ is larger, the adjusted
+  contours are wider, and fewer average providers flag. Without the factor, at 1,000
+  physicians (E from 2 to 60), τ̂ was 0 for a true spread of 0.10, and average providers
+  flagged at about twice the stated rate. On the bundled example
+  (<code>data/examples/physician_mortality_oe.csv</code>, three years) τ̂ goes from 0 to 0.113, and
+  the same three physicians are outliers. <code>tau_method="spiegelhalter"</code> reproduces 0.9
+  (and FunnelPlotR/CQC) exactly. The engine core, <code>qic()</code> on O/E charts and the
+  TypeScript engine (<code>tauMethod</code>) use the same default. The shared fixtures that check
+  Spiegelhalter's published numbers now pin <code>tauMethod: "spiegelhalter"</code>, and three new
+  fixtures (<code>funnel_*_winsorized</code>) check the default in both engines. See
+  docs/methods.md §4.3.</li>
+</ul>
+<h3 id="added-funnel">Added (<code>funnel()</code>)<a class="headerlink" href="#added-funnel" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>tau_method=</code>: <code>"winsorized"</code> (default), <code>"spiegelhalter"</code> (as published) or <code>"ml"</code>
+  (maximum likelihood of the chart's own random-effects model, with a profile-likelihood
+  <code>tau_ci</code>). <code>tau=</code>: a τ fixed in advance (a number, or one per facet). Summary keys
+  <code>tau_method</code>, <code>tau_source</code>, <code>tau_estimated</code>, <code>tau_ci</code>; notes below 30 providers and
+  when a fixed τ has drifted from this period's estimate (§4.16).</li>
+<li>
+<p><code>prob_worse</code> column: the posterior probability that a provider is worse than average
+  (the CMS question), alongside <code>signal</code> (unusual among peers) (§4.14, §4.16).</p>
+</li>
+<li>
+<p><code>reliability</code>, <code>eb_rate</code>, <code>eb_excess</code>, <code>raw_excess</code> columns: shrinkage by the exact
+  posterior mean of the chart's own Poisson–gamma or beta-binomial model (§4.14).</p>
+</li>
+<li><code>p_value_drop1</code>, <code>flag_survives_drop1</code>, <code>fragility</code> columns: single-case robustness
+  (§4.15). <code>max_case_y=</code>/<code>max_case_n=</code> supply the worst case from SQL.</li>
+<li><code>cases=</code>/<code>sum_sq=</code>: <code>within_dispersion="estimate"</code> and the clustering check from one
+  row per provider aggregated in SQL; equal to the stay-level result to rounding (§4.12).</li>
+<li><code>within_dispersion="&lt;column&gt;"</code>: one φᵢ per provider (e.g. case-mix weighted by DRG);
+  adds <code>effective_denominator</code>, the plot's x axis (§4.12).</li>
+<li><code>test_min_expected=</code>: a volume floor for the false discovery rate step only
+  (independent filtering) (§4.11).</li>
+<li>Summary keys <code>phi_raw</code>, <code>phi_debiased</code>, <code>test_min_expected</code>,
+  <code>n_filtered</code>, <code>n_fragile</code>, and notes for fragile flags and filtering.</li>
+</ul>
+<h3 id="performance_1">Performance<a class="headerlink" href="#performance_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>dist.py</code> walks are vectorised with strictly sequential numpy accumulations and cached
+  per distribution. Every value is bit-identical to 0.9. A 1,000-provider <code>oep</code> funnel
+  at E from 30 to 2,000 takes about 0.3 s cold, down from 1.3 s. scipy is not required.
+  Monkeypatches of the removed <code>qikit.spc.dist.poisson_cdf</code> have had no effect since
+  0.8 and can be deleted.</li>
+</ul>
+<h3 id="evaluated-and-declined">Evaluated and declined<a class="headerlink" href="#evaluated-and-declined" title="Permanent link">&para;</a></h3>
+<p>These are recorded in docs/methods.md §6 with reasons: per-provider own-variance
+<code>continuous_oe</code>, <code>q_value_loo</code>, Storey/power-screened FDR, winsorized/median center
+lines, and smoothed display contours.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../api/" class="md-footer__link md-footer__link--prev" aria-label="Previous: API reference">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                API reference
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../guide/development/" class="md-footer__link md-footer__link--next" aria-label="Next: Development">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Development
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

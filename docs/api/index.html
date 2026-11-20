@@ -1,0 +1,3578 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="SPC charts and funnel plots for healthcare quality, in Python.">
+      
+      
+      
+        <link rel="canonical" href="https://clinical-qikit.github.io/qikit/docs/api/">
+      
+      
+        <link rel="prev" href="../qic-methods/">
+      
+      
+        <link rel="next" href="../changelog/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>API reference - qikit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="qikit" class="md-header__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            qikit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="qikit" class="md-nav__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    qikit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/qic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Over time (qic)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/funnel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across providers (funnel)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/more/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake and other tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For AI agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../snowflake/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../excel-addin-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in scope
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funnel plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qic-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Control charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Over time
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Over time">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        qic
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="qic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--choosing-the-chart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the chart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--choosing-the-rules-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the rules (method=)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--reading-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the result
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SPCResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SPCResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        signals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.to_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.brief" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        brief
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#across-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Across providers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Across providers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        funnel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="funnel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel--choosing-the-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel--reading-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the result
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FunnelResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FunnelResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.to_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.brief" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        brief
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.min_denominator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        min_denominator
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel_sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        funnel_sensitivity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel_rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        funnel_rollup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Output schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.schema.schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-charts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other charts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Other charts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.paretochart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        paretochart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ParetoResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ParetoResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.bchart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bchart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.BChartResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BChartResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#designed-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Designed experiments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Designed experiments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.design--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.design--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExperimentDesign
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExperimentDesign">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign.fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign.to_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign.to_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.analyze" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        analyze
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="analyze">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.analyze--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.analyze--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExperimentResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExperimentResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult.plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult.to_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult.to_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Over time
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Over time">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        qic
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="qic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--choosing-the-chart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the chart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--choosing-the-rules-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the rules (method=)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--reading-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the result
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.qic--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SPCResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SPCResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        signals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.to_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.SPCResult.brief" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        brief
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#across-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Across providers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Across providers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        funnel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="funnel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel--choosing-the-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel--reading-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the result
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel.funnel--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FunnelResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FunnelResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.to_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.brief" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        brief
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.FunnelResult.min_denominator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        min_denominator
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel_sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        funnel_sensitivity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.funnel_rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        funnel_rollup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Output schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.schema.schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-charts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other charts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Other charts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.paretochart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        paretochart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ParetoResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ParetoResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.bchart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bchart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.BChartResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BChartResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#designed-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Designed experiments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Designed experiments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.design--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.design--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExperimentDesign
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExperimentDesign">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign.fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign.to_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentDesign.to_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.analyze" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        analyze
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="analyze">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.analyze--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.analyze--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExperimentResult
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExperimentResult">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult.plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult.to_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qikit.ExperimentResult.to_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_json
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>These pages are the docstrings, the same text <code>help()</code> shows. Each function opens with
+a table of which settings fit which data.</p>
+<h2 id="over-time">Over time<a class="headerlink" href="#over-time" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.qic" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">qic</span>
+
+
+<a href="#qikit.qic" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">qic</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chart</span><span class="o">=</span><span class="s1">'run'</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">'anhoej'</span><span class="p">,</span> <span class="n">freeze</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">part</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">worse</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">agg_fun</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">,</span> <span class="n">x_period</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multiply</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">facets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hover</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">notes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">removed</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>A statistical process control chart: one measure over time, judged against its own
+past. Returns an SPCResult; result.data is the table, result.plot() the figure.</p>
+<h6 id="qikit.qic--choosing-the-chart">Choosing the chart<a class="headerlink" href="#qikit.qic--choosing-the-chart" title="Permanent link">&para;</a></h6>
+<table>
+<thead>
+<tr>
+<th>You have, per period</th>
+<th>chart=</th>
+<th>y=, n=</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>any measure, few assumptions (start here)</td>
+<td>"run"</td>
+<td>y</td>
+</tr>
+<tr>
+<td>one continuous value (LOS, wait time, O/E)</td>
+<td>"i"</td>
+<td>y</td>
+</tr>
+<tr>
+<td>events out of cases (H&amp;P in 24 h, mortality)</td>
+<td>"p"</td>
+<td>y=events, n=cases</td>
+</tr>
+<tr>
+<td>the same, n in the thousands (over-dispersed)</td>
+<td>"pp"</td>
+<td>y=events, n=cases (Laney)</td>
+</tr>
+<tr>
+<td>events over exposure (infections/line-days)</td>
+<td>"u"</td>
+<td>y=events, n=exposure</td>
+</tr>
+<tr>
+<td>the same, exposure in the thousands</td>
+<td>"up"</td>
+<td>y=events, n=exposure (Laney)</td>
+</tr>
+<tr>
+<td>an O/E ratio over time</td>
+<td>"u"</td>
+<td>y=observed, n=expected</td>
+</tr>
+<tr>
+<td>counts with constant opportunity</td>
+<td>"c"</td>
+<td>y=count</td>
+</tr>
+<tr>
+<td>several raw values per period (subgroups)</td>
+<td>"xbar"</td>
+<td>y=raw values, x=period</td>
+</tr>
+<tr>
+<td>and their spread</td>
+<td>"s"</td>
+<td>y=raw values, x=period</td>
+</tr>
+<tr>
+<td>cases between rare events (never events)</td>
+<td>"g"</td>
+<td>y=cases between</td>
+</tr>
+<tr>
+<td>days between rare events</td>
+<td>"t"</td>
+<td>y=days between</td>
+</tr>
+<tr>
+<td>the moving range of an i chart</td>
+<td>"mr"</td>
+<td>y</td>
+</tr>
+</tbody>
+</table>
+<p>With data=, x=, y=, n= name columns, and rows sharing an x are aggregated into one
+subgroup: events and denominators summed, raw values averaged (agg_fun=). x is
+sorted when it is a number or a date (a datetime column, or Python date objects as
+Snowpark returns them); text x keeps its order, so parse text dates first. Without
+data=, they are sequences, one value per point. A missing y (None, NaN, blank) is a
+gap in the chart; text that is not a number is an error.</p>
+<h6 id="qikit.qic--choosing-the-rules-method">Choosing the rules (method=)<a class="headerlink" href="#qikit.qic--choosing-the-rules-method" title="Permanent link">&para;</a></h6>
+<ul>
+<li>"anhoej" (default): qicharts2's run rules, an unusually long run on one side of
+  the center line or unusually few crossings of it (Anhøj &amp; Olesen 2014).</li>
+<li>"nhs": NHS England's Making Data Count, for XmR (chart="i") boards: 7 on one side,
+  7 rising or falling, 2 of 3 near a limit. Pass worse= to class each special cause
+  as improving or concerning, and target= for the assurance verdict.</li>
+<li>"ihi": Provost &amp; Murray's rules (shift, trend, and on Shewhart charts the zone
+  rules). "weco", "nelson": the classic zone rules.</li>
+</ul>
+<h6 id="qikit.qic--reading-the-result">Reading the result<a class="headerlink" href="#qikit.qic--reading-the-result" title="Permanent link">&para;</a></h6>
+<p>result.data, one row per point in plotted order:</p>
+<ul>
+<li>x, label, y (after multiply=), n (when given; the subgroup size on xbar/s).</li>
+<li>cl, ucl, lcl: center line and 3σ limits; ucl_95, lcl_95: the 2σ lines.</li>
+<li>signal: "outlier" beyond ucl/lcl, else "none".</li>
+<li>runs_signal: the point is part of a pattern the rules found (a long run, a trend).
+  Too few crossings is a property of the whole series: summary["crossings_signal"].</li>
+<li>variation (method="nhs"): "improving", "concerning", "neutral" (no worse=) or
+  "common", Making Data Count's reading of each point; special_cause: the rule that
+  made it so ("" for common cause).</li>
+<li>part, baseline (used to set the limits), excluded, target, notes, hover columns,
+  and one column per facets= column.</li>
+</ul>
+<p>result.summary: signals (any outlier or pattern), n_outlier, runs_signal, the rule
+method's own keys (anhoej: n_useful, longest_run, longest_run_max, n_crossings,
+n_crossings_min, longest_run_signal, crossings_signal; others: rules_fired), sigma_z
+(pp/up), parts (one dict per part; the top level describes the last part, the
+current process), variation and assurance (method="nhs"), by_facet, and:
+notes, sentences to show a reader (too few points, trial limits, gaps, a frozen
+baseline; prefixed by facet when faceted), and provisional, True when fewer than 12
+points set the center line, so "no signal" is not yet "stable".</p>
+<h6 id="qikit.qic--parameters">Parameters<a class="headerlink" href="#qikit.qic--parameters" title="Permanent link">&para;</a></h6>
+<ul>
+<li><code>data</code>: a DataFrame, or None to pass sequences.</li>
+<li><code>x</code>, <code>y</code>, <code>n</code>: columns of data (or sequences). n= is required on p/pp/u/up; on any other
+  chart it divides y, as in qicharts2 (an i chart of a rate).</li>
+<li><code>chart</code>, <code>method</code>: see above.</li>
+<li><code>freeze</code>: the baseline ends at this point (1-based): the limits come from points
+  1..freeze and later points are judged against them.</li>
+<li><code>part</code>: split the chart into parts, each with its own center line, limits and rules:
+  the point(s) where each part ends (1-based, as freeze=), or a column whose value
+  changes between parts (e.g. "before"/"after").</li>
+<li><code>exclude</code>: points to leave out of the limits and the rules (drawn faded): a column of
+  booleans, or 1-based positions.</li>
+<li><code>center</code>: a fixed center line instead of the baseline's.</li>
+<li><code>target</code>: a target line: a number, or a column.</li>
+<li><code>worse</code>: "higher" or "lower": which direction is bad, for method="nhs" (improving or
+  concerning special cause; assurance against target=).</li>
+<li><code>agg_fun</code>: how raw values in one subgroup combine when there is no n=: "mean",
+  "median" or "sum".</li>
+<li><code>x_period</code>: aggregate a date x into periods: "day", "week", "month", "quarter",
+  "year" (or a pandas frequency).</li>
+<li><code>multiply</code>: scale y and the limits, e.g. 1000 for a rate per 1,000.</li>
+<li><code>facets</code>: one column, or a list of columns: one chart per value (or combination).
+  result.data keeps those columns, so it is ready to write back to a table.</li>
+<li><code>label</code>: display name per point (a column or sequence); hover : extra tooltip
+  columns; notes : annotations per point (a column or sequence).</li>
+</ul>
+<p>Display options (title, axis labels, styles, ...) are arguments of result.plot().
+result.to_table() is .data with every possible column in a fixed order (see
+qikit.schema("qic")), for a database table; result.brief() is the verdict, the notes
+and only the flagged points, small enough to read at a glance.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="qikit.SPCResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SPCResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#qikit.SPCResult" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What qic() returns. data: one row per point (qic's docstring lists every column);
+summary: what the rules found and how the limits were set. plot(**options) draws it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="qikit.SPCResult.signals" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">signals</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#qikit.SPCResult.signals" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">signals</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether any point is an outlier or any rule found a pattern.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.SPCResult.plot" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">plot</span>
+
+
+<a href="#qikit.SPCResult.plot" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">plot</span><span class="p">(</span><span class="o">**</span><span class="n">options</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A Plotly figure. Options: title, subtitle, caption, xlab, ylab, show_95,
+show_labels, show_grid, show_x_labels, label_signals ("outlier"), runs_highlight
+("localized", "all", "none"), styles (restyle by role), x_range, y_range, x_order,
+x_format, x_angle, y_percent, y_neg, y_expand, decimals, point_size, connect,
+show_legend, flip, width, height, and nrow, ncol, scales for facets.
+An unknown name raises TypeError.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.SPCResult.to_table" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_table</span>
+
+
+<a href="#qikit.SPCResult.to_table" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_table</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>.data with every column of qikit.schema("qic"), in that order and with those
+types, empty where this call did not produce it: the facets= columns, the schema
+columns, then the hover= columns. The same shape for every call with the same
+facets= and hover=, as a table or a Snowpark RETURNS TABLE clause needs.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.SPCResult.brief" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">brief</span>
+
+
+<a href="#qikit.SPCResult.brief" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">brief</span><span class="p">(</span><span class="n">digits</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">25</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>What was found, small enough to read or to hand to a language model: the
+verdict, the notes, and only the flagged points (an outlier, or part of a run),
+the most recent <code>limit</code> of them, with numbers at <code>digits</code> significant figures.
+JSON-safe. Faceted, "facets" gives each chart's verdict.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="across-providers">Across providers<a class="headerlink" href="#across-providers" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.funnel.funnel" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">funnel</span>
+
+
+<a href="#qikit.funnel.funnel" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">funnel</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">measure</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hover</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">facets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overdispersion</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">compare_to</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">within_dispersion</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tau_method</span><span class="o">=</span><span class="n">DEFAULT_TAU_METHOD</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cases</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sum_sq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_case_y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_case_n</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fdr_min_denominator</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">worse</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">signal</span><span class="o">=</span><span class="s1">'limits'</span><span class="p">,</span> <span class="n">limits</span><span class="o">=</span><span class="n">DEFAULT_LEVELS</span><span class="p">,</span> <span class="n">fdr_levels</span><span class="o">=</span><span class="n">DEFAULT_FDR_LEVELS</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">benchmark_share</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">multiply</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span> <span class="o">**</span><span class="n">removed</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Compare providers on one measure with a funnel plot, and flag the unusual ones.
+Returns a FunnelResult; result.data is the table, result.plot() the figure.</p>
+<h6 id="qikit.funnel.funnel--choosing-the-settings">Choosing the settings<a class="headerlink" href="#qikit.funnel.funnel--choosing-the-settings" title="Permanent link">&para;</a></h6>
+<table>
+<thead>
+<tr>
+<th>You have</th>
+<th>Pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>observed events and risk-model expected events</td>
+<td>measure="oe", y=observed, n=expected</td>
+</tr>
+<tr>
+<td>events out of cases (mortality %, H&amp;P in 24 h)</td>
+<td>measure="proportion", y=events, n=cases</td>
+</tr>
+<tr>
+<td>events over exposure (infections per line-day)</td>
+<td>measure="rate", y=events, n=exposure</td>
+</tr>
+<tr>
+<td>a per-case amount: minutes, cost or days per stay</td>
+<td>measure="mean", y=the amount, one row</td>
+</tr>
+<tr>
+<td>(EHR minutes per discharge, cost per case)</td>
+<td>per case (n optional), or SQL totals</td>
+</tr>
+<tr>
+<td></td>
+<td>y=SUM, n=COUNT, sum_sq=SUM(y*y)</td>
+</tr>
+<tr>
+<td>DAYS or anything where one case adds many units</td>
+<td>stay-level rows (one per case), and</td>
+</tr>
+<tr>
+<td>(length of stay as observed/expected days)</td>
+<td>within_dispersion="estimate"</td>
+</tr>
+<tr>
+<td>items of a multi-question survey or audit, scored</td>
+<td>one row per survey (y = items "Always",</td>
+</tr>
+<tr>
+<td>per item (HCAHPS composites, top-/bottom-box)</td>
+<td>n = items answered), measure=</td>
+</tr>
+<tr>
+<td></td>
+<td>"proportion", within_dispersion=</td>
+</tr>
+<tr>
+<td></td>
+<td>"estimate"</td>
+</tr>
+<tr>
+<td>the same, but summed per provider in SQL (one row</td>
+<td>y, n, cases=, sum_sq= and</td>
+</tr>
+<tr>
+<td>per provider) so the stays never leave Snowflake</td>
+<td>within_dispersion="estimate"</td>
+</tr>
+<tr>
+<td>stays whose variability differs by DRG / service</td>
+<td>within_dispersion="<column>" holding</td>
+</tr>
+<tr>
+<td>line (a case-mix-weighted φ per provider)</td>
+<td>each provider's φᵢ, computed in SQL</td>
+</tr>
+<tr>
+<td>a flag a leader will ask "is it one patient?"</td>
+<td>case-level rows (automatic), or</td>
+</tr>
+<tr>
+<td>about</td>
+<td>max_case_y=, max_case_n= from SQL</td>
+</tr>
+<tr>
+<td>expected from an external risk model (Vizient,</td>
+<td>compare_to="model" (O/E against 1.0,</td>
+</tr>
+<tr>
+<td>CMS), asking "worse than expected?"</td>
+<td>no allowance for spread)</td>
+</tr>
+<tr>
+<td>"unusual among peers?" (the default question)</td>
+<td>compare_to="peers", or nothing</td>
+</tr>
+<tr>
+<td>a fixed target on a proportion or rate</td>
+<td>center=<target>, overdispersion=False</td>
+</tr>
+<tr>
+<td>a measure where only one direction is bad</td>
+<td>worse="higher" (or "lower")</td>
+</tr>
+<tr>
+<td>hundreds of providers, and want few false alarms</td>
+<td>signal="fdr"</td>
+</tr>
+<tr>
+<td>flags from the lines, figure showing the q tiers</td>
+<td>.plot(color_by="fdr")</td>
+</tr>
+<tr>
+<td>many very-low-volume providers diluting the</td>
+<td>fdr_min_denominator= (a volume floor</td>
+</tr>
+<tr>
+<td>signal="fdr" step</td>
+<td>for the FDR step only)</td>
+</tr>
+<tr>
+<td>the spread between providers known from earlier</td>
+<td>tau=<that value> (a number, or one per</td>
+</tr>
+<tr>
+<td>periods, or few providers (K &lt; 30)</td>
+<td>facet): fixed in advance</td>
+</tr>
+<tr>
+<td>to reproduce a CQC or NHS SHMI funnel</td>
+<td>tau_method="cqc" or "shmi"</td>
+</tr>
+<tr>
+<td>to rank flagged providers for action</td>
+<td>sort by eb_excess, not raw_excess</td>
+</tr>
+<tr>
+<td>to say "probably worse than average" (CMS-style)</td>
+<td>read prob_worse; signal is unchanged</td>
+</tr>
+<tr>
+<td>an estimate with a range per provider (scorecard)</td>
+<td>eb_rate, eb_low, eb_high,</td>
+</tr>
+<tr>
+<td></td>
+<td>estimate_flag; plot(kind=</td>
+</tr>
+<tr>
+<td></td>
+<td>"caterpillar")</td>
+</tr>
+<tr>
+<td>several measures or service lines in one call</td>
+<td>facets=["measure"] (one or more cols)</td>
+</tr>
+<tr>
+<td>a goal the best providers already reach (ABC)</td>
+<td>benchmark="abc" with worse=</td>
+</tr>
+<tr>
+<td>the same goal for an outcome (O/E mortality, LOS)</td>
+<td>benchmark="eb" with worse=</td>
+</tr>
+</tbody>
+</table>
+<p>Two questions, both legitimate (methods §2), named by compare_to=: "peers" (the
+default) asks "is this provider unusual among its peers?", judging each provider
+against the pooled value and the measured spread between providers as well as
+chance; "model" asks "does this provider differ from the risk model?" (center=1.0,
+overdispersion=False). Decide which before looking. A fixed center= with
+overdispersion=True answers neither: any system-wide gap between the providers and
+that center is absorbed into tau, widening every limit, and a warning says so
+(methods §4.2.1).</p>
+<h6 id="qikit.funnel.funnel--reading-the-result">Reading the result<a class="headerlink" href="#qikit.funnel.funnel--reading-the-result" title="Permanent link">&para;</a></h6>
+<p>result.data has one row per provider (per unit and facet), in plotted order (by
+denominator):</p>
+<ul>
+<li>signal: "outlier", "alert" or "none". The tiers never overlap; an outlier is
+  not also an alert. Under worse= only the worse side is flagged.</li>
+<li>direction: "higher" or "lower", which side of the center line the point is on.</li>
+<li>y: the plotted value (O/E ratio, proportion, rate or mean, after multiply=);
+  numerator and denominator: the summed y= and n= inputs, in the caller's units.</li>
+<li>effective_denominator: only with a per-provider within_dispersion column: the
+  denominator ÷ φᵢ the model sees, which is the x axis of the plot.</li>
+<li>cl: the center line. lower_outlier / upper_outlier: the outer contour (99.8% by
+  default); lower_alert / upper_alert: the inner one (95%). Each contour is the
+  boundary of the test, so a point is beyond the upper_outlier line exactly when
+  its one-sided p-value is below 0.001.</li>
+<li>p_value: against the same model the contours are drawn from (one-sided toward
+  worse=, or doubled for two-sided); q_value: its Benjamini–Hochberg adjustment
+  across the providers in this chart (each facet separately; excluded providers are
+  not tested).</li>
+<li>min_detectable: the smallest true value this provider could have flagged with
+  80% power. A provider inside the funnel at physician volumes is often "not
+  enough data", not "fine". ci_lower / ci_upper: an exact 95% interval for the
+  provider's own value.</li>
+<li>excluded: dropped from the center line, the dispersion estimates and testing.</li>
+<li>raw_excess: (numerator − cl·denominator), signed so positive is worse: the
+  excess days or events.
+Shrunk estimates (methods §4.14). Each provider's true value has an exact
+posterior: gamma for counts (O/E, rate, mean), beta for proportions, on effective
+counts. Its prior is centered on the center line (under compare_to="model", the
+pooled value) with the spread estimated by maximum likelihood (or tau=), whatever
+tau_method the limits use. The columns:</li>
+<li>reliability: the shrinkage weight, 0 to 1: how much of the provider's difference
+  is signal rather than chance. 0 for every provider when there is no measurable
+  spread, and on an unadjusted chart with a custom center. 0.7 is the usual floor
+  for high-stakes use of a single score (Adams et al. 2010).</li>
+<li>eb_rate, eb_excess: the shrunk (empirical Bayes) value, the posterior mean, and
+  its excess over the reference. Sort on eb_excess to prioritize.</li>
+<li>eb_low, eb_high: an equal-tailed interval= (95%) interval for the provider's true
+  value from the same posterior, on the plotted scale. NaN when there is no
+  measurable spread (a note says so). With within_dispersion it runs about 5 points
+  short of nominal (methods §5).</li>
+<li>prob_worse: the posterior probability that the provider's true value is worse
+  than the reference ("is this provider truly worse?", the CMS question), where
+  signal answers "is it unusual?" (methods §4.16). NaN when there is no spread.</li>
+<li>estimate_flag: where [eb_low, eb_high] lies against the reference: "worse" or
+  "better" with worse= ("higher" or "lower" without it) when wholly on one side,
+  else "no different"; None with no interval. It answers a different question from
+  signal and has no multiplicity control: about 5% of average providers' intervals
+  miss their true value. The reference is summary["reference"]: the center line,
+  or 1.0 under compare_to="model".</li>
+<li>p_value_drop1, flag_survives_drop1, fragility: single-case robustness (case-level
+  rows, or max_case_y=/max_case_n= from SQL). Descriptive, never a test (§4.15).</li>
+<li>benchmark, meets_benchmark: with benchmark=, the goal (the same value on every row
+  of a facet) and whether the provider's own value is at it or better.
+  benchmark_group (benchmark="abc"): the best performers the ABC pools. A goal, not a
+  test: signal is unchanged (methods §4.18).</li>
+<li>one column per facets= column, and the hover= columns.</li>
+</ul>
+<p>result.summary: n_providers, n_tested, n_outlier, n_alert, expected_false_flags
+(per tier: the chance count under signal="limits", the false discovery bound under
+"fdr"), center, tau (the spread of true values between providers; on the
+transformed scale under "cqc"/"shmi", see tau_scale), phi, tau_method, tau_source,
+tau_estimated, tau_ci ("ml"), compare_to, center_gap, center_gap_p and tau_pooled
+(the fixed-center gap check, methods §4.2.1; None unless center= is fixed with
+overdispersion=True and tau estimated), reference (what the estimate columns are
+judged against), estimate_tau (the spread of their prior) and estimate_tau_ci (its
+95% interval, None when tau= is given), count_model, limit_method, p_value_method,
+within_dispersion and its source, dispersion_shape, underpowered, n_underpowered,
+min_detectable_median, n_filtered, n_fragile, n_rows_dropped (rows missing y, n or
+unit, left out of the sums), notes (sentences to show readers), and
+with benchmark=, benchmark: a dict of method, share and value, and under "abc" also
+providers, coverage (their share of the denominator), group_denominator (median,
+min, max), msd (minimum sufficient denominator), n_below_msd and without_small.
+Under measure="mean", case_sd: the spread of a single case, √(φ·center), in y's units.
+Faceted: the counts summed, notes prefixed, and each facet's summary in by_facet.
+print(result) summarizes it in words.</p>
+<h6 id="qikit.funnel.funnel--parameters">Parameters<a class="headerlink" href="#qikit.funnel.funnel--parameters" title="Permanent link">&para;</a></h6>
+<ul>
+<li><code>data</code>: DataFrame of providers, or of cases (stay- or survey-level rows) to be summed
+  per unit. Without data=, y, n, unit, label are sequences and hover a dict.
+  A row missing y, n or unit is left out of the sums and counted in
+  summary["n_rows_dropped"], never read as zero; a provider with no complete row
+  is listed with no value and not tested. Text that is not a number is an error.</li>
+<li><code>y</code>, <code>n</code>: columns (or sequences): the numerator and denominator. Under measure="mean",
+  y is the amount and n the case count: 1 per row (the default when n is
+  omitted) or each provider's COUNT(*) alongside sum_sq=.</li>
+<li><code>measure</code>: "oe" (observed / expected: risk-adjusted mortality, readmission, length
+  of stay), "proportion" (events / cases), "rate" (events / exposure) or "mean"
+  (a per-case amount ≥ 0 such as minutes or cost, averaged per provider; the
+  quasi-Poisson model with φ estimated, in y's own units, methods §4.19).</li>
+<li><code>unit</code>: provider identifier column; rows are providers when omitted.</li>
+<li><code>label</code>: display name column (the first value per unit); hover : extra tooltip columns.</li>
+<li><code>facets</code>: a column, or list of columns: one funnel per value, each with its own
+  center line, dispersion and Benjamini–Hochberg step.</li>
+<li><code>exclude</code>: a boolean column, or a unit id or list of unit ids, left out of the center
+  line, dispersion and testing (still drawn, faded).</li>
+<li><code>center</code>: a fixed center line (a target). Pair it with overdispersion=False: with the
+  spread allowance on, a gap between the providers' pooled value and the center
+  widens every limit, and a UserWarning says so (methods §4.2.1). For O/E against
+  the risk model use compare_to="model".</li>
+<li><code>overdispersion</code>: judge each provider against the estimated spread between providers
+  (Spiegelhalter's additive τ²) as well as chance. Default True (unless
+  compare_to="model").</li>
+<li><code>interval</code>: coverage of eb_low / eb_high, 0.95 by default.</li>
+<li><code>compare_to</code>: which question the chart answers. "peers": the pooled center line and
+  overdispersion=True (the default settings). "model": O/E against the risk
+  model's expected, center=1.0 and overdispersion=False; measure="oe" only. A
+  center= or overdispersion= that contradicts it is an error. None (default):
+  center= and overdispersion= as given. Recorded in summary["compare_to"]
+  ("peers", "model" or "custom"). Under "model" the limits and signal use 1.0
+  with no spread, but the shrunk estimates use a prior centered on the pooled
+  value (methods §4.14), and tau= sets only their spread.</li>
+<li><code>within_dispersion</code>: how much more variable each count is than its model because
+  units clump inside cases (patient-days; the items of one survey). 1.0 (default)
+  means independent units; under measure="mean" the default, and the only
+  scalar, is "estimate" (a column of φᵢ is also accepted). "estimate" computes it from case-level rows; a number
+  supplies it (e.g. from SQL: SUM(POWER(los - exp, 2) / exp) / (COUNT(*) - COUNT(
+  DISTINCT provider))); a column name gives one φᵢ per provider (case-mix
+  weighted, methods §4.12). The model then sees y/φ out of n/φ. An estimate below
+  1 (binary outcomes, whose variance Σp(1 − p) is below E) is kept and noted.</li>
+<li><code>tau_method</code>: how τ is estimated (methods §4.16, §4.17). "spiegelhalter" (default):
+  Spiegelhalter's 10%-winsorized moment estimator as published, as CQC, NHS and
+  FunnelPlotR use it on the natural scale. "winsorized": the same with its Gaussian
+  consistency factor (eq. 9), calibrated to the stated false-flag rate at large K
+  but less sensitive. "ml": maximum likelihood of the chart's own model, with
+  tau_ci; not robust to outliers. "cqc", "shmi": FunnelPlotR's square-root (arcsine
+  for proportions) winsorized and log truncated methods, drawn as normal contours
+  on that scale, to reproduce CQC and NHS SHMI funnels.</li>
+<li><code>tau</code>: a τ fixed in advance instead of estimated (a number, or a dict per facet).
+  This period's estimate is still reported as tau_estimated.</li>
+<li><code>cases</code>, <code>sum_sq</code>: per-provider SQL totals (k, and Σ y²/n over the provider's cases) so
+  within_dispersion="estimate" needs no case rows. Pass both or neither. Under
+  measure="mean" n is the case count, so pass sum_sq= = SUM(y * y) alone.</li>
+<li><code>max_case_y</code>, <code>max_case_n</code>: per-provider SQL worst case toward worse= (MAX_BY), for
+  p_value_drop1 and flag_survives_drop1. Under measure="mean" max_case_y alone
+  (max_case_n is 1).</li>
+<li><code>fdr_min_denominator</code>: a volume floor for the false discovery rate step only, on the
+  denominator the model sees (expected events, cases or exposure, ÷ φ; under
+  measure="mean", the case count). Providers
+  below it keep their p_value but get no q_value (independent filtering, §4.11).</li>
+<li><code>worse</code>: "higher" or "lower" when only one direction is bad: flags only that side and
+  makes p-values one-sided.</li>
+<li><code>signal</code>: "limits" (default): outlier beyond the outer contour, alert beyond the
+  inner one, so the flags match the drawn lines. "fdr": outlier when
+  q &lt; fdr_levels[0], alert when q &lt; fdr_levels[1]. Under "limits" a point beyond
+  the 95% line can still have a large q_value; .plot(color_by="fdr") draws the
+  q tiers without changing the signal column.</li>
+<li><code>limits</code>: (outer, inner) contour coverage, default (0.998, 0.95).</li>
+<li><code>fdr_levels</code>: (outlier, alert) false discovery rates for signal="fdr".</li>
+<li><code>benchmark</code>: a goal drawn beside the funnel; needs worse= (methods §4.18).
+  "abc": Kiefe and Weissman's achievable benchmark of care. Providers are ranked best
+  first by (x + 1)/(n + 2), taken until they hold benchmark_share of the
+  denominator (ties at that point included), and their raw counts pooled. Designed
+  for process proportions; on "oe", "rate" and "mean" the ranking adds one event
+  at the center line instead, an extension its authors would caution against
+  (a note says so).
+  "eb": the (1 − benchmark_share) quantile of the shrunk eb_rate across providers,
+  toward the better side (O'Brien et al. 2008): the 90th percentile by default.
+  The choice for "oe", "rate" and "mean" (O/E mortality, LOS, minutes or cost
+  per case); equals the center line when the funnel finds no spread.</li>
+<li><code>benchmark_share</code>: the share defining "best", 0.10 by default. Choose it before
+  looking at who the best providers are.</li>
+<li><code>multiply</code>: scale the plotted y, e.g. 1000 for a rate per 1,000.</li>
+</ul>
+<p>Display options (title, axis labels, styles, x_log, ...) are arguments of
+result.plot(); result.plot(kind="caterpillar") draws the shrunk estimates with
+their intervals instead; result.limits() gives the contours at any denominators.
+result.to_table() is .data with every possible column in a fixed order (see
+qikit.schema("funnel")), for a database table; result.brief() is the counts, the
+notes and only the flagged providers; result.facet_summary() is one summary row per
+facet.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="qikit.FunnelResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FunnelResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#qikit.FunnelResult" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What funnel() returns. data: one row per provider (funnel's docstring lists every
+column); summary: the model, tier counts, expected_false_flags and notes.
+plot(**options) draws it; limits(n=None) gives the contours at any denominators;
+min_denominator(reliability=0.7) gives the minimum denominator (minimum volume) at
+which a provider's score is reliable, and how many providers are above and below
+it; print(result) describes it in a few sentences.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.FunnelResult.plot" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">plot</span>
+
+
+<a href="#qikit.FunnelResult.plot" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">plot</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">'funnel'</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A Plotly figure against each provider's volume. Options: title, subtitle,
+caption, xlab, ylab, label_signals ("outlier", "alert", "both"), styles (restyle
+by role), x_log, x_range, y_range, show_legend, show_x_labels, width, height, and
+nrow, ncol, scales for facets. An unset caption states the flag rule.</p>
+<p>color_by="fdr" colors the points by their q-value tiers (fdr_levels) on a
+signal="limits" result, leaving its signal column and the drawn limits as they
+are; fdr_watch=0.20 adds a pale watch tier for q below it.</p>
+<p>kind="caterpillar" draws the shrunk estimates instead: one row per provider
+sorted by eb_rate, the eb_low–eb_high interval as a bar colored by
+estimate_flag, the raw value as a faint open circle, and the reference as a
+dotted line. Its options: title, subtitle, caption, xlab, ylab, top= and
+bottom= (keep the N highest and lowest per panel), label_flagged (None names
+every row up to 60 per panel and only flagged ones beyond; False names all),
+show_legend, width, height, styles (roles worse, better, higher, lower,
+no_different, raw, reference).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.FunnelResult.to_table" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_table</span>
+
+
+<a href="#qikit.FunnelResult.to_table" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_table</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>.data with every column of qikit.schema("funnel"), in that order and with those
+types, empty where this call did not produce it: the facets= columns, the schema
+columns, then the hover= columns. The same shape for every call with the same
+facets= and hover=, as a table or a Snowpark RETURNS TABLE clause needs.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.FunnelResult.brief" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">brief</span>
+
+
+<a href="#qikit.FunnelResult.brief" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">brief</span><span class="p">(</span><span class="n">digits</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">25</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>What was found, small enough to read or to hand to a language model: the
+question asked, the counts, the notes, and only the flagged providers (outliers
+first, then by p-value; at most <code>limit</code>), with numbers at <code>digits</code> significant
+figures. JSON-safe. Faceted, "facets" gives each chart's counts and model.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.FunnelResult.limits" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">limits</span>
+
+
+<a href="#qikit.FunnelResult.limits" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">limits</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The contours at any denominators: columns denominator, cl, lower_outlier,
+upper_outlier, lower_alert, upper_alert (on the plotted y scale), plus the facet
+columns. n=None gives the grid the plot draws, which passes through every
+provider's own limits. Under a within_dispersion column the denominator is the
+effective one, the plot's x axis.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.FunnelResult.min_denominator" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">min_denominator</span>
+
+
+<a href="#qikit.FunnelResult.min_denominator" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">min_denominator</span><span class="p">(</span><span class="n">reliability</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The minimum denominator for this measure: the volume (minimum sample size, case
+minimum, small-numbers threshold) at which a provider's score reaches a
+reliability target, and how many providers are above and below it.</p>
+<p>Reliability is the share of a provider's difference from the center that is real
+rather than chance, the <code>reliability</code> column (methods §4.14). It rises with the
+denominator as n/(n + k), so each target has one floor: a provider is at or above
+the floor exactly when its reliability is at or above the target.</p>
+<ul>
+<li><code>reliability</code>: the target, or several, each between 0 and 1. It is a judgment
+  about the use, not a statistical result, so ask whoever owns the decision:
+  0.7 is the usual floor for high-stakes profiling (public reporting, pay,
+  credentialing; Adams et al. 2010), 0.9 for decisions about one provider,
+  0.5 for internal screening that is reviewed before anyone acts.</li>
+</ul>
+<p>Returns one row per target (per facet under facets=), the facet columns first:</p>
+<ul>
+<li>reliability: the target.</li>
+<li>min_denominator: the floor, in the units of n= (denominator_unit says which:
+  expected events for O/E, cases for proportions and means, exposure for
+  rates). Round it up. Empty when no floor exists; note says why.</li>
+<li>min_low, min_high: its range from the 95% interval for the spread between
+  providers. min_high is inf when the data cannot rule out no spread. Empty when
+  tau= was given.</li>
+<li>n_providers, n_above, n_below: providers compared, how many are at or above
+  the floor, and how many are below it. share_above is n_above / n_providers.</li>
+<li>volume_above, volume_below, share_volume_above: the denominator they hold.</li>
+<li>center, tau: the model the floor comes from: the center of the estimates'
+  prior and the spread between providers around it (summary["estimate_tau"]).</li>
+<li>note: the row as one sentence to show a reader.</li>
+</ul>
+<p>.attrs["notes"] lists cautions for the whole table: few providers (the floor is
+imprecise, show the range), or no measurable spread (no volume makes a score
+reliable; compare within a larger peer group, pass tau= from earlier periods, or
+report at a higher level: funnel_rollup() compares levels).</p>
+<p>Under a within_dispersion column the floor is in effective denominators
+(denominator / phi), the plot's x axis. Excluded providers are not counted.
+Which providers are below the floor: result.data["reliability"] &lt; target.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.funnel_sensitivity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">funnel_sensitivity</span>
+
+
+<a href="#qikit.funnel_sensitivity" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">funnel_sensitivity</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">tau_methods</span><span class="o">=</span><span class="p">(</span><span class="s1">'spiegelhalter'</span><span class="p">,</span> <span class="s1">'winsorized'</span><span class="p">,</span> <span class="s1">'ml'</span><span class="p">),</span> <span class="n">unadjusted</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Does a provider's flag depend on how the spread between providers was modeled?</p>
+<p>Runs funnel(data, **kwargs) once per tau_method (and once with overdispersion=False
+when unadjusted=True) and returns one row per provider: unit, label (if given), y,
+denominator, the facet columns, one signal_<method> column per run, and consistent,
+True when every run gives the same tier. A provider flagged under one model and not
+another is a judgment call to make explicitly, not a finding (methods §4.16).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.funnel_rollup" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">funnel_rollup</span>
+
+
+<a href="#qikit.funnel_rollup" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">funnel_rollup</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reliability</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>At which level of a hierarchy can this measure be reported reliably?</p>
+<p>Runs funnel(data, unit=<level>, **kwargs) once per column in units (for example
+["physician", "group", "department", "hospital"], finest first) and returns each
+level's result.min_denominator(reliability) rows under a leading <code>level</code> column:
+the minimum denominator at that level, its range, and how many units are above and
+below it (n_above, n_below) with the volume they hold. Read down the table for the
+finest level at which enough units, and enough of the volume, clear the floor; units
+below it are the ones to roll up.</p>
+<p>Each level is its own fit, because the spread between groups is not the spread
+between physicians: a coarser level has more volume per unit but usually less
+spread, so its floor is often higher. A level where the data show no spread has no
+floor at all (note says so), however large its units.</p>
+<p>data must have one row per case, or per unit of the finest level or finer; funnel()
+sums the rows within each unit. For days, means and surveys pass case-level rows, as
+for funnel(). reliability is one target or several (see
+FunnelResult.min_denominator). label= and hover= are left out: they describe one
+level. .attrs["notes"] holds every level's cautions, prefixed with the level.</p>
+
+
+    </div>
+
+</div><h2 id="output-schema">Output schema<a class="headerlink" href="#output-schema" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.schema.schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">schema</span>
+
+
+<a href="#qikit.schema.schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">schema</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The columns of result.data for "qic" or "funnel": column, dtype ("float", "int",
+"bool", "string", or "any" for the caller's own type), always (False when the column
+needs the option that makes it), and meaning. result.to_table() returns exactly
+these, in this order, after the facets= columns and before the hover= columns.</p>
+
+
+    </div>
+
+</div><h2 id="other-charts">Other charts<a class="headerlink" href="#other-charts" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.paretochart" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">paretochart</span>
+
+
+<a href="#qikit.paretochart" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">paretochart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_na</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Categories by frequency, largest first, with the cumulative share: the "vital few"
+behind most of a problem. x is a column of data or a sequence of categories.
+Returns columns category, count, cum_sum, cum_percent.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="qikit.ParetoResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ParetoResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#qikit.ParetoResult" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What paretochart() returns: categories by count, with the cumulative share.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.bchart" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">bchart</span>
+
+
+<a href="#qikit.bchart" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">bchart</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">baseline</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">or_ratio</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Bernoulli CUSUM for case-by-case binary outcomes (Neuburger et al. 2017; qicharts2's
+bchart): one cumulative sum looking for the odds of failure rising by or_ratio,
+another for it falling by the same factor, each signalling at limit.</p>
+<ul>
+<li><code>x</code>: 0/1 outcomes in time order (1 = the event, e.g. a complication): a sequence, or
+  with data= a column name. A missing outcome leaves both sums where they were.</li>
+<li><code>target</code>: the expected event probability p0. Or baseline=k: p0 is the event rate of
+  the first k cases. With neither, p0 is the rate over all cases.</li>
+</ul>
+<p>Returns columns x (case number), y, cusum_up, cusum_down, signal_up, signal_down,
+limit; summary target, or_ratio, limit, signal_up, signal_down.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="qikit.BChartResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">BChartResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#qikit.BChartResult" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What bchart() returns: the two Bernoulli CUSUMs and where they signalled.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="designed-experiments">Designed experiments<a class="headerlink" href="#designed-experiments" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.design" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">design</span>
+
+
+<a href="#qikit.design" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">design</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">lows</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">highs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">design_type</span><span class="o">=</span><span class="s1">'full_factorial'</span><span class="p">,</span> <span class="n">generators</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">replicates</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">center_points</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">randomize</span><span class="o">=</span><span class="s1">'none'</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Create an experimental design.</p>
+<h6 id="qikit.design--parameters">Parameters<a class="headerlink" href="#qikit.design--parameters" title="Permanent link">&para;</a></h6>
+<ul>
+<li><code>factors</code>: list of factor names</li>
+<li><code>lows</code>: list of low levels (default -1)</li>
+<li><code>highs</code>: list of high levels (default +1)</li>
+<li><code>design_type</code>: full_factorial | fractional | one_factor</li>
+<li><code>generators</code>: explicit generators for fractional design (e.g. ["D=ABC"])</li>
+<li><code>replicates</code>: number of times to repeat the design</li>
+<li><code>center_points</code>: number of center points to add</li>
+<li><code>randomize</code>: none | full | within_blocks (each replicate shuffled on its own;
+  center points stay at the end)</li>
+<li><code>seed</code>: random seed</li>
+</ul>
+<h6 id="qikit.design--returns">Returns<a class="headerlink" href="#qikit.design--returns" title="Permanent link">&para;</a></h6>
+<p>ExperimentDesign</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="qikit.ExperimentDesign" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ExperimentDesign</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#qikit.ExperimentDesign" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Immutable experimental design. Same pattern as SPCResult.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.ExperimentDesign.fill" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fill</span>
+
+
+<a href="#qikit.ExperimentDesign.fill" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fill</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fill response column and return analysis result.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.ExperimentDesign.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#qikit.ExperimentDesign.to_dict" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Serialize to a plain dict suitable for JSON.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.ExperimentDesign.to_json" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_json</span>
+
+
+<a href="#qikit.ExperimentDesign.to_json" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_json</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Serialize to JSON string.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="qikit.analyze" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">analyze</span>
+
+
+<a href="#qikit.analyze" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">analyze</span><span class="p">(</span><span class="n">design_obj</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">max_interaction</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Analyze experimental results.</p>
+<h6 id="qikit.analyze--parameters">Parameters<a class="headerlink" href="#qikit.analyze--parameters" title="Permanent link">&para;</a></h6>
+<ul>
+<li><code>design_obj</code>: the design used</li>
+<li><code>response</code>: experimental results in RunOrder</li>
+<li><code>max_interaction</code>: maximum order of interactions to compute (default 2)</li>
+</ul>
+<p>A one_factor design estimates main effects only: each is the mean response with that
+factor high minus the mean of the baseline runs (every factor low). Its runs are not
+balanced, so the terms' sums of squares do not partition the total and <code>ss</code> and
+<code>pct_contribution</code> are NaN; <code>r_squared</code> is that of the main-effects fit.</p>
+<h6 id="qikit.analyze--returns">Returns<a class="headerlink" href="#qikit.analyze--returns" title="Permanent link">&para;</a></h6>
+<p>ExperimentResult</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="qikit.ExperimentResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ExperimentResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#qikit.ExperimentResult" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Immutable experimental analysis result. Same pattern as SPCResult.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.ExperimentResult.plot" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">plot</span>
+
+
+<a href="#qikit.ExperimentResult.plot" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">plot</span><span class="p">(</span><span class="n">chart</span><span class="o">=</span><span class="s1">'effects'</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Render as a Plotly Figure.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.ExperimentResult.to_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_dict</span>
+
+
+<a href="#qikit.ExperimentResult.to_dict" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_dict</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Serialize to a plain dict suitable for JSON.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="qikit.ExperimentResult.to_json" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">to_json</span>
+
+
+<a href="#qikit.ExperimentResult.to_json" class="headerlink" title="Permanent link">&para;</a></h4>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_json</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Serialize to JSON string.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../qic-methods/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Control charts">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Control charts
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../changelog/" class="md-footer__link md-footer__link--next" aria-label="Next: Changelog">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Changelog
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

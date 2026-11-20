@@ -1,0 +1,1915 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="SPC charts and funnel plots for healthcare quality, in Python.">
+      
+      
+      
+        <link rel="canonical" href="https://clinical-qikit.github.io/qikit/docs/guide/funnel/">
+      
+      
+        <link rel="prev" href="../qic/">
+      
+      
+        <link rel="next" href="../more/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Across providers (funnel) - qikit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#across-providers-funnel" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="qikit" class="md-header__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            qikit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Across providers (funnel)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="qikit" class="md-nav__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    qikit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Over time (qic)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across providers (funnel)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across providers (funnel)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the result
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-decides-a-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What decides a flag
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#over-dispersion-real-differences-between-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Over-dispersion: real differences between providers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#minimum-denominators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum denominators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#length-of-stay-and-other-clustered-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Length of stay and other clustered counts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#physician-level-comparison-what-the-chart-could-not-find" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Physician-level comparison: what the chart could not find
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#estimates-with-a-range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Estimates with a range
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#an-achievable-goal-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An achievable goal: benchmark=
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#figures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../more/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake and other tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For AI agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../snowflake/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../excel-addin-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in scope
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funnel plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qic-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Control charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the result
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-decides-a-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What decides a flag
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#over-dispersion-real-differences-between-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Over-dispersion: real differences between providers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#minimum-denominators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum denominators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#length-of-stay-and-other-clustered-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Length of stay and other clustered counts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#physician-level-comparison-what-the-chart-could-not-find" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Physician-level comparison: what the chart could not find
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#estimates-with-a-range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Estimates with a range
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#an-achievable-goal-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An achievable goal: benchmark=
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#figures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="across-providers-funnel">Across providers: <code>funnel()</code><a class="headerlink" href="#across-providers-funnel" title="Permanent link">&para;</a></h1>
+<p>Each provider is plotted at its own volume, against Spiegelhalter's exact 99.8% and 95%
+probability contours (<em>Statistics in Medicine</em> 2005;24:1185-1202). Every method,
+reference and design choice is recorded in <a href="../../methods/">Methods: funnel plots and over-dispersion</a>,
+including where qikit departs from the paper.</p>
+<h2 id="choosing-the-settings">Choosing the settings<a class="headerlink" href="#choosing-the-settings" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>You have</th>
+<th>Pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Observed events and risk-model expected events (mortality or readmission O/E)</td>
+<td><code>measure="oe"</code>, <code>y=observed</code>, <code>n=expected</code></td>
+</tr>
+<tr>
+<td>Expected from an external risk model (Vizient, CMS), asking "worse than expected?"</td>
+<td><code>compare_to="model"</code> (O/E against 1.0, no allowance for spread between providers)</td>
+</tr>
+<tr>
+<td>Asking "unusual among peers?" (the default question)</td>
+<td><code>compare_to="peers"</code>, or leave it unset</td>
+</tr>
+<tr>
+<td>Events out of cases (complication %, top-box %)</td>
+<td><code>measure="proportion"</code>, <code>y=events</code>, <code>n=cases</code></td>
+</tr>
+<tr>
+<td>Events over exposure (infections per line-day)</td>
+<td><code>measure="rate"</code>, <code>y=events</code>, <code>n=exposure</code></td>
+</tr>
+<tr>
+<td>A per-case amount: minutes, cost or counts per stay (EHR minutes per discharge)</td>
+<td><code>measure="mean"</code>, <code>y=</code> the amount, one row per case; or per provider <code>y=SUM</code>, <code>n=COUNT(*)</code>, <code>sum_sq=SUM(y*y)</code></td>
+</tr>
+<tr>
+<td><strong>Days</strong>, or anything where one case adds many units (length of stay as O/E days)</td>
+<td>stay-level rows, one per case, and <code>within_dispersion="estimate"</code></td>
+</tr>
+<tr>
+<td>The same, summed per provider in SQL so the stays never leave the warehouse</td>
+<td>one row per provider with <code>cases=</code> (k) and <code>sum_sq=</code> (<code>SUM(POWER(obs, 2) / exp)</code>), and <code>within_dispersion="estimate"</code></td>
+</tr>
+<tr>
+<td>Stays whose variability differs by DRG or service line</td>
+<td><code>within_dispersion="&lt;column&gt;"</code>: one case-mix-weighted φᵢ per provider, from SQL</td>
+</tr>
+<tr>
+<td>Leaders will ask "is this flag one patient?"</td>
+<td>case-level rows (automatic), or <code>max_case_y=</code>/<code>max_case_n=</code> from SQL: see <code>p_value_drop1</code>, <code>fragility</code></td>
+</tr>
+<tr>
+<td><strong>Survey items</strong>, scored per item (HCAHPS composites)</td>
+<td>one row per survey (<code>y</code> = items "Always", <code>n</code> = items answered), <code>measure="proportion"</code>, <code>within_dispersion="estimate"</code></td>
+</tr>
+<tr>
+<td>A measure where only one direction is bad</td>
+<td><code>worse="higher"</code> (mortality) or <code>worse="lower"</code> (top-box)</td>
+</tr>
+<tr>
+<td>Hundreds of providers, and few false alarms matter more than the drawn lines</td>
+<td><code>signal="fdr"</code></td>
+</tr>
+<tr>
+<td>Flags from the drawn lines, but the figure should show the FDR action list</td>
+<td><code>signal="limits"</code> and <code>.plot(color_by="fdr")</code></td>
+</tr>
+<tr>
+<td>Many very-low-volume providers diluting the FDR step</td>
+<td><code>fdr_min_denominator=</code> (a volume floor for the FDR step only)</td>
+</tr>
+<tr>
+<td>To rank flagged providers for action</td>
+<td>sort by <code>eb_excess</code>, not <code>raw_excess</code></td>
+</tr>
+<tr>
+<td>To reproduce a CQC or NHS SHMI funnel</td>
+<td><code>tau_method="cqc"</code> or <code>"shmi"</code></td>
+</tr>
+<tr>
+<td>Flags acted on one by one, where the stated chance-flag rate must hold</td>
+<td><code>tau_method="winsorized"</code></td>
+</tr>
+<tr>
+<td>The spread between providers known from earlier periods, or fewer than 30 providers</td>
+<td><code>tau=&lt;value&gt;</code> (fixed in advance)</td>
+</tr>
+<tr>
+<td>"Does this flag depend on the model?"</td>
+<td><code>funnel_sensitivity(...)</code></td>
+</tr>
+<tr>
+<td>"What minimum denominator should this measure have?"</td>
+<td><code>r.min_denominator(reliability=0.7)</code>: the volume at which a score is reliable, and how many providers are above and below it</td>
+</tr>
+<tr>
+<td>"At what level should small providers be rolled up?"</td>
+<td><code>funnel_rollup(df, units=[...], ...)</code>: the same table for each level of a hierarchy</td>
+</tr>
+<tr>
+<td>"Is this provider probably worse than average?" (the CMS question)</td>
+<td>read <code>prob_worse</code>; <code>signal</code> answers "unusual among peers?"</td>
+</tr>
+<tr>
+<td>A fixed target on a proportion or rate (a 2% goal, not the peer average)</td>
+<td><code>center=&lt;target&gt;</code> with <code>overdispersion=False</code>. With <code>overdispersion=True</code> a gap between the providers and the target widens every limit, and qikit warns</td>
+</tr>
+<tr>
+<td>A goal the best providers already reach, on a process measure (achievable benchmark of care)</td>
+<td><code>benchmark="abc"</code> with <code>worse=</code></td>
+</tr>
+<tr>
+<td>The same goal on an outcome (O/E mortality, LOS, readmission)</td>
+<td><code>benchmark="eb"</code> with <code>worse=</code></td>
+</tr>
+</tbody>
+</table>
+<p>Rows that share a <code>unit</code> are summed, so stay-level or year-level data aggregates itself.</p>
+<h2 id="reading-the-result">Reading the result<a class="headerlink" href="#reading-the-result" title="Permanent link">&para;</a></h2>
+<p><code>r.data</code> has one row per provider:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unit</code>, <code>label</code></td>
+<td>The provider and its display name</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>The plotted value: O/E, proportion or rate</td>
+</tr>
+<tr>
+<td><code>numerator</code>, <code>denominator</code></td>
+<td>The summed <code>y=</code> and <code>n=</code> (observed and expected, events and cases)</td>
+</tr>
+<tr>
+<td><code>cl</code></td>
+<td>The center line: pooled ΣO/ΣE (or Σevents/Σn) unless <code>center=</code> is given</td>
+</tr>
+<tr>
+<td><code>lower_outlier</code>, <code>upper_outlier</code></td>
+<td>The 99.8% contour at this provider's volume</td>
+</tr>
+<tr>
+<td><code>lower_alert</code>, <code>upper_alert</code></td>
+<td>The 95% contour</td>
+</tr>
+<tr>
+<td><code>p_value</code></td>
+<td>Exact p-value against the model the contours are drawn from; one-sided toward <code>worse=</code>, doubled when two-sided</td>
+</tr>
+<tr>
+<td><code>q_value</code></td>
+<td>Its Benjamini–Hochberg adjustment across the chart's providers</td>
+</tr>
+<tr>
+<td><code>signal</code></td>
+<td><code>"outlier"</code>, <code>"alert"</code> or <code>"none"</code>. The tiers never overlap</td>
+</tr>
+<tr>
+<td><code>direction</code></td>
+<td><code>"higher"</code> or <code>"lower"</code> than the center line</td>
+</tr>
+<tr>
+<td><code>min_detectable</code></td>
+<td>The smallest true value this provider could have flagged with 80% power</td>
+</tr>
+<tr>
+<td><code>ci_lower</code>, <code>ci_upper</code></td>
+<td>Exact 95% interval for the provider's own value</td>
+</tr>
+<tr>
+<td><code>excluded</code></td>
+<td>Left out with <code>exclude=</code> (drawn faded, not tested)</td>
+</tr>
+<tr>
+<td><code>raw_excess</code></td>
+<td>(observed − cl × denominator), signed so positive is worse: excess days or events</td>
+</tr>
+<tr>
+<td><code>reliability</code></td>
+<td>How much of the provider's difference is signal, 0–1. 0 everywhere when there is no measurable spread</td>
+</tr>
+<tr>
+<td><code>eb_rate</code>, <code>eb_excess</code></td>
+<td>The shrunk (empirical Bayes) value, the exact posterior mean, and its excess over the reference. Rank flagged providers on <code>eb_excess</code></td>
+</tr>
+<tr>
+<td><code>eb_low</code>, <code>eb_high</code></td>
+<td>A 95% (<code>interval=</code>) interval for the provider's true value from the same posterior; NaN with no measurable spread</td>
+</tr>
+<tr>
+<td><code>prob_worse</code></td>
+<td>Posterior probability that the true value is worse than the reference (CMS-style "worse than average"); NaN with no spread</td>
+</tr>
+<tr>
+<td><code>estimate_flag</code></td>
+<td><code>"worse"</code>, <code>"better"</code> or <code>"no different"</code>: where the interval lies against the reference (<code>"higher"</code>/<code>"lower"</code> without <code>worse=</code>)</td>
+</tr>
+<tr>
+<td><code>p_value_drop1</code></td>
+<td>The p-value with the provider's single most extreme case removed (needs case rows or <code>max_case_y=</code>/<code>max_case_n=</code>); descriptive, no q-value</td>
+</tr>
+<tr>
+<td><code>flag_survives_drop1</code></td>
+<td>For flagged providers: still flagged without that case?</td>
+</tr>
+<tr>
+<td><code>fragility</code></td>
+<td>Case rows: the fewest worst cases whose removal clears the flag (1 = one case carries it)</td>
+</tr>
+<tr>
+<td><code>effective_denominator</code></td>
+<td>Only with a <code>within_dispersion</code> column: n/φᵢ, the plot's x axis</td>
+</tr>
+<tr>
+<td><code>benchmark</code>, <code>meets_benchmark</code></td>
+<td>Only with <code>benchmark=</code>: the goal (same on every row of a facet), and whether this provider is at it or better</td>
+</tr>
+<tr>
+<td><code>benchmark_group</code></td>
+<td>Only with <code>benchmark="abc"</code>: whether this provider is one of the best performers the ABC pools</td>
+</tr>
+</tbody>
+</table>
+<p><code>r.summary</code> holds the model and how to read the counts:</p>
+<ul>
+<li><code>n_outlier</code>, <code>n_alert</code>, and <code>expected_false_flags</code>.</li>
+<li><code>tau</code>: the estimated spread of true values between providers; <code>tau_method</code>,
+  <code>tau_scale</code>, <code>tau_source</code> ("estimated" or "pre-specified"), <code>tau_estimated</code>, and
+  <code>tau_ci</code> under <code>tau_method="ml"</code>.</li>
+<li><code>phi</code>: the over-dispersion ratio as the chosen method defines it.</li>
+<li><code>reference</code>: what the estimate columns are judged against (the center line, or 1.0
+  under <code>compare_to="model"</code>), and <code>estimate_tau</code>, the spread of their prior.</li>
+<li><code>count_model</code>, <code>limit_method</code>, <code>within_dispersion</code>, <code>dispersion_shape</code>, <code>underpowered</code>,
+  <code>n_filtered</code>, <code>n_fragile</code>.</li>
+<li>With <code>benchmark=</code>: <code>benchmark</code>, a dict of <code>method</code>, <code>share</code> and <code>value</code>. Under
+  <code>"abc"</code> it also holds:</li>
+<li><code>providers</code> and <code>group_denominator</code>: who sets it and their volumes.</li>
+<li><code>coverage</code>: their share of patients.</li>
+<li><code>msd</code> and <code>n_below_msd</code>: Kiefe's minimum sufficient denominator.</li>
+<li><code>without_small</code>: the ABC without providers below it.</li>
+<li><code>notes</code>: sentences ready to show a reader.</li>
+</ul>
+<p>On a faceted funnel the same keys are under <code>by_facet</code>.</p>
+<h2 id="what-decides-a-flag">What decides a flag<a class="headerlink" href="#what-decides-a-flag" title="Permanent link">&para;</a></h2>
+<p>Each contour is the boundary of an <strong>exact test</strong>. A provider is beyond the 99.8% line
+exactly when its one-sided p-value is below 0.001, and beyond the 95% line exactly when
+it is below 0.025. For the unadjusted O/E chart that is the same as "the provider's own
+exact 95% interval excludes the center line". The line, the p-value, the color and the
+interval always agree.</p>
+<p><code>signal=</code> picks one test for both tiers:</p>
+<ul>
+<li><strong><code>"limits"</code></strong> (default): outlier beyond the outer contour, alert beyond the inner one.
+  About 0.1% of average providers land beyond each 99.8% line by chance, and 2.5% beyond
+  each 95% line. <code>summary["expected_false_flags"]</code> counts that for your chart. With 1,000
+  providers on a one-sided chart it is about 1 outlier and 24 alerts, so "35 alerts" is
+  read against that. A point beyond the 95% line can therefore have a large <code>q_value</code>.
+  For an action list use <code>signal="fdr"</code> or <code>q_value</code>; to keep <code>signal="limits"</code> but draw
+  the points by their q tiers, use <code>.plot(color_by="fdr")</code> (below).</li>
+<li><strong><code>"fdr"</code></strong>: outlier when <code>q_value &lt; 0.05</code>, alert when <code>q_value &lt; 0.10</code>
+  (<code>fdr_levels=</code>). At most that share of each tier is expected to be false, however many
+  providers there are. The flags then no longer match the drawn lines, and the caption
+  says so.</li>
+</ul>
+<p>There is deliberately no "limit OR q" mode. That union only ever adds flags, so it never
+removes the chance alerts that make FDR worth using, and neither guarantee holds for
+the combined tier (<a href="../../methods/">methods §4.11</a>).</p>
+<p><code>limits=(0.998, 0.95)</code> moves the contours, for example to <code>(0.997, 0.95)</code>.</p>
+<h2 id="over-dispersion-real-differences-between-providers">Over-dispersion: real differences between providers<a class="headerlink" href="#over-dispersion-real-differences-between-providers" title="Permanent link">&para;</a></h2>
+<p>No risk model captures everything, so providers differ by more than chance allows. With
+<code>overdispersion=True</code> (the default) each provider is judged against that spread as
+well as chance, using Spiegelhalter's additive random-effects model. The smallest
+providers' limits barely move. The busiest level off at about the center ± z·τ instead
+of closing onto the line. When τ̂ is 0, which is common at physician scale, the chart is
+identical to <code>overdispersion=False</code>. That holds around the pooled center only. Around a
+fixed <code>center=</code>, τ̂ also absorbs any system-wide gap between the providers and that
+center, so it can be large. Every limit then widens, and qikit raises a <code>UserWarning</code>
+saying by how much (<a href="../../methods/">methods §4.2.1</a>). For "worse than the risk
+model?" pass <code>compare_to="model"</code>, which turns the allowance off.</p>
+<p>How τ is estimated (<code>tau_method=</code>, <a href="../../methods/">methods §4.16</a>):</p>
+<table>
+<thead>
+<tr>
+<th><code>tau_method=</code></th>
+<th>What it is</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"spiegelhalter"</code> (default)</td>
+<td>10%-winsorized method of moments, as published</td>
+<td>Screening. The most sensitive robust option, and uncorrected like the NHS and CQC estimators</td>
+</tr>
+<tr>
+<td><code>"winsorized"</code></td>
+<td>The same with the consistency factor of his eq. 9</td>
+<td>Flags acted on one by one, where the 0.1% and 2.5% chance rates must hold</td>
+</tr>
+<tr>
+<td><code>"ml"</code></td>
+<td>Maximum likelihood, with an interval <code>tau_ci</code></td>
+<td>Data already cleaned of outliers; not robust</td>
+</tr>
+<tr>
+<td><code>"cqc"</code>, <code>"shmi"</code></td>
+<td>CQC (√ or arcsine scale) and NHS SHMI (log scale), as FunnelPlotR computes them</td>
+<td>Reproducing those indicators (<a href="../../methods/">methods §4.17</a>)</td>
+</tr>
+<tr>
+<td><code>tau=&lt;value&gt;</code></td>
+<td>Fixed in advance from earlier periods</td>
+<td>Fewer than 30 providers, or a stable benchmark</td>
+</tr>
+</tbody>
+</table>
+<p>The published estimator understates a small real spread, so average providers flag
+somewhat more often than the stated rate. That is the right error for a screen whose
+flags are reviewed. <code>funnel_sensitivity()</code> runs each option and marks the providers
+whose tier depends on the choice:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">qikit</span><span class="w"> </span><span class="kn">import</span> <span class="n">funnel_sensitivity</span>
+
+<span class="n">s</span> <span class="o">=</span> <span class="n">funnel_sensitivity</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"deaths"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"expected"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"surgeon"</span><span class="p">)</span>
+<span class="n">s</span><span class="p">[</span><span class="o">~</span><span class="n">s</span><span class="o">.</span><span class="n">consistent</span><span class="p">]</span>      <span class="c1"># flagged under one model and not another: a judgment call</span>
+</code></pre></div>
+<p>Treat a non-zero τ̂ as a finding about the system: unmeasured case mix, data
+differences, or real variation in practice.</p>
+<h2 id="minimum-denominators">Minimum denominators<a class="headerlink" href="#minimum-denominators" title="Permanent link">&para;</a></h2>
+<p>A minimum denominator is the volume at which a provider's score is mostly signal.
+<code>reliability</code> rises with the denominator, so each reliability target has one floor, and
+<code>min_denominator()</code> returns it with its range and the providers on each side of it:</p>
+<div class="highlight"><pre><span></span><code><span class="n">r</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"deaths"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"expected"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"surgeon"</span><span class="p">)</span>
+<span class="n">floors</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">min_denominator</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])</span>
+<span class="n">floors</span><span class="p">[[</span><span class="s2">"reliability"</span><span class="p">,</span> <span class="s2">"min_denominator"</span><span class="p">,</span> <span class="s2">"min_low"</span><span class="p">,</span> <span class="s2">"min_high"</span><span class="p">,</span> <span class="s2">"n_above"</span><span class="p">,</span> <span class="s2">"n_below"</span><span class="p">]]</span>
+<span class="n">floors</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"notes"</span><span class="p">]</span>         <span class="c1"># cautions to show with it</span>
+</code></pre></div>
+<p>The floor is in the units of <code>n=</code>: expected events for O/E, cases for proportions and
+means, exposure for rates. 0.7 is the usual target for high-stakes use; the target is a
+decision about the use, not a statistical result. When the data show no spread between
+providers there is no floor, and the result says so instead of inventing one.</p>
+<p>To decide where to roll small providers up to, compare the levels of the hierarchy.
+Each level is fitted separately, because the spread between groups is not the spread
+between physicians:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">qikit</span><span class="w"> </span><span class="kn">import</span> <span class="n">funnel_rollup</span>
+
+<span class="n">funnel_rollup</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="p">[</span><span class="s2">"surgeon"</span><span class="p">,</span> <span class="s2">"practice"</span><span class="p">,</span> <span class="s2">"hospital"</span><span class="p">],</span> <span class="n">reliability</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+              <span class="n">y</span><span class="o">=</span><span class="s2">"deaths"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"expected"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">)</span>
+</code></pre></div>
+<p>Methods §4.14 has the formula.</p>
+<h2 id="length-of-stay-and-other-clustered-counts">Length of stay and other clustered counts<a class="headerlink" href="#length-of-stay-and-other-clustered-counts" title="Permanent link">&para;</a></h2>
+<p>A funnel of observed/expected <strong>patient-days</strong> treats every day as an independent
+event. Days come in stays, so a provider's day total varies 5–10 times more than that
+assumption allows. Every small provider's limits come out far too narrow, and every
+p-value and q-value too small. τ cannot absorb this, because the missing variance
+shrinks with volume while τ does not.</p>
+<p>Pass stay-level rows and let qikit measure it:</p>
+<div class="highlight"><pre><span></span><code><span class="n">stays</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">"""</span>
+<span class="s2">    SELECT provider_id, provider_name, los_days, expected_los_days</span>
+<span class="s2">    FROM inpatient_stays WHERE discharge_date &gt;= '2026-01-01'</span>
+<span class="s2">"""</span><span class="p">)</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+
+<span class="n">r</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">stays</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"LOS_DAYS"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"EXPECTED_LOS_DAYS"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span>
+           <span class="n">unit</span><span class="o">=</span><span class="s2">"PROVIDER_ID"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"PROVIDER_NAME"</span><span class="p">,</span>
+           <span class="n">within_dispersion</span><span class="o">=</span><span class="s2">"estimate"</span><span class="p">,</span> <span class="n">worse</span><span class="o">=</span><span class="s2">"higher"</span><span class="p">)</span>
+<span class="n">r</span><span class="o">.</span><span class="n">summary</span><span class="p">[</span><span class="s2">"within_dispersion"</span><span class="p">]</span>     <span class="c1"># φ̂: how much more variable each count is than Poisson</span>
+</code></pre></div>
+<p>Decide which question the chart answers before looking, and say it in the call:</p>
+<div class="highlight"><pre><span></span><code><span class="n">args</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="s2">"LOS_DAYS"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"EXPECTED_LOS_DAYS"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"PROVIDER_ID"</span><span class="p">,</span>
+            <span class="n">within_dispersion</span><span class="o">=</span><span class="s2">"estimate"</span><span class="p">,</span> <span class="n">worse</span><span class="o">=</span><span class="s2">"higher"</span><span class="p">)</span>
+
+<span class="c1"># Is this provider unusual among its peers? Pooled ΣO/ΣE center, spread allowed.</span>
+<span class="n">peers</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">stays</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">compare_to</span><span class="o">=</span><span class="s2">"peers"</span><span class="p">)</span>
+
+<span class="c1"># Do this provider's stays run longer than the risk model (Vizient, CMS) expects?</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">stays</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">compare_to</span><span class="o">=</span><span class="s2">"model"</span><span class="p">)</span>
+</code></pre></div>
+<p>If the whole system runs long against the model, <code>model</code> flags many providers and
+<code>peers</code> few: that gap is a finding about the system, not about one provider. Passing
+<code>center=1.0</code> alone answers neither question (see the over-dispersion section above).</p>
+<ul>
+<li><strong>The estimate:</strong> φ̂ comes from each stay's residual around its own provider's rate, so
+  real differences between providers stay with τ.</li>
+<li><strong>Already-aggregated data:</strong> pass a number, computed once in SQL:
+  <code>SUM(POWER(los - exp_los, 2) / exp_los) / (COUNT(*) - COUNT(DISTINCT provider))</code>.</li>
+<li><strong>Event counts</strong> (deaths, readmissions) need nothing; leave the default of 1.</li>
+<li><strong>The guard:</strong> if the spread looks clustered and <code>within_dispersion</code> was left at 1,
+  qikit raises a <code>UserWarning</code> and says so in <code>summary["notes"]</code> and on the figure.</li>
+<li><strong>Upstream choices:</strong> cap extreme stays at a stated percentile before aggregating. If
+  φ̂ differs a lot between service lines, facet by service line; <code>"estimate"</code> is then
+  taken per facet.</li>
+<li><strong>Multi-item surveys</strong> are the same problem on a proportion: one patient answers the
+  three doctor questions alike, so item counts look like more data than they are. Pass
+  one row per survey with <code>within_dispersion="estimate"</code>; the model then sees y/φ̂ out
+  of n/φ̂ (Rao–Scott effective counts), interpolated rather than rounded
+  (<a href="../../methods/">methods §4.13</a>).</li>
+</ul>
+<p>In one simulated length-of-stay cohort of 1,000 providers with no real differences
+between them, the chart flags 24 outliers and 65 alerts without the fix. With
+<code>within_dispersion="estimate"</code> it flags 3 and 20, against 1 and 24 expected by chance
+(<a href="../../methods/">methods §5</a> has the full simulation).</p>
+<h2 id="physician-level-comparison-what-the-chart-could-not-find">Physician-level comparison: what the chart could not find<a class="headerlink" href="#physician-level-comparison-what-the-chart-could-not-find" title="Permanent link">&para;</a></h2>
+<p>At individual-physician volumes a funnel is mostly a test with no power. The chance of
+flagging a physician whose <strong>true</strong> O/E is 2.0 at the 99.8% limit:</p>
+<table>
+<thead>
+<tr>
+<th>Expected deaths</th>
+<th>2</th>
+<th>5</th>
+<th>10</th>
+<th>20</th>
+<th>50</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chance of flagging a true O/E of 2.0</td>
+<td>5%</td>
+<td>21%</td>
+<td>44%</td>
+<td>81%</td>
+<td>99.8%</td>
+</tr>
+</tbody>
+</table>
+<p>Most physicians sit at 5–20 expected events, so <strong>absence of a signal is not evidence
+of acceptable performance</strong>. That is exactly how a blank funnel tends to get read. So
+every provider carries <code>min_detectable</code> and an exact interval. <code>summary["underpowered"]</code>
+says whether the typical provider could detect even a doubling, and an underpowered
+figure captions itself so the caveat survives a slide deck. A physician at O/E 2.5
+whose <code>min_detectable</code> is 4.6 has not been cleared; the chart cannot see that far at
+their volume.</p>
+<p>The workflow that works is to aggregate until the chart has power. With the bundled
+example (24 surgeons, 3 years):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">qikit</span><span class="w"> </span><span class="kn">import</span> <span class="n">funnel</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"data/examples/physician_mortality_oe.csv"</span><span class="p">)</span>
+
+<span class="c1"># Any single year: no outlier, and underpowered is True.</span>
+<span class="n">funnel</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">year</span> <span class="o">==</span> <span class="mi">2025</span><span class="p">],</span> <span class="n">y</span><span class="o">=</span><span class="s2">"observed_deaths"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"expected_deaths"</span><span class="p">,</span>
+       <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"physician"</span><span class="p">)</span><span class="o">.</span><span class="n">summary</span><span class="p">[</span><span class="s2">"underpowered"</span><span class="p">]</span>       <span class="c1"># True</span>
+
+<span class="c1"># All three years (rows per physician are summed): three real signals, SURG-07 and</span>
+<span class="c1"># SURG-15 above, and a high performer, SURG-21, below the lower limit.</span>
+<span class="n">r</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"observed_deaths"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"expected_deaths"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"physician"</span><span class="p">)</span>
+<span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">signal</span> <span class="o">!=</span> <span class="s2">"none"</span><span class="p">]</span>
+</code></pre></div>
+<p>Physician scores are less reliable than they look. Hofer et al. found that physicians
+accounted for a small share of the variation in diabetes care, that reliability at
+typical panel sizes was low, and that a physician could improve a report card by
+dropping a few of their sickest patients (<em>JAMA</em> 1999). The <code>fragility</code> and
+<code>p_value_drop1</code> columns exist for that last point. For hospitalists, Goodwin et al.
+found meaningful variation in length of stay and discharge destination but very little
+in 30-day readmission or mortality, and much of the hospitalist variation was explained
+by the hospital (<em>J Gen Intern Med</em> 2013). Expect low reliability for physician
+readmissions, and facet by hospital or campus (<code>facets=</code>) before comparing physicians.</p>
+<h2 id="estimates-with-a-range">Estimates with a range<a class="headerlink" href="#estimates-with-a-range" title="Permanent link">&para;</a></h2>
+<p>Every funnel also gives each provider a shrunk estimate with an interval, the output a
+CMS-style hierarchical model reports (Keenan et al., <em>Circ Cardiovasc Qual Outcomes</em>
+2008), without writing one. A provider's true value has an exact posterior under the
+funnel's own model, and the interval is from that posterior:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">qikit</span><span class="w"> </span><span class="kn">import</span> <span class="n">funnel</span>
+
+<span class="n">r</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">stays</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"READMIT"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"VIZIENT_EXPECTED"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span>
+           <span class="n">unit</span><span class="o">=</span><span class="s2">"ATTENDING_NPI"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"ATTENDING_NAME"</span><span class="p">,</span>
+           <span class="n">compare_to</span><span class="o">=</span><span class="s2">"model"</span><span class="p">,</span> <span class="n">worse</span><span class="o">=</span><span class="s2">"higher"</span><span class="p">)</span>
+<span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="p">[[</span><span class="s2">"label"</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">,</span> <span class="s2">"eb_rate"</span><span class="p">,</span> <span class="s2">"eb_low"</span><span class="p">,</span> <span class="s2">"eb_high"</span><span class="p">,</span> <span class="s2">"prob_worse"</span><span class="p">,</span> <span class="s2">"estimate_flag"</span><span class="p">]]</span>
+<span class="n">r</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s2">"caterpillar"</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><strong>What the interval means.</strong> <code>eb_low</code>–<code>eb_high</code> is a 95% (<code>interval=</code>) range for the
+  provider's true value. Low-volume providers are pulled most toward the center line
+  (under <code>compare_to="model"</code>, toward the system's pooled value). Shrunk estimates are
+  steadier and forecast next year's performance better than raw ones, especially at
+  low volume (Dimick et al., <em>Health Serv Res</em> 2010). The pull also means a small
+  provider's interval usually crosses the reference. That is "not enough data", not
+  "fine".</li>
+<li><strong><code>estimate_flag</code> and <code>signal</code> answer different questions.</strong> <code>signal</code> asks whether a
+  provider is unusual given chance and the spread between providers. <code>estimate_flag</code>
+  asks whether its true value is clearly above or below the reference (1.0 against the
+  risk model, else the center line). Neither replaces the other, and <code>estimate_flag</code>
+  has no multiplicity control: across many average providers about 5% of intervals miss.</li>
+<li><strong>Against the risk model,</strong> the limits and <code>signal</code> stay exactly those of
+  <code>compare_to="model"</code> (1.0, no spread). The estimates shrink toward the pooled value,
+  so a whole system running long shows every provider above 1.0, with the worst leading.</li>
+<li><strong>No measurable spread,</strong> and the interval columns are empty with a note. Pass <code>tau=</code>
+  from earlier periods, or compare within a larger peer group.</li>
+<li><strong>The caterpillar plot</strong> sorts providers by <code>eb_rate</code>, draws each interval as a bar
+  colored by <code>estimate_flag</code>, the raw value as a faint circle, and the reference as a
+  dotted line. Ranks are very uncertain even when real differences exist (Marshall and
+  Spiegelhalter, <em>BMJ</em> 1998), so read the intervals, not the order. With hundreds of
+  providers, <code>top=</code> and <code>bottom=</code> keep the ends, and only flagged providers are named.</li>
+</ul>
+<p>The spread of the prior is estimated by maximum likelihood whatever <code>tau_method</code> the
+limits use: the published estimator understates it and would leave 95% intervals
+covering as few as half of true values (<a href="../../methods/">methods §4.14, §5</a>).</p>
+<p>For your own risk model or covariates, the notebook
+<a href="https://github.com/clinical-qikit/qikit/blob/main/docs/examples/hierarchical_readmissions.ipynb">docs/examples/hierarchical_readmissions.ipynb</a>
+fits the full patient-level hierarchical model in PyMC (installed separately), with an
+optional hospital level, next to the <code>funnel()</code> equivalent, and compares the two.</p>
+<h2 id="an-achievable-goal-benchmark">An achievable goal: <code>benchmark=</code><a class="headerlink" href="#an-achievable-goal-benchmark" title="Permanent link">&para;</a></h2>
+<p>The center line is the average, and the average is not a goal. <code>benchmark=</code> adds one
+the best providers in the same data already reach:</p>
+<ul>
+<li><code>"abc"</code>, the achievable benchmark of care (Kiefe et al. 1998), for process measures.
+  It is the pooled rate of the best providers who together hold at least 10% of
+  patients. Providers are ranked by (x + 1)/(n + 2) so that 3 of 3 cannot top the list on
+  luck.</li>
+<li><code>"eb"</code>, for outcomes. It is the 90th percentile, toward better, of the shrunk
+  estimates <code>eb_rate</code> (O'Brien et al. 2008).</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="n">r</span> <span class="o">=</span> <span class="n">funnel</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"hp_within_24h"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"admissions"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"proportion"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"physician"</span><span class="p">,</span>
+           <span class="n">worse</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">benchmark</span><span class="o">=</span><span class="s2">"abc"</span><span class="p">,</span> <span class="n">multiply</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">summary</span><span class="p">[</span><span class="s2">"benchmark"</span><span class="p">]</span>
+<span class="n">b</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>                           <span class="c1"># e.g. 97.0: the % the best physicians achieve</span>
+<span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">benchmark_group</span><span class="p">]</span>       <span class="c1"># who set it</span>
+<span class="n">b</span><span class="p">[</span><span class="s2">"without_small"</span><span class="p">]</span>                   <span class="c1"># does it lean on low-volume physicians?</span>
+<span class="n">r</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>                             <span class="c1"># the benchmark as a dashed line</span>
+
+<span class="n">funnel</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s2">"deaths"</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="s2">"expected"</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="s2">"oe"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"surgeon"</span><span class="p">,</span> <span class="n">worse</span><span class="o">=</span><span class="s2">"higher"</span><span class="p">,</span>
+       <span class="n">benchmark</span><span class="o">=</span><span class="s2">"eb"</span><span class="p">)</span><span class="o">.</span><span class="n">summary</span><span class="p">[</span><span class="s2">"benchmark"</span><span class="p">][</span><span class="s2">"value"</span><span class="p">]</span>   <span class="c1"># an achievable O/E</span>
+</code></pre></div>
+<p>The ABC's authors designed it for process measures. They urge extreme caution with
+outcomes, and discourage its use for pay, credentialing or public report cards (methods
+§4.18). Both are goals for confidential feedback, not tests, so <code>signal</code> is unchanged.</p>
+<h2 id="figures">Figures<a class="headerlink" href="#figures" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">HOUSE</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"font"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"family"</span><span class="p">:</span> <span class="s2">"Segoe UI"</span><span class="p">,</span> <span class="s2">"size"</span><span class="p">:</span> <span class="mi">13</span><span class="p">},</span> <span class="s2">"limits"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"color"</span><span class="p">:</span> <span class="s2">"#555"</span><span class="p">}}</span>
+
+<span class="n">r</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">styles</span><span class="o">=</span><span class="p">[</span><span class="n">HOUSE</span><span class="p">,</span> <span class="p">{</span><span class="s2">"lcl"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"visible"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span> <span class="s2">"lcl_95"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"visible"</span><span class="p">:</span> <span class="kc">False</span><span class="p">}}],</span>
+    <span class="n">x_range</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>          <span class="c1"># start at 2 expected deaths; the y axis refits</span>
+    <span class="n">label_signals</span><span class="o">=</span><span class="s2">"outlier"</span><span class="p">,</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">560</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">r</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">color_by</span><span class="o">=</span><span class="s2">"fdr"</span><span class="p">,</span> <span class="n">fdr_watch</span><span class="o">=</span><span class="mf">0.20</span><span class="p">)</span>   <span class="c1"># points by q tier; the lines stay the 95%/99.8% limits</span>
+</code></pre></div>
+<ul>
+<li><strong>Defaults for a projector:</strong> contours at 3.5:1 contrast, the 95% line dashed, points
+  at 0.85 opacity, and the legend on. Outliers are red circles and alerts amber
+  diamonds, so the tier never depends on color alone.</li>
+<li><strong>Axes and caption:</strong> the y axis is fitted to the providers and the narrow end of the
+  funnel, not its low-volume flare. An unset caption states the flag rule.</li>
+<li><strong>Color by q:</strong> <code>r.plot(color_by="fdr")</code> colors points by their q tiers (<code>fdr_levels</code>)
+  on a <code>signal="limits"</code> result, so the figure matches a <code>q_value</code> action list while
+  <code>r.data["signal"]</code> and the drawn lines stay as they are. <code>fdr_watch=0.20</code> adds a pale
+  open-diamond watch tier for q &lt; 0.20, on the figure only.</li>
+<li><strong><code>styles=</code></strong> restyles by role: <code>data</code>, <code>outlier</code>, <code>alert</code>, <code>watch</code>, <code>runs</code>, <code>improving</code>,
+  <code>concerning</code>, <code>neutral</code>, <code>cl</code>, <code>ucl</code>, <code>lcl</code>, <code>ucl_95</code>, <code>lcl_95</code>, <code>target</code>, the groups
+  <code>limits</code> and <code>limits_95</code>, <code>end_labels</code> and <code>font</code>. A list of dicts is merged in order,
+  so a house style is one constant.</li>
+<li><strong><code>r.limits(n=None)</code></strong> returns the contours at any denominators, for drawing
+  elsewhere.</li>
+<li><strong><code>r.min_denominator(reliability=0.7)</code></strong> returns the minimum denominator for one or
+  more reliability targets, with the count of providers above and below it.</li>
+<li><strong>Unknown names raise.</strong> An unknown <code>.plot()</code> option raises <code>TypeError</code>.</li>
+</ul>
+<h2 id="options-at-a-glance">Options at a glance<a class="headerlink" href="#options-at-a-glance" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>measure</code></td>
+<td>required</td>
+<td><code>"oe"</code>, <code>"proportion"</code> or <code>"rate"</code></td>
+</tr>
+<tr>
+<td><code>unit</code>, <code>label</code>, <code>hover</code></td>
+<td><code>None</code></td>
+<td>Provider id, display name, extra tooltip columns</td>
+</tr>
+<tr>
+<td><code>facets</code></td>
+<td><code>None</code></td>
+<td>One funnel per value (a column or list): own center line, τ, FDR step</td>
+</tr>
+<tr>
+<td><code>exclude</code></td>
+<td><code>None</code></td>
+<td>A boolean column, or a list of unit ids, left out of the model</td>
+</tr>
+<tr>
+<td><code>interval</code></td>
+<td><code>0.95</code></td>
+<td>Coverage of <code>eb_low</code>/<code>eb_high</code></td>
+</tr>
+<tr>
+<td><code>compare_to</code></td>
+<td><code>None</code></td>
+<td><code>"peers"</code> (pooled center, spread allowed) or <code>"model"</code> (O/E against 1.0, no spread allowance)</td>
+</tr>
+<tr>
+<td><code>center</code></td>
+<td>pooled</td>
+<td>A fixed center line (a target); pair it with <code>overdispersion=False</code></td>
+</tr>
+<tr>
+<td><code>overdispersion</code></td>
+<td><code>True</code></td>
+<td>Judge against the spread between providers (τ)</td>
+</tr>
+<tr>
+<td><code>within_dispersion</code></td>
+<td><code>1.0</code></td>
+<td>Clustered counts or survey items: a number, <code>"estimate"</code>, or a column of per-provider φᵢ</td>
+</tr>
+<tr>
+<td><code>tau_method</code></td>
+<td><code>"spiegelhalter"</code></td>
+<td><code>"spiegelhalter"</code>, <code>"winsorized"</code>, <code>"ml"</code>, <code>"cqc"</code>, <code>"shmi"</code></td>
+</tr>
+<tr>
+<td><code>tau</code></td>
+<td><code>None</code></td>
+<td>A τ fixed in advance (a number, or one per facet)</td>
+</tr>
+<tr>
+<td><code>cases</code>, <code>sum_sq</code></td>
+<td><code>None</code></td>
+<td>Per-provider SQL totals so <code>"estimate"</code> needs no case rows</td>
+</tr>
+<tr>
+<td><code>max_case_y</code>, <code>max_case_n</code></td>
+<td><code>None</code></td>
+<td>Per-provider SQL worst case, for <code>p_value_drop1</code></td>
+</tr>
+<tr>
+<td><code>fdr_min_denominator</code></td>
+<td><code>None</code></td>
+<td>Volume floor for the FDR step only (independent filtering)</td>
+</tr>
+<tr>
+<td><code>worse</code></td>
+<td><code>None</code></td>
+<td><code>"higher"</code> or <code>"lower"</code>: flag one side, one-sided p-values</td>
+</tr>
+<tr>
+<td><code>signal</code></td>
+<td><code>"limits"</code></td>
+<td><code>"limits"</code> (exact test, drawn) or <code>"fdr"</code> (q-values)</td>
+</tr>
+<tr>
+<td><code>limits</code></td>
+<td><code>(0.998, 0.95)</code></td>
+<td>Outer and inner contour coverage</td>
+</tr>
+<tr>
+<td><code>fdr_levels</code></td>
+<td><code>(0.05, 0.10)</code></td>
+<td>Outlier and alert false discovery rates under <code>signal="fdr"</code></td>
+</tr>
+<tr>
+<td><code>benchmark</code></td>
+<td><code>None</code></td>
+<td><code>"abc"</code> (achievable benchmark of care) or <code>"eb"</code> (shrunk 90th percentile), drawn as a dashed line; needs <code>worse=</code></td>
+</tr>
+<tr>
+<td><code>benchmark_share</code></td>
+<td><code>0.10</code></td>
+<td>What counts as "the best": 10% of patients for <code>"abc"</code>, the 90th percentile for <code>"eb"</code></td>
+</tr>
+<tr>
+<td><code>multiply</code></td>
+<td><code>1</code></td>
+<td>Scale y, e.g. <code>1000</code> for a rate per 1,000</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../qic/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Over time (qic)">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Over time (qic)
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../more/" class="md-footer__link md-footer__link--next" aria-label="Next: Snowflake and other tools">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Snowflake and other tools
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

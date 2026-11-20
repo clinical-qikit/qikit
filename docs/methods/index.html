@@ -1,0 +1,4237 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="SPC charts and funnel plots for healthcare quality, in Python.">
+      
+      
+      
+        <link rel="canonical" href="https://clinical-qikit.github.io/qikit/docs/methods/">
+      
+      
+        <link rel="prev" href="../excel-addin-roadmap/">
+      
+      
+        <link rel="next" href="../qic-methods/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Funnel plots - qikit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#methods-funnel-plots-and-over-dispersion" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="qikit" class="md-header__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            qikit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Funnel plots
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="qikit" class="md-nav__button md-logo" aria-label="qikit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    qikit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/clinical-qikit/qikit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    clinical-qikit/qikit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/qic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Over time (qic)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/funnel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Across providers (funnel)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/more/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake and other tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For AI agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../snowflake/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snowflake
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../excel-addin-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel add-in scope
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funnel plots
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funnel plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-which-charts-are-funnels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Which charts are funnels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-what-each-chart-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. What each chart answers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-conformance-to-spiegelhalter-2005" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Conformance to Spiegelhalter (2005)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-design-choices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Design choices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Design choices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-exact-limits-interpolated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Exact limits, interpolated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-center-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Center line
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.2 Center line">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#421-a-fixed-center-under-the-adjustment-the-absorbed-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.1 A fixed center under the adjustment: the absorbed gap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-the-over-dispersion-estimator-published-by-default-debiased-on-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 The over-dispersion estimator: published by default, debiased on request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-additive-not-multiplicative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Additive, not multiplicative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-adjusted-limits-drawn-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Adjusted limits drawn exactly
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-laneys-pu-stay-for-time-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 Laney's p′/u′ stay for time order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-warn-tier-and-multiplicity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Warn tier and multiplicity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#48-power-and-intervals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8 Power and intervals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#49-the-volume-axis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9 The volume axis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#410-one-sided-signalling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10 One-sided signalling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#411-p-values-the-false-discovery-rate-and-what-decides-a-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 P-values, the false discovery rate, and what decides a flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#412-counts-that-clump-within-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.12 Counts that clump within cases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#413-multi-item-instruments-items-clustered-in-surveys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.13 Multi-item instruments: items clustered in surveys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#414-shrunk-estimates-and-reliability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.14 Shrunk estimates and reliability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#415-single-case-robustness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.15 Single-case robustness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#416-choosing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.16 Choosing τ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#417-cqc-and-shmi-over-dispersion-on-a-transformed-scale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.17 CQC and SHMI: over-dispersion on a transformed scale
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#418-benchmarks-what-the-best-providers-achieve-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.18 Benchmarks: what the best providers achieve (benchmark=)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#419-continuous-per-case-amounts-measuremean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.19 Continuous per-case amounts (measure="mean")
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-evidence-from-simulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Evidence from simulation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-known-limitations-and-planned-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Known limitations and planned work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qic-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Control charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-which-charts-are-funnels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Which charts are funnels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-what-each-chart-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. What each chart answers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-conformance-to-spiegelhalter-2005" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Conformance to Spiegelhalter (2005)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-design-choices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Design choices
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Design choices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-exact-limits-interpolated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Exact limits, interpolated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-center-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Center line
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4.2 Center line">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#421-a-fixed-center-under-the-adjustment-the-absorbed-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2.1 A fixed center under the adjustment: the absorbed gap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-the-over-dispersion-estimator-published-by-default-debiased-on-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 The over-dispersion estimator: published by default, debiased on request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-additive-not-multiplicative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Additive, not multiplicative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-adjusted-limits-drawn-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Adjusted limits drawn exactly
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-laneys-pu-stay-for-time-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 Laney's p′/u′ stay for time order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-warn-tier-and-multiplicity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Warn tier and multiplicity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#48-power-and-intervals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8 Power and intervals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#49-the-volume-axis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9 The volume axis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#410-one-sided-signalling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10 One-sided signalling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#411-p-values-the-false-discovery-rate-and-what-decides-a-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 P-values, the false discovery rate, and what decides a flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#412-counts-that-clump-within-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.12 Counts that clump within cases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#413-multi-item-instruments-items-clustered-in-surveys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.13 Multi-item instruments: items clustered in surveys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#414-shrunk-estimates-and-reliability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.14 Shrunk estimates and reliability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#415-single-case-robustness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.15 Single-case robustness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#416-choosing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.16 Choosing τ
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#417-cqc-and-shmi-over-dispersion-on-a-transformed-scale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.17 CQC and SHMI: over-dispersion on a transformed scale
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#418-benchmarks-what-the-best-providers-achieve-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.18 Benchmarks: what the best providers achieve (benchmark=)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#419-continuous-per-case-amounts-measuremean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.19 Continuous per-case amounts (measure="mean")
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-evidence-from-simulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Evidence from simulation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-known-limitations-and-planned-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Known limitations and planned work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="methods-funnel-plots-and-over-dispersion">Methods: funnel plots and over-dispersion<a class="headerlink" href="#methods-funnel-plots-and-over-dispersion" title="Permanent link">&para;</a></h1>
+<p>This is qikit's record of how its funnel plots are computed, which published method each
+step follows, and where it deliberately departs from that method and why. The numbered
+references at the end are the ones cited, as <code>[n]</code>, in the docstrings of
+<code>src/qikit/funnel.py</code> and <code>src/qikit/_funnel/</code>, the core modules they call
+(<code>core/contours.py</code>, <code>core/dispersion.py</code>, <code>core/pvalues.py</code>, <code>core/power.py</code>,
+<code>core/dist.py</code>), and the TypeScript twin (<code>excel-addin/packages/engine/src/stats.ts</code>, <code>spc-core.ts</code>).</p>
+<p>Time-ordered control charts (<code>qic()</code>: run, I, p, u, Laney p′/u′ and the rest) are
+recorded in <a href="../qic-methods/">qic-methods.md</a>, with their conformance to qicharts2.</p>
+<h2 id="1-which-charts-are-funnels">1. Which charts are funnels<a class="headerlink" href="#1-which-charts-are-funnels" title="Permanent link">&para;</a></h2>
+<p>Funnels are drawn by <code>funnel()</code>. Its <code>measure=</code> and <code>overdispersion=</code> pick one of six
+engine charts, whose codes the engine's docstrings and the shared fixtures use:</p>
+<table>
+<thead>
+<tr>
+<th><code>funnel(...)</code></th>
+<th>Engine chart</th>
+<th>Count model</th>
+<th>Limits</th>
+<th>Over-dispersion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>measure="proportion", overdispersion=False</code></td>
+<td><code>p</code></td>
+<td>Binomial</td>
+<td>Exact binomial [1, A.1.1]</td>
+<td>Estimated and reported, not applied</td>
+</tr>
+<tr>
+<td><code>measure="rate", overdispersion=False</code></td>
+<td><code>u</code></td>
+<td>Poisson</td>
+<td>Exact Poisson, exposure as denominator [1, A.2.1, A.2.3]</td>
+<td>Estimated and reported, not applied</td>
+</tr>
+<tr>
+<td><code>measure="oe", overdispersion=False</code></td>
+<td><code>oe</code></td>
+<td>Poisson</td>
+<td>Exact Poisson on expected events [1, A.2.1]</td>
+<td>Estimated and reported, not applied</td>
+</tr>
+<tr>
+<td><code>measure="proportion"</code> (default <code>overdispersion=True</code>)</td>
+<td><code>pp</code></td>
+<td>Beta-binomial</td>
+<td>Exact quantiles of the additive model [1, eq. 11]</td>
+<td>Additive τ² [1, §5], applied</td>
+</tr>
+<tr>
+<td><code>measure="rate"</code></td>
+<td><code>up</code></td>
+<td>Poisson–gamma</td>
+<td>Exact quantiles of the additive model [1, eq. 11; 7]</td>
+<td>Additive τ² [1, §5], applied</td>
+</tr>
+<tr>
+<td><code>measure="oe"</code></td>
+<td><code>oep</code></td>
+<td>Poisson–gamma</td>
+<td>Exact quantiles of the additive model [1, eq. 11; 7]</td>
+<td>Additive τ² [1, §5], applied</td>
+</tr>
+</tbody>
+</table>
+<p>The contours are 99.8% and 95% by default (<code>limits=</code>). <code>within_dispersion=</code> scales any
+count model for counts that clump within cases (§4.12), and the binomial for the items
+of one survey (§4.13). <code>qic()</code> keeps p/u with 3σ
+Shewhart limits and pp/up with Laney's σ_z [6] for time order; it no longer draws
+funnels.</p>
+<h2 id="2-what-each-chart-answers">2. What each chart answers<a class="headerlink" href="#2-what-each-chart-answers" title="Permanent link">&para;</a></h2>
+<p>The two kinds of funnel ask different questions, and both are legitimate:</p>
+<ul>
+<li><strong>Unadjusted</strong> (<code>p</code>, <code>u</code> and <code>oe</code>): <em>is this provider's result consistent with the
+  target, given chance (and, for O/E, the risk model)?</em> A provider in the upper tail of
+  real between-provider variation will flag here, correctly, because it does differ from
+  the target.</li>
+<li><strong>Adjusted</strong> (<code>pp</code>, <code>up</code> and <code>oep</code>): <em>is this provider unusual given the observed
+  spread between providers?</em> This treats the spread, τ, as "acceptable" variation [1, §5]
+  and flags only providers outside it.</li>
+</ul>
+<p><code>funnel(compare_to=)</code> names the two: <code>"model"</code> is the unadjusted chart of O/E against
+1.0 (<code>center=1.0</code>, <code>overdispersion=False</code>), and <code>"peers"</code> the adjusted chart around the
+pooled value (the default settings). A fixed center with the adjustment on answers
+neither question (§4.2.1).</p>
+<p>Which question applies is a policy decision. Make it before seeing the data, and record
+it in the analysis plan [8, step 1]; Spiegelhalter calls the boundary between
+acceptable and out-of-control "a matter of judgment" [1, §5]. If the data are
+over-dispersed, the spread itself is a finding about the system: unmeasured case mix,
+data or coding differences, or real differences in practice. Spiegelhalter is explicit
+that adjusting is "purely a temporary measure" while its causes are explored [1, §5].
+Every unadjusted funnel therefore reports the estimate (<code>dispersion_phi</code>,
+<code>dispersion_tau</code>, <code>overdispersed</code>) and, when it is present, a <code>dispersion_note</code> saying
+so.</p>
+<p>At individual-physician volumes the two usually coincide. τ is rarely detectable with
+5–20 expected events per physician; on the bundled 24-surgeon data φ̂ = 0.93 and τ̂ = 0.
+When τ̂ = 0 the adjusted chart is the unadjusted chart, to the bit.</p>
+<h2 id="3-conformance-to-spiegelhalter-2005">3. Conformance to Spiegelhalter (2005)<a class="headerlink" href="#3-conformance-to-spiegelhalter-2005" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Spiegelhalter [1]</th>
+<th>qikit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Contours</td>
+<td>p = 0.001/0.999 and 0.025/0.975 (§2)</td>
+<td>Same, on every funnel</td>
+</tr>
+<tr>
+<td>Unadjusted limits</td>
+<td>Exact binomial (A.1.1) and Poisson (A.2.1), interpolated as (r_p − α)</td>
+<td><strong>Differs above the line</strong>: lower contour (r_p − α) as published; upper contour (r_p − α + 1), the exact test's boundary (§4.1). u follows A.2.3 (N in place of E)</td>
+</tr>
+<tr>
+<td>Target θ₀</td>
+<td>External, or pooled from the data and treated as known</td>
+<td>Same: <code>center=</code>, or pooled Σy/Σn (Σ O / Σ E)</td>
+</tr>
+<tr>
+<td>Residuals for over-dispersion</td>
+<td>Pearson z on the natural scale (eq. 4)</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Robustness</td>
+<td>10% winsorized φ̂ (eqs. 6, 8)</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Winsorizing debiasing factor w(q)</td>
+<td>Derived (eq. 9), not adopted in his example</td>
+<td>Same by default (<code>tau_method="spiegelhalter"</code>); <code>tau_method="winsorized"</code> applies it (§4.3)</td>
+</tr>
+<tr>
+<td>Between-provider variance τ²</td>
+<td>Method of moments on winsorized residuals (eq. 10)</td>
+<td>Same by default; also maximum likelihood (<code>"ml"</code>), CQC and SHMI (<code>"cqc"</code>, <code>"shmi"</code>), or a τ fixed in advance (<code>tau=</code>) (§4.16, §4.17)</td>
+</tr>
+<tr>
+<td>A center line fixed in advance</td>
+<td>Not distinguished</td>
+<td>Published methods unchanged; <code>"winsorized"</code> counts K degrees of freedom rather than K − 1, since no mean was estimated (§4.3)</td>
+</tr>
+<tr>
+<td>Multiplicative model</td>
+<td>φ̂, applied if φ̂ &gt; 1 + 2√(2/I)</td>
+<td>Not used (§4.4)</td>
+</tr>
+<tr>
+<td>Additive model</td>
+<td>τ̂² by method of moments (eq. 10), 0 if φ̂ &lt; (I−1)/I</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Adjusted limits</td>
+<td>θ₀ ± z√(V + τ²), normal (eq. 11)</td>
+<td><strong>Differs</strong>: same variance, exact mixture quantiles (§4.5)</td>
+</tr>
+<tr>
+<td>Under-dispersion</td>
+<td>Never narrow the limits</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>X-axis</td>
+<td>Indicator against precision ρ, smooth pre-drawn limits (§2)</td>
+<td>Same in effect: against volume (n, or E), which is proportional to ρ, with smooth contours (§4.9)</td>
+</tr>
+<tr>
+<td>Outcome–volume association</td>
+<td>Formal regression test (§4)</td>
+<td><strong>Not yet</strong> (§6)</td>
+</tr>
+<tr>
+<td>Multiple comparisons</td>
+<td>Small P values; FDR "best carried out separately" (§6)</td>
+<td>Exact p-values and Benjamini–Hochberg q-values on every funnel; <code>signal="fdr"</code> tiers on q instead of the contours, at <code>fdr_levels</code> (§4.11). <code>expected_false_flags</code> reports chance flags per tier</td>
+</tr>
+<tr>
+<td>Counts that clump within cases (days per stay)</td>
+<td>Not covered</td>
+<td>Extension: <code>within_dispersion=φ</code>, effective counts O/φ against E/φ, with a diagnostic that warns when it is missing (§4.12)</td>
+</tr>
+<tr>
+<td>Items clustered in cases (questions of one survey)</td>
+<td>Not covered</td>
+<td>Extension: the same <code>within_dispersion=φ</code> on a proportion, Rao–Scott effective counts y/φ out of n/φ [17], interpolated in n/φ between whole denominators (§4.13)</td>
+</tr>
+<tr>
+<td>Change data, continuous outcomes</td>
+<td>A.1.2, A.2.2, A.3</td>
+<td>Not offered</td>
+</tr>
+<tr>
+<td>Per-point power and intervals</td>
+<td>Not part of the method</td>
+<td>Extension on every funnel (§4.8)</td>
+</tr>
+<tr>
+<td>Shrunk estimates and reliability</td>
+<td>Not part of the method</td>
+<td>Extension: <code>reliability</code>, <code>eb_rate</code>, <code>eb_excess</code>, the exact posterior mean of the chart's own mixture model (§4.14)</td>
+</tr>
+<tr>
+<td>Single-case robustness</td>
+<td>Not part of the method</td>
+<td>Extension: <code>p_value_drop1</code>, <code>flag_survives_drop1</code>, <code>fragility</code> (§4.15)</td>
+</tr>
+<tr>
+<td>Volume floor for the FDR step</td>
+<td>Not covered</td>
+<td>Extension: <code>fdr_min_denominator=</code>, independent filtering (§4.11)</td>
+</tr>
+<tr>
+<td>Transformed-scale over-dispersion (CQC √, NHS SHMI log)</td>
+<td>§5 notes the √ scale</td>
+<td><code>tau_method="cqc"</code>/<code>"shmi"</code>, as FunnelPlotR computes them; limits drawn on that scale and mapped back (§4.17)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-design-choices">4. Design choices<a class="headerlink" href="#4-design-choices" title="Permanent link">&para;</a></h2>
+<h3 id="41-exact-limits-interpolated">4.1 Exact limits, interpolated<a class="headerlink" href="#41-exact-limits-interpolated" title="Permanent link">&para;</a></h3>
+<p>Every funnel draws the exact discrete quantile with Spiegelhalter's continuity
+interpolation: r_p is the smallest count with F(r_p) ≥ p, and the limit is
+(r_p − α)/n with α = (F(r_p) − p)/f(r_p) [1, A.1.1]. The normal approximation of eq. 3 is
+symmetric and badly placed at the volumes individual providers have. At 5 expected events
+and O/E = 1, the 99.8% limits are:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Lower</th>
+<th>Upper</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Exact Poisson (qikit)</td>
+<td>0.00</td>
+<td>2.55</td>
+</tr>
+<tr>
+<td>Normal, natural scale (eq. 3)</td>
+<td>0 (clipped)</td>
+<td>2.38</td>
+</tr>
+<tr>
+<td>Normal, square-root scale</td>
+<td>0.10</td>
+<td>2.86</td>
+</tr>
+<tr>
+<td>Normal, log scale</td>
+<td>0.25</td>
+<td>3.98</td>
+</tr>
+</tbody>
+</table>
+<p>The transformed-scale versions flag a zero-death physician (P = 0.7%) or a three-death
+physician against ten expected (P = 1.0%) as better than expected at the nominal 0.1%.
+The natural-scale version's upper limit is too tight, so it over-flags high outliers.</p>
+<p>R's <code>qpois</code>/<code>qbinom</code> return r_p without the interpolation, so an external cross-check
+should bracket qikit's value between r_p − 1 and r_p.</p>
+<p><strong>The upper contour sits at the exact test's boundary.</strong> For an integer count O the
+interpolated quantile q = r_p − α decides the two sides differently:</p>
+<ul>
+<li>the point is below the lower contour exactly when P(X ≤ O) &lt; α, which is the exact test;</li>
+<li>the point is above the upper contour q exactly when P(X &gt; O) &lt; α, which leaves out the
+  probability of the observed count itself.</li>
+</ul>
+<p>So qikit draws the upper contour at q + 1 on the count scale (capped at n for a
+proportion). With that, a point is beyond either contour exactly when its conventional
+exact p-value, P(X ≥ O) above or P(X ≤ O) below (§4.11), is below the contour's tail
+probability. The drawn line, <code>p_value</code>, the point's color and, on the unadjusted
+O/E chart, "the point's Garwood 95% interval excludes the center line" are then one
+statement. The test suite checks all three on random funnels of every chart.</p>
+<p>The model, center line, τ² and levels are Spiegelhalter's; only the drawn upper
+boundary moves, by at most one count. At 5 expected events and θ₀ = 1 the 99.8% upper
+limit is 13.77 events (O/E 2.75) rather than the published 12.77 (2.55). Compared with
+other funnel software that draws the published contour, qikit is up to one count more
+conservative above the line at small volumes. This is a qikit derivation. As far as we
+know it is not a published contour, though the test it draws is the standard exact
+test, and also the comparison of a provider's exact interval with the benchmark.</p>
+<p><strong>Shape at small counts.</strong> Spiegelhalter's upper contour wiggles at small denominators:
+on the ratio scale it climbs briefly within every integer step before falling again.
+Within a step α runs from 1 to 0 as λ = θ₀n grows, and q = r_p − α has slope
+q′(λ) = 1 + α(r_p/λ − 1), so q/λ has slope proportional to q′λ − q, which is 1 at the
+start of every step. The contour qikit draws, (q + 1)/λ, has slope proportional to</p>
+<p>q′λ − (q + 1) = (1 − α)(λ − r_p − 1),</p>
+<p>which is never positive, since an upper quantile r_p is at least λ. So it is monotone by
+construction, in all four families. On dense grids the published contour climbs back
+thousands of times (largest climb 0.067 on O/E for E between 0.3 and 2, 0.021 on a
+proportion at θ₀ = 0.1); the drawn contour never does, and no display smoothing is
+needed. The lower contours were already monotone.</p>
+<p>To start the axis where volumes become informative, use <code>x_range=(2, None)</code> on an O/E
+funnel or about n = 20 on a proportion, or spread the axis with <code>x_log=True</code>.</p>
+<h3 id="42-center-line">4.2 Center line<a class="headerlink" href="#42-center-line" title="Permanent link">&para;</a></h3>
+<p>The default is the pooled rate (Σy/Σn, or ΣO/ΣE), which judges providers against their
+peers and, for O/E, absorbs overall miscalibration of the risk model. <code>center=1.0</code> judges O/E
+against the risk model itself. The pooled line includes each provider. On a small cohort,
+one extreme provider drags the line toward itself, leaves every other provider to one
+side, and inflates τ̂ even though its own residual is winsorized. This is the circularity
+[1, §5] attributes to Marshall et al. The test suite pins a case where it hides the
+provider entirely (<code>test_a_lone_outlier_still_leaks_in_through_the_pooled_center_line</code>).
+Anchoring with <code>center=</code> removes the effect. Pavlou et al. [9] suggest a pre-specified τ as
+another remedy (§6).</p>
+<h4 id="421-a-fixed-center-under-the-adjustment-the-absorbed-gap">4.2.1 A fixed center under the adjustment: the absorbed gap<a class="headerlink" href="#421-a-fixed-center-under-the-adjustment-the-absorbed-gap" title="Permanent link">&para;</a></h4>
+<p>τ̂ is estimated around whatever center line the chart uses. Around the pooled value it
+measures the spread between providers. Around a fixed <code>center=</code> it also absorbs any
+system-wide gap between the providers and that center: a whole system running 10% above
+its risk model looks, to the moment estimator, like providers spread widely around 1.0.
+Every limit then widens by that gap, and the chart answers neither question of §2. It
+is not judging against the model, because the allowance has swallowed the gap, and it
+is not judging against peers, because the line is not theirs.</p>
+<p>On 60 simulated physicians' stays (a system running 10% long, three physicians 40%
+worse on top, <code>within_dispersion="estimate"</code>), the default chart has τ̂ = 0.035 and flags
+the three. With <code>center=1.0</code> alone τ̂ rises to 0.136, the limits at the median
+volume widen by about 112%, and one of the three falls back to an alert. With
+<code>compare_to="model"</code> (no allowance) 13 physicians are outliers and 23 alerts: the
+system-wide gap is now visible as signal, which is what that question asks.</p>
+<p><strong>The guard.</strong> When <code>center=</code> is fixed, <code>overdispersion=True</code> and τ is estimated (not
+<code>tau=</code>), <code>funnel()</code> compares the providers' pooled value Σnᵢyᵢ/Σnᵢ with the center and
+warns when both of the following hold:</p>
+<ol>
+<li>The gap is beyond chance and the spread between providers: a two-sided p &lt; 0.001
+   from a t test on K − 1 degrees of freedom with the robust (sandwich) variance
+   K/(K − 1)·Σnᵢ²(yᵢ − ȳ)²/(Σnᵢ)², on the model's nᵢ (÷ φ). The observed scatter carries
+   chance, within-case clumping and real spread together, so the test needs no τ̂. A
+   first version used the model variance ȳ/Σnᵢ + τ̂²Σnᵢ²/(Σnᵢ)² instead. At K = 20 it
+   warned in up to 3.6% of no-gap cohorts, because the published estimator understates
+   τ at small K (§4.3).</li>
+<li>The gap matters: the 99.8% half-width at the median provider's volume,
+   √(V₀ + τ̂²) around the fixed center against √(V₀ + τ̂ₚ²) with τ̂ₚ the same estimator
+   around the pooled value, is at least 10% wider.</li>
+</ol>
+<p>The warning gives the gap and the widening, and names the fix: <code>compare_to="model"</code> on
+O/E, <code>overdispersion=False</code> with the target on a proportion or rate, or no <code>center=</code> for
+the peer question. <code>summary</code> reports <code>center_gap</code> (pooled ÷ center − 1), <code>center_gap_p</code>
+and <code>tau_pooled</code>. The calibration is in §5.</p>
+<h3 id="43-the-over-dispersion-estimator-published-by-default-debiased-on-request">4.3 The over-dispersion estimator: published by default, debiased on request<a class="headerlink" href="#43-the-over-dispersion-estimator-published-by-default-debiased-on-request" title="Permanent link">&para;</a></h3>
+<p><code>overdispersion()</code> in <code>core/dispersion.py</code> implements [1, §5]:</p>
+<ol>
+<li>Pearson residuals zᵢ = (yᵢ − θ₀)/√V₀ᵢ, with V₀ᵢ = θ₀/nᵢ for counts and θ₀(1 − θ₀)/nᵢ
+   for proportions (eq. 4).</li>
+<li>Winsorize at the 10th and 90th percentiles; φ̂ = mean(z_W²) (eqs. 6, 8).</li>
+<li>τ̂² = (Kφ̂ − (K − 1)) / (Σwᵢ − Σwᵢ²/Σwᵢ), wᵢ = 1/V₀ᵢ (eq. 10, the DerSimonian–Laird
+   form [3]), and τ̂² = 0 when φ̂ &lt; (K − 1)/K.</li>
+</ol>
+<p>That is the default, <code>tau_method="spiegelhalter"</code>, exactly as published. CQC and NHS
+SHMI run the same uncorrected method of moments on a transformed scale instead; <code>"cqc"</code>
+and <code>"shmi"</code> reproduce those, as FunnelPlotR [13] does (§4.17).</p>
+<p><strong>The consistency factor.</strong> Winsorizing a standard normal at its p and 1 − p quantiles
+z = Φ⁻¹(1 − p) leaves E[Z_W²] = (1 − 2p) − 2z·φ(z) + 2p·z², which is 0.6787 at p = 0.10.
+Spiegelhalter derives the correction c(p) = 1/E[Z_W²] = 1.4735 (eq. 9), but reports that
+it gave "somewhat wide limits" and does not adopt it in his example.
+<code>tau_method="winsorized"</code> applies it: φ̂ = c(0.10)·mean(z_W²).</p>
+<p><strong>Which to use, and why the published one is the default.</strong> Without the factor, φ̂
+averages 0.68 under pure chance, so the τ² = 0 gate needs a true over-dispersion of
+about 1.47 before it moves. Small real spreads between providers are then ignored, the
+adjusted limits stay at their unadjusted width, and more providers flag. The table
+below (200 replicates of K = 1,000 providers, E ~ U(2, 60), Poisson counts with true
+relative spread τ) shows the size of the effect:</p>
+<table>
+<thead>
+<tr>
+<th>true τ</th>
+<th>φ̂ published</th>
+<th>τ̂ published</th>
+<th>τ̂ debiased</th>
+<th>τ̂ plain DL (no winsorizing)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0.678</td>
+<td>0</td>
+<td>0.017</td>
+<td>0.016</td>
+</tr>
+<tr>
+<td>0.10</td>
+<td>0.881</td>
+<td><strong>0 in every replicate</strong></td>
+<td>0.098</td>
+<td>0.100</td>
+</tr>
+<tr>
+<td>0.20</td>
+<td>1.452</td>
+<td>0.120</td>
+<td>0.192</td>
+<td>0.200</td>
+</tr>
+<tr>
+<td>0.30</td>
+<td>2.387</td>
+<td>0.212</td>
+<td>0.285</td>
+<td>0.300</td>
+</tr>
+<tr>
+<td>0.10, plus 2% gross outliers (O/E 2.5)</td>
+<td>0.942</td>
+<td>0.004</td>
+<td><strong>0.113</strong></td>
+<td>0.230</td>
+</tr>
+</tbody>
+</table>
+<p>The two estimators answer the screening question differently:</p>
+<ul>
+<li><strong>The published estimator is the more sensitive screen.</strong> It flags more providers
+  whose difference is the ordinary spread between peers (§5: 0.54% of in-distribution
+  providers beyond the 99.8% line at K = 150, τ = 0.3, against a nominal 0.1%), and it
+  finds a planted outlier more often (70% against 38% there). qikit 0.10 made the
+  debiased estimator the default; in production use at physician scale it was not
+  sensitive enough for screening, so 1.0 restores the published one. It is also uncorrected, as the CQC, NHS and
+  FunnelPlotR estimators are, so its flag rates are comparable with theirs.</li>
+<li><strong>The debiased estimator holds the stated chance-flag rate.</strong> Use
+  <code>tau_method="winsorized"</code> when flags are acted on individually and the 0.1% and 2.5%
+  in <code>expected_false_flags</code> must mean what they say, as on a large funnel feeding
+  credentialing. It stays robust to the outliers being screened for: plain
+  DerSimonian–Laird doubles τ̂ when 2% of providers are gross outliers, the winsorized
+  estimators do not.</li>
+</ul>
+<p><code>funnel_sensitivity()</code> runs a funnel under each τ option and marks the providers whose
+tier depends on the choice; a flag that does is a judgment to make explicitly.</p>
+<p><strong>A center line fixed in advance.</strong> Equation 10 counts K − 1 degrees of freedom because
+θ₀ is estimated from the same providers. With <code>center=</code> given (O/E against 1.0, say) no
+mean is estimated, and the method-of-moments estimate is τ̂² = K(φ̂ − 1)/Σwᵢ, 0 when
+φ̂ ≤ 1. <code>"winsorized"</code> uses that form; the published methods keep theirs, since
+reproducing a published funnel is their purpose. Note also that a fixed center absorbs
+any overall gap between the cohort and the benchmark into τ̂ (§4.2).</p>
+<p><strong>Reproducing published funnels.</strong> The default gives the published estimator bit for
+bit; the shared Python/TypeScript fixtures that check Spiegelhalter's numbers pin it,
+and <code>funnel_oep_winsorized</code>, <code>funnel_pp_winsorized</code> and <code>funnel_up_winsorized</code> check
+<code>"winsorized"</code> in both engines. <code>summary["phi"]</code> is the dispersion ratio as the chosen
+method defines it (c·mean(z_W²) under <code>"winsorized"</code>). On the bundled example
+(<code>data/examples/physician_mortality_oe.csv</code>, three years pooled) τ̂ is 0 under the
+default and 0.113 debiased, and the same three physicians are outliers either way.</p>
+<p><strong>Pearson rather than square-root residuals.</strong> qikit 0.4's <code>oep</code> used the square-root
+scale, 2(√O − √(θ₀E)), as the CQC variant does, on the grounds that Pearson residuals
+are skewed at small counts. After winsorizing, the difference is negligible at physician
+volumes: simulated τ̂ is within 0.015 of the square-root variant, and the bundled
+surgeons give τ̂ = 0 either way. The natural scale is [1]'s, and it feeds eq. 11
+directly, with no delta-method mapping.</p>
+<h3 id="44-additive-not-multiplicative">4.4 Additive, not multiplicative<a class="headerlink" href="#44-additive-not-multiplicative" title="Permanent link">&para;</a></h3>
+<p>Spiegelhalter presents both models and illustrates the difference in his Figure 6.
+Multiplicative φ inflates every provider's variance by the same factor, so the band keeps
+closing onto θ₀ at high volume. Additive τ² adds a constant between-provider variance, so
+the band is "essentially independent of volume" there [1, §5]. His companion paper finds
+the additive formulation has the stronger conceptual foundation [2], and it is what CQC,
+NHS SHMI and FunnelPlotR use. Pavlou et al. [9] reach the same preference for
+random-effects approaches when the common-mean assumption fails.</p>
+<p>For physician comparisons the choice matters at both ends of the funnel:</p>
+<ul>
+<li><strong>Small volume.</strong> V₀ dominates, and additive τ² barely moves the limits. Multiplicative
+  φ widens them most, in absolute terms, exactly where power is already 5–44%.</li>
+<li><strong>Large volume.</strong> Additive limits level off at roughly θ₀ ± z·τ, so a busy provider is
+  not flagged for a difference smaller than the spread between providers.</li>
+</ul>
+<p>qikit 0.4's multiplicative <code>oep</code> had a further defect. When φ̂ was clamped to 1 it still
+drew normal-approximation limits, 7–10% <em>tighter</em> than <code>oe</code> at E ≤ 8. Switching to <code>oep</code>
+"to be safe" therefore produced more high flags. In 0.5, <code>oep</code> with τ̂ = 0 is <code>oe</code>.</p>
+<h3 id="45-adjusted-limits-drawn-exactly">4.5 Adjusted limits drawn exactly<a class="headerlink" href="#45-adjusted-limits-drawn-exactly" title="Permanent link">&para;</a></h3>
+<p>Eq. 11 describes a model in which providers' true rates θᵢ are spread around θ₀ with
+variance τ², and observed counts are Poisson or binomial given θᵢ. Drawing θᵢ from a
+gamma distribution (counts) or a beta distribution (proportions) with that mean and
+variance gives the classic hierarchical model for standardized ratios [7], whose
+marginal distributions are exact:</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Count distribution</th>
+<th>Variance on the indicator scale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Counts (<code>up</code> and <code>oep</code>)</td>
+<td>Poisson–gamma (negative binomial), size θ₀²/τ²</td>
+<td>θ₀/n + τ² (eq. 11 exactly)</td>
+</tr>
+<tr>
+<td>Proportions (<code>pp</code>)</td>
+<td>Beta-binomial, α + β = θ₀(1 − θ₀)/τ² − 1</td>
+<td>θ₀(1 − θ₀)/n + τ²(n − 1)/n</td>
+</tr>
+</tbody>
+</table>
+<p>qikit draws the interpolated quantiles of these, as §4.1 does for the unadjusted ones.
+This is the one methodological departure from [1]: same model and same variance, exact
+rather than normal quantiles. It is the substitution [1, Appendix A] itself makes for the
+unadjusted limits. Neither Verburg et al. [8] nor Pavlou et al. [9] evaluate it. Verburg
+uses multiplicative φ̂ because the additive model could not be combined with exact
+binomial limits. Pavlou uses the additive model on the log scale and accepts the normal
+approximation, warning that it may fail at small counts. The mixture distributions
+remove that trade-off.</p>
+<p>Implementation notes (<code>dist.py</code>, <code>stats.ts</code>):</p>
+<ul>
+<li><strong>Arithmetic only.</strong> Each pmf is built from its term ratio f(k+1)/f(k) outward from
+  the mode and normalized at the end. It uses only + − × ÷, so results are bit-identical
+  across platforms and between Python and TypeScript. There is no lgamma cancellation as
+  τ² → 0, and the cost scales with the distribution's spread, not its mean.</li>
+<li><strong>Validated</strong> against <code>scipy.stats</code> (<code>binom</code>, <code>nbinom</code>, <code>betabinom</code>) to &lt; 1e-9, and one
+  beta-binomial case against 60-digit <code>mpmath</code>. There scipy itself is off by ~1e-5, from
+  the cancellation this design avoids.</li>
+<li><strong>Fallbacks.</strong> A spread no beta distribution can have (τ² ≥ θ₀(1 − θ₀)), or a
+  distribution too wide to walk (only absurd τ), falls back to eq. 11 as published,
+  with a proportion's contours kept between 0 and 1.
+  <code>summary["limit_method"]</code> then says <code>"normal"</code> instead of <code>"exact"</code>. A non-integer
+  denominator is interpolated between its whole neighbors (§4.13), and
+  <code>limit_method</code> says <code>"interpolated"</code>.</li>
+<li><strong>Computation.</strong> From 0.10 the walk is vectorized in blocks after its first 64 terms,
+  with the upward and downward running products done by <code>np.multiply.accumulate</code> and
+  <code>np.divide.accumulate</code> and every sum by <code>np.cumsum</code>. All three are strictly sequential,
+  so every term, the point where the walk stops, every tail sum, and therefore every
+  limit and p-value are bit-identical to the scalar loop the TypeScript twin keeps
+  (checked on 36,000 random calls across all four families). A walk, and each Poisson
+  mean inversion, is cached per distribution, because a point's two contours and its
+  p-value walk the same pmf. A 1,000-provider <code>oep</code> funnel at hospital volumes
+  (E from 30 to 2,000) takes about 0.3 s cold, down from 1.3 s, and 0.06 s when the same
+  distributions recur. scipy is not used. It is not a dependency, its incomplete-gamma
+  and beta routines differ from this walk in the last ulps across platforms, and its
+  beta-binomial loses about 1e-5 to the cancellation described above. The cold time is
+  dominated by the lgamma-based Poisson mean inversion behind intervals and detectability.
+  Solving all providers' inversions at once would make it faster, but it moves the last
+  quantized digit of some results at counts in the thousands, so it has not been done.</li>
+</ul>
+<h3 id="46-laneys-pu-stay-for-time-order">4.6 Laney's p′/u′ stay for time order<a class="headerlink" href="#46-laneys-pu-stay-for-time-order" title="Permanent link">&para;</a></h3>
+<p>Laney's σ_z is the mean moving range of consecutive standardized residuals [6]. That
+statistic depends on order and is defined for time series [11]. In a funnel the order is
+the sort by volume. On the bundled 3-year surgeon data, the published test finds no
+over-dispersion, yet the 0.4 <code>up</code> funnel widened its limits 1.87× and hid all three real
+signals. Since 0.5 a funnel uses the additive method, and Laney's <code>pp</code>/<code>up</code> remain only
+as time-ordered charts in <code>qic()</code>.</p>
+<h3 id="47-warn-tier-and-multiplicity">4.7 Warn tier and multiplicity<a class="headerlink" href="#47-warn-tier-and-multiplicity" title="Permanent link">&para;</a></h3>
+<p>The 99.8% contour marks outliers and the 95% contour alerts (the <code>signal</code> column:
+<code>"outlier"</code>, <code>"alert"</code> or <code>"none"</code>). The tiers never overlap, and alerts are counted in
+<code>n_alert</code>, apart from <code>n_outlier</code>, because at one chance alert in forty per side a large
+funnel would always report one. About 0.1% of average providers land beyond each 99.8% line,
+roughly one in a 1,000-provider one-sided funnel, and 2.5% beyond each 95% line, about
+24 there. <code>summary["expected_false_flags"]</code> reports those numbers for the chart, so an
+alert count is read against them. [1, §6] recommends formal FDR control [12] carried out
+separately from the plot. Every funnel reports Benjamini–Hochberg q-values, and
+<code>signal="fdr"</code> flags by them (§4.11).</p>
+<h3 id="48-power-and-intervals">4.8 Power and intervals<a class="headerlink" href="#48-power-and-intervals" title="Permanent link">&para;</a></h3>
+<p>Not part of [1]. At physician volumes a funnel mostly cannot detect even a doubling of
+risk [10], and a blank funnel reads as a clean bill of health. This is in the spirit of
+Verburg's sample-size step [8, step 3], with a doubling rather than 1.5× as the
+reference effect. Power is fixed at 80% and is not a parameter: on a chart that feeds
+credentialing, a tunable threshold invites reporting whichever number reads best.</p>
+<p><strong>The detectable effect.</strong> It is measured against the limit the chart actually draws,
+including the wider limits of <code>oep</code>/<code>pp</code>/<code>up</code>: the question is whether this point would
+flag on <em>this</em> chart. Signals fire strictly above <code>ucl</code>, so a count flags when
+X ≥ ⌊ucl·n⌋ + 1. The smallest true effect with 80% power is the one at which
+F(⌊ucl·n⌋) = 0.2. With the upper contour at the exact test's boundary (§4.1) that event
+is exactly "p &lt; 0.001". The equation is solved exactly in the CDF's own parameter, never
+by scanning over ratios. <code>funnel()</code> reports the result as <code>min_detectable</code> and the
+interval as <code>ci_lower</code>/<code>ci_upper</code> on every measure:</p>
+<table>
+<thead>
+<tr>
+<th>Engine chart</th>
+<th>Count model</th>
+<th>Solved for</th>
+<th>Engine column (y scale)</th>
+<th>Per-point 95% CI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oe</code>, <code>oep</code></td>
+<td>Poisson(ρE)</td>
+<td>mean, then ρ = μ/E</td>
+<td><code>min_detectable_oe</code></td>
+<td>Garwood [5]</td>
+</tr>
+<tr>
+<td><code>u</code>, <code>up</code> funnel</td>
+<td>Poisson(θn)</td>
+<td>mean, then θ = μ/n</td>
+<td><code>min_detectable</code></td>
+<td>Garwood [5]</td>
+</tr>
+<tr>
+<td><code>p</code>, <code>pp</code> funnel</td>
+<td>Binomial(n, θ)</td>
+<td>θ directly</td>
+<td><code>min_detectable</code></td>
+<td>Clopper–Pearson [14]</td>
+</tr>
+</tbody>
+</table>
+<p>A u funnel's algebra is the O/E chart's with exposure in place of expected events, so it
+reuses the same functions. A Clopper–Pearson interval inverts the exact binomial test the
+same way Garwood inverts the Poisson one: the lower bound is the θ at which x or more
+events has probability 0.025, and the upper bound is the θ at which x or fewer does.</p>
+<p><strong>The Poisson solve</strong> takes safeguarded Newton steps on log F, where
+F = f·S, S is a running sum of products of j/μ, and d log F/dμ = −1/S. Six to ten
+steps replace fifty full CDF sweeps. A thousand-provider funnel with counts in the
+thousands (length of stay in days) took about 17 s by bisection and now takes well
+under 1 s. The TypeScript engine still bisects; the two agree far inside the
+quantization below.</p>
+<p><strong>Cross-platform reproducibility.</strong> The Poisson solve uses one lgamma, whose last ulp
+differs between platforms, so it is quantized to 1e-9. The binomial solve is lgamma-free. Its CDF is built from the
+term ratio outward from the mode, using the same walk as the binomial limits (§4.5), and
+normalized by its own total, so (1 − θ)ⁿ, which underflows at hospital volumes, is never
+formed. The walk uses only + − × ÷. The θ solve takes safeguarded Newton steps on the log
+of the smaller tail from a Wilson-score start, about five CDF evaluations instead of
+fifty, and stops once a step is below 1e-13 of θ. A proportion funnel of 5,000 providers
+fell from 10 s to about 1 s. The TypeScript engine still bisects; the two agree to about
+1e-13 relative. Contours, which must sit exactly on the test, keep their own bisection
+and are bit-identical across engines.</p>
+<p><strong>The summary.</strong> Every chart reports <code>underpowered</code>, <code>n_underpowered</code> and, when
+underpowered, a quotable <code>power_note</code>. Ghosted (<code>exclude=</code>) points are left out: they
+cannot flag, so they say nothing about the chart's reach.</p>
+<ul>
+<li><strong>O/E.</strong> The test is <code>min_detectable_oe &gt; 2</code>, with the median reported as
+  <code>min_detectable_oe_median</code>.</li>
+<li><strong>p/u funnels.</strong> A proportion or rate has no natural unit, so the test is relative to
+  the center line: <code>min_detectable / cl &gt; 2</code>, with the median of that ratio reported as
+  <code>min_detectable_ratio_median</code>. On a p funnel with cl ≥ 0.5 a doubling is not a
+  proportion. There only points that cannot flag at all count as underpowered; the ratio
+  still says how far above the line a point would have to be.</li>
+</ul>
+<p><strong>Edge cases.</strong> A point whose limit reaches n cannot flag at any θ. Internally its
+detectable proportion is infinite, so it counts as underpowered and enters the median;
+the column shows NaN. With exact interpolated limits this is effectively unreachable.
+A non-integer denominator (n/φ under <code>within_dispersion</code>, or an averaged n) has no
+binomial description. Its detectability and interval are interpolated between the
+whole neighbors, as its limits are (§4.13).</p>
+<h3 id="49-the-volume-axis">4.9 The volume axis<a class="headerlink" href="#49-the-volume-axis" title="Permanent link">&para;</a></h3>
+<p>[1, §2] plots each indicator against its precision ρ = 1/s², with the limits drawn as
+smooth contours. qikit plots against the denominator instead: sample size on p/pp,
+exposure on u/up, and expected events on oe/oep. That is the same axis up to a
+constant. For a proportion s² = θ₀(1 − θ₀)/n, so ρ ∝ n. For a rate or an O/E ratio
+s² = θ₀/n (or θ₀/E), so ρ ∝ n (or E). The difference is that volume is a unit a reader
+already understands. The adjusted funnels use the same axis, which is where the
+levelling-off of §4.4 shows.</p>
+<p>This is the axis <code>funnel()</code> draws. A funnel whose denominators are all equal falls back
+to plotting by unit, because a volume axis would stack every point on one line. The y
+axis is fitted to the providers, the center line and each contour's value nearest the
+center line, so the low-volume flare does not set the scale.</p>
+<p><strong>The contours.</strong> <code>FunnelResult.limits()</code> evaluates the limits on about 200
+geometric steps between the smallest and largest denominator, merged with every point's
+own n. It calls the same limit functions on the same path as the per-point limits
+(<code>core.contours.funnel_contours</code>), with the unrounded τ², so each curve passes exactly through
+the limit that decided that point's <code>signal</code>. A drawn point can
+therefore never sit inside the curve while being flagged, or outside it while not
+being flagged. A test pins this bit-for-bit on every funnel fixture. Between grid
+steps the plot interpolates linearly.</p>
+<p><strong>Binomial charts step in whole numbers.</strong> On p/pp the grid is rounded to integers,
+where the limits are exact. A non-integer n is interpolated between its whole
+neighbors (§4.13), so the contours stay continuous through every step, including
+under <code>within_dispersion</code>, where the model sees n/φ. The Poisson and Poisson–gamma
+charts take any positive n.</p>
+<p><strong>Log scale.</strong> <code>x_log=True</code> log-scales the axis, which spreads out a funnel whose
+providers span orders of magnitude. Plotly takes an annotation's position on a log axis
+as log10 of the value, so the center-line and limit labels and the signal labels are
+placed on that scale.</p>
+<h3 id="410-one-sided-signalling">4.10 One-sided signalling<a class="headerlink" href="#410-one-sided-signalling" title="Permanent link">&para;</a></h3>
+<p>Many indicators matter in one direction only; excess mortality is the usual example.
+<code>funnel(worse="higher")</code> flags only points beyond the upper contours, and
+<code>worse="lower"</code> only those beyond the lower ones. <code>worse=None</code>, the default, is the two-sided chart of [1]. The filter applies
+to both tiers, and through them to the point colors, the legend ("Worse than
+expected: …"), the counts and <code>label_signals=</code>. <code>summary["worse"]</code> records it.</p>
+<ul>
+<li><strong>Each side keeps its own tail probability.</strong> A one-sided chart flags at 0.1% and 2.5%
+  per provider by chance, half the two-sided chart's 0.2% and 5%.</li>
+<li><strong>The other side's limits are still drawn,</strong> because they are still where the null
+  model puts them. Hide them with
+  <code>styles={"lcl": {"visible": False}, "lcl_95": {"visible": False}}</code>.</li>
+<li><strong>Only on funnels.</strong> Runs rules describe patterns, not points beyond a line, and are
+  never side-filtered, so <code>qic()</code> has no side argument.</li>
+<li><strong>Detectability is still about the upper limit.</strong> <code>min_detectable</code> describes the
+  upper limit whatever the side. Under <code>worse="lower"</code> it says what an above-center
+  provider would have needed, which the chart no longer flags.</li>
+</ul>
+<h3 id="411-p-values-the-false-discovery-rate-and-what-decides-a-flag">4.11 P-values, the false discovery rate, and what decides a flag<a class="headerlink" href="#411-p-values-the-false-discovery-rate-and-what-decides-a-flag" title="Permanent link">&para;</a></h3>
+<p>Every funnel reports two values per point:</p>
+<ul>
+<li><strong><code>p_value</code>:</strong> an exact p-value against the null model its limits are drawn from;</li>
+<li><strong><code>q_value</code>:</strong> its Benjamini–Hochberg adjustment [15], the procedure [12] applies to
+  provider comparisons.</li>
+</ul>
+<p><strong>The null model.</strong> It uses the same distribution, center line and τ² as the limits.
+<code>summary["count_model"]</code> names it:</p>
+<table>
+<thead>
+<tr>
+<th>Engine chart</th>
+<th><code>count_model</code></th>
+<th>Count X</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oe</code>, <code>u</code></td>
+<td><code>poisson</code></td>
+<td>Poisson(θ₀n)</td>
+</tr>
+<tr>
+<td><code>oep</code>, <code>up</code></td>
+<td><code>poisson_gamma</code> (<code>poisson</code> when τ̂ = 0)</td>
+<td>Poisson–gamma, mean θ₀n, size θ₀²/τ² [7]</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td><code>binomial</code></td>
+<td>Binomial(n, θ₀)</td>
+</tr>
+<tr>
+<td><code>pp</code></td>
+<td><code>beta_binomial</code> (<code>binomial</code> when τ̂ = 0)</td>
+<td>Binomial(n, θ), θ ~ Beta(θ₀s, (1 − θ₀)s), s = θ₀(1 − θ₀)/τ² − 1</td>
+</tr>
+</tbody>
+</table>
+<p>A few rules follow from using the limits' own model:</p>
+<ul>
+<li>The unadjusted charts ignore their diagnostic τ̂, as their limits do.</li>
+<li>θ₀ is treated as known, as in [1].</li>
+<li>Under <code>within_dispersion=φ</code> the model sees O/φ events against E/φ (§4.12).</li>
+</ul>
+<p><strong>The p-value.</strong> These are conventional exact tail probabilities of the observed count
+O = y·n:</p>
+<table>
+<thead>
+<tr>
+<th><code>worse</code></th>
+<th>p-value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"higher"</code></td>
+<td>P(X ≥ O)</td>
+</tr>
+<tr>
+<td><code>"lower"</code></td>
+<td>P(X ≤ O)</td>
+</tr>
+<tr>
+<td><code>None</code></td>
+<td>min(1, 2·min of the two)</td>
+</tr>
+</tbody>
+</table>
+<p>They are valid p-values (uniform or conservative under the null), which the
+Benjamini–Hochberg step needs.</p>
+<ul>
+<li><strong>Computation.</strong> Each tail is summed directly from its own terms, never as one minus
+  the other, on the lgamma-free walk the mixture quantiles use (§4.5). A small p-value
+  therefore keeps its digits, and the result is identical across platforms. Terms the
+  walk drops sit below 1e-16 of the mass, so p-values smaller than that read 0.</li>
+<li><strong>A count between whole numbers.</strong> This is an averaged aggregate, or an effective
+  count O/φ. Each tail is interpolated linearly between its two integer neighbors. That
+  is exactly the inverse of the interpolated quantile, so the line-equals-test property
+  below holds for these counts too. <code>summary["p_value_method"]</code> is then
+  <code>"interpolated"</code>.</li>
+<li><strong>A denominator between whole numbers</strong> (binomial only: n/φ under
+  <code>within_dispersion</code>). Each tail is interpolated in n as well, by the function the
+  contours are solved from (§4.13). <code>p_value_method</code> is <code>"interpolated"</code>.</li>
+<li><strong>Normal fallback.</strong> Where the limits fall back to the normal approximation, the
+  p-values do too, with the same mean and variance and no continuity correction:</li>
+<li>a <code>pp</code> spread no beta distribution can have;</li>
+<li>a walk past its term limit.</li>
+</ul>
+<p><code>p_value_method</code> is <code>"normal"</code> if any point fell back.</p>
+<p><strong>The line is the test.</strong> With the upper contour drawn at the exact test's boundary
+(§4.1), a point is beyond a contour exactly when its p-value is below that contour's
+tail probability. The tail probability is 0.001 and 0.025 one-sided at the default 99.8%
+and 95%, doubled when two-sided. The test suite checks this on random funnels of all six
+charts, for whole and fractional counts, at both levels and on both sides. With 13
+deaths against 5 expected, for example, P(X ≥ 13) = 0.20%: the point is an alert,
+between the 95% and 99.8% lines. Under the published contour it sat beyond the 99.8%
+line.</p>
+<p><strong><code>signal</code></strong> picks one test for both tiers:</p>
+<table>
+<thead>
+<tr>
+<th><code>signal</code></th>
+<th>outlier</th>
+<th>alert</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"limits"</code> (default)</td>
+<td>beyond the outer contour, i.e. p &lt; its tail probability</td>
+<td>beyond the inner contour, not an outlier</td>
+</tr>
+<tr>
+<td><code>"fdr"</code></td>
+<td><code>q_value</code> &lt; <code>fdr_levels[0]</code> (0.05)</td>
+<td><code>q_value</code> &lt; <code>fdr_levels[1]</code> (0.10), not an outlier</td>
+</tr>
+</tbody>
+</table>
+<p><code>summary["expected_false_flags"]</code> gives each tier's chance count. Under <code>"limits"</code> it is
+K·α: the providers a chart of K average providers would put in the tier. Under <code>"fdr"</code>
+it is the Benjamini–Hochberg bound, at most Q times the number flagged.</p>
+<p><strong>Why there is no union of the two.</strong> A downstream request asked for "beyond the limit
+OR q below its level", either test being enough, as the default. The q-value at rank i
+is below Q exactly when p ≤ Q·R/K, where R is the number of Benjamini–Hochberg
+discoveries. So the union is the same as p &lt; max(α, Q·R/K):</p>
+<ul>
+<li><strong>At the alert tier</strong> (α = 0.025, Q = 0.10), q adds a flag only when more than a
+  quarter of providers are flagged, which is essentially never. The ~25 chance alerts
+  in 1,000 that motivate FDR all stay.</li>
+<li><strong>At the outlier tier</strong> (α = 0.001, Q = 0.05), q adds flags only when more than 2% of
+  providers are discoveries. That is, it adds power where signals are already plentiful,
+  which is the opposite of the stated aim.</li>
+</ul>
+<p>The union's tier also carries neither guarantee: it is not "about α of average
+providers", nor "at most Q of these are false". Each pure mode gives a clinical reader
+one sentence. A "flagged on at least two measures" ranking rule is itself a strong
+multiplicity guard: with four measures and independent chance alerts, about
+6 × 0.025² ≈ 0.4% of average providers qualify.</p>
+<p><strong>The q-value.</strong> Take the K points that have a p-value (<code>summary["n_tested"]</code>;
+excluded points have none) and sort them by p-value, ascending. The q-value at rank i is
+the minimum over ranks j ≥ i of p₍ⱼ₎·K/j, capped at 1. A point is significant at false
+discovery rate Q exactly when q &lt; Q. Each chart, and each facet, is adjusted on its own.
+<code>x_range=</code> only trims the view and never changes K.</p>
+<p><strong>On the figure.</strong></p>
+<ul>
+<li><strong>Caption.</strong> A figure without a caption of its own states the rule that colored its
+  points: the exact test and its levels, or the FDR levels and that the curves are then
+  for reference only.</li>
+<li><strong>Coloring by q on a <code>"limits"</code> chart.</strong> The two tests disagree most at the inner
+  contour: a point just beyond the 95% line passes that line's exact test, but among
+  hundreds of providers its q can be 0.3. <code>.plot(color_by="fdr")</code> colors the points by the <code>"fdr"</code>
+  tiers at <code>fdr_levels</code> while the result, its <code>signal</code> column and the drawn contours
+  stay <code>"limits"</code>, so a figure can match an action list built from <code>q_value</code>.
+  <code>fdr_watch=</code> adds a looser, display-only tier (open diamonds). The caption then states
+  the q rule.</li>
+<li><strong>Hover.</strong> It shows each point's p and q.</li>
+<li><strong>Detectability.</strong> <code>min_detectable</code> describes the drawn outer contour, which under
+  <code>"limits"</code> is the test itself. Under <code>"fdr"</code> what a point needs depends on every other
+  point.</li>
+</ul>
+<p><strong>Filtering before the FDR step.</strong> <code>fdr_min_denominator=t</code> leaves out of the
+Benjamini–Hochberg step every provider whose denominator, as the model sees it (n/φ
+under <code>within_dispersion</code>), is below t. Those providers keep their <code>p_value</code> but get no
+<code>q_value</code>, so they cannot flag under <code>signal="fdr"</code>, and they do not count in its K.
+Nothing else moves: they still count toward θ₀ and τ², are still drawn, and still flag
+under <code>signal="limits"</code>. <code>summary["n_filtered"]</code> counts them.</p>
+<ul>
+<li><strong>Why this is valid.</strong> A filter that depends only on each test's design (its
+  denominator) and not on its outcome is <em>independent filtering</em> [29]. Under the null
+  the kept p-values are still uniform or conservative, so Benjamini–Hochberg on the kept
+  set still controls the false discovery rate, now over fewer tests.</li>
+<li><strong>Underpowered is not untestable.</strong> For <code>worse="higher"</code> on counts the upper tail is
+  unbounded. A physician with E = 1.5 and 8 readmissions has a tiny p-value, so low
+  volume never makes a provider <em>unable</em> to flag, only unlikely to. A floor on volume is
+  therefore a policy choice to give up those rare gross low-volume outliers in exchange
+  for power among the rest. That is why it is opt-in and named for what it does. A truly
+  untestable provider, whose smallest attainable p-value is above the threshold, exists
+  only on a bounded tail: <code>worse="lower"</code> on counts (p ≥ e^(−θ₀E) at zero events), and
+  proportions at very small n. That is Tarone's criterion [30], and the discrete FDR
+  procedures built on it [31, 32] are the principled way to gain power there (planned,
+  §6).</li>
+<li><strong>Declined: Storey's q-value [33] and a power-screened BH.</strong> Storey's estimate of the
+  null share π₀ gains power only when many providers are truly non-null. With τ² in the
+  null model, most providers <em>are</em> null by construction, so π̂₀ ≈ 1 and the gain is small.
+  Discrete, conservative p-values pile up near 1 and push π̂₀ toward 1 further. A
+  screen on <code>min_detectable</code> that sets <code>q_value</code> to NaN would remove the gross
+  low-volume outliers above, so it was declined as a default and replaced by this
+  explicit floor.</li>
+</ul>
+<h3 id="412-counts-that-clump-within-cases">4.12 Counts that clump within cases<a class="headerlink" href="#412-counts-that-clump-within-cases" title="Permanent link">&para;</a></h3>
+<p>Spiegelhalter's count models assume each counted unit is an independent event. Length
+of stay as observed/expected <strong>days</strong> breaks that: one stay adds many days at once, so a
+provider's day total has variance about φ times its mean, where φ is the
+variance-to-mean ratio of days per stay. φ is typically 5–10 for inpatient stays. The
+additive τ² cannot absorb this. It adds a constant to the variance of the ratio, while
+the missing variance, φθ₀/E, shrinks with volume, so the smallest providers' limits stay
+far too narrow and every p- and q-value is too small (§5).</p>
+<p><strong>The fix.</strong> <code>within_dispersion=φ</code> treats the count as a Poisson count of O/φ events
+against E/φ expected: the quasi-Poisson model, in which variance is φ times the mean.
+The ratio is unchanged, so only the denominator the model sees moves. The limits, τ²
+(Pearson z with variance θ₀φ/E), p-values (interpolated for the non-integer effective
+counts, §4.11), detectability and intervals all follow from it. The echoed numerator and
+denominator stay in the caller's units. Effective counts are large at length-of-stay
+volumes.</p>
+<p><strong>φ below 1.</strong> A binary-outcome O/E (deaths, readmissions) from case rows has
+variance Σp(1 − p) &lt; Σp = E, so <code>"estimate"</code> returns φ̂ ≈ 1 − p̄ there. qikit keeps the
+estimate, which narrows the limits by the binomial variance the Poisson model leaves
+out (about 8% at a 15% event rate, negligible for mortality), and adds a note saying
+so; <code>within_dispersion=1</code> keeps the Poisson model. The effective counts are then
+fractional, so the test is interpolated (§4.11).</p>
+<p><strong>Estimating φ.</strong> <code>within_dispersion="estimate"</code> takes stay-level rows (several per
+unit) and computes</p>
+<p>φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / (θ̂ⱼnᵢⱼ) / (N − K),  θ̂ⱼ = Σᵢyᵢⱼ / Σᵢnᵢⱼ,</p>
+<p>the Pearson dispersion of each stay around its own provider's rate. Using each
+provider's own rate keeps real differences between providers out of φ̂, leaving them to
+τ²; the test suite checks that a planted provider effect leaves φ̂ unchanged. A faceted
+call estimates φ per facet. Long stays dominate φ̂, so cap them at a stated percentile
+before aggregating, as length-of-stay benchmarks usually do.</p>
+<p><strong>The diagnostic.</strong> An agent or analyst who passes aggregated days without φ should not
+get a silently wrong chart. The Pearson residuals of any funnel have variance
+a + b·nᵢ/n̄, in two separable parts:</p>
+<ul>
+<li>clumping within cases inflates every provider's variance by the same factor, whatever
+  its volume, so a = φ;</li>
+<li>real differences between providers add τ², which grows with volume on the z scale,
+  so b &gt; 0.</li>
+</ul>
+<p>qikit fits both by maximum likelihood, by iteratively reweighted least squares on z²
+with each residual capped at three of its own SDs. It calls the shape "within" when an
+intercept above 1 is significant (likelihood ratio &gt; χ²₁ 0.999) and estimates φ ≥ 2,
+and "between" when a slope above 0 is significant at the same level. The result is
+<code>summary["dispersion_shape"]</code> (<code>none</code> / <code>between</code> / <code>within</code> / <code>both</code>, or <code>unknown</code> when
+the largest volume is under 1.5 times the smallest). It needs at least 30 providers, the
+smallest K the thresholds were calibrated at. When the shape is "within" or "both" and
+<code>within_dispersion</code> was left at 1, qikit:</p>
+<ul>
+<li>raises a <code>UserWarning</code> naming the fix;</li>
+<li>adds the same sentence to <code>summary["notes"]</code>;</li>
+<li>adds a warning line to the figure's caption.</li>
+</ul>
+<p>The intercept is reported as <code>within_dispersion_hint</code>, an estimate of φ from aggregated
+data alone. Because the fix is a model choice, the diagnostic never applies it.</p>
+<p><strong>Estimating φ from SQL totals.</strong> Stay-level rows need not leave the database. With
+θ̂ⱼ = Yⱼ/Nⱼ, each provider's Pearson sum expands to sufficient statistics:</p>
+<ul>
+<li>counts: Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)²/(θ̂ⱼnᵢⱼ) = Σᵢ yᵢⱼ²/nᵢⱼ / θ̂ⱼ − Yⱼ;</li>
+<li>proportions: Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)²/nᵢⱼ = Σᵢ yᵢⱼ²/nᵢⱼ − θ̂ⱼYⱼ.</li>
+</ul>
+<p>So one row per provider of (Y, N, k = cases, Σy²/n), passed as <code>cases=</code> and <code>sum_sq=</code>,
+gives φ̂, the clustering check, and every downstream number equal to the case-row path to
+rounding (the test suite checks both families). <code>sum_sq</code> is a raw sum, not a residual,
+so SQL cannot compute it around the wrong center.</p>
+<p><strong>One φ per provider: case mix.</strong> A single φ assumes every provider's stays are equally
+variable. When variability depends on what is treated (DRG, service line), a provider
+with complex patients has a larger true φ. <code>within_dispersion="&lt;column&gt;"</code> takes one φᵢ
+per provider. The natural construction is case-mix weighting: φ_g per DRG from SQL, then
+φᵢ = Σⱼ φ_g(j)·eⱼ / Σⱼ eⱼ over the provider's stays. Each provider is judged on Yᵢ/φᵢ out
+of Nᵢ/φᵢ, the same quasi-Poisson effective counts as above. Because no single φ maps
+caller units to the model, the x axis (and <code>limits()</code>) is the effective denominator
+(<code>effective_denominator</code>), so each point still sits against its own exact test.
+<code>numerator</code> and <code>denominator</code> stay in the caller's units, and <code>summary["within_dispersion"]</code>
+is the volume-weighted mean Σn/Σ(n/φᵢ). A φ_g estimated from few stays is noisy. Shrinking
+it toward the pooled φ with the moderated-variance step of Smyth [19] (prior degrees of
+freedom estimated, not fixed) is the right use of that idea; a built-in <code>strata=</code> that
+does this is planned (§6).</p>
+<p><strong>Declined: each provider's own variance.</strong> A request asked for an O/E chart on which
+each provider's null variance comes from its <em>own</em> stays, s²ᵢ shrunk toward the pool
+(limma's moderated t [19]), tested on t with ν₀ + k − 1 degrees of freedom. That
+transposes a genomics method to a setting where it fails:</p>
+<ul>
+<li><strong>Self-masking.</strong> Length of stay is right-skewed, and its variance rises with its
+  mean, so a provider with long stays also has a large s²ᵢ. Their own z shrinks, and the
+  providers the funnel exists to find hide behind their own variability. Meta-analysis
+  has the same problem. Standard methods treat estimated within-study variances as known
+  and ignore their correlation with the effect estimates, which Jackson and White call
+  potentially serious in small studies [20, §3.2].</li>
+<li><strong>The center leaks into the variance.</strong> Residuals taken around θ₀ rather than the
+  provider's own rate give E[s²ᵢ] = Var + (θᵢ − θ₀)²·(spread of e), so the deviation
+  being tested also inflates its own variance.</li>
+<li><strong>The line stops being the test.</strong> A funnel's null variance must describe an average
+  provider treating this provider's patients [1, 21]: a function of the patients, not of
+  this provider's outcomes. Contours drawn from a pooled s₀² while each point is tested
+  against its own s²ᵢ break the invariant that a point beyond a line is flagged (§4.11).</li>
+<li><strong>An arbitrary prior.</strong> ν₀ = 20 fixed, where Smyth estimates it, on top of a second
+  normal approximation.</li>
+</ul>
+<p>The two needs behind the request, variability that differs by case mix and no
+200,000-row transfer, are met by the column and the sufficient statistics above, without
+these failures.</p>
+<h3 id="413-multi-item-instruments-items-clustered-in-surveys">4.13 Multi-item instruments: items clustered in surveys<a class="headerlink" href="#413-multi-item-instruments-items-clustered-in-surveys" title="Permanent link">&para;</a></h3>
+<p>A survey composite scored per item, such as HCAHPS "Communication with Doctors"
+("Always" answers / items answered over explains, listens and respects), is a
+proportion of items. The items on one survey come from one patient and mostly agree. A
+binomial treats them as independent. If the m items of a survey have intraclass
+correlation ρ, a provider's item count has variance</p>
+<p>n θ(1 − θ) · [1 + (m − 1)ρ] = n θ(1 − θ) · φ,</p>
+<p>where φ is Kish's design effect [18]. With three items and ρ = 0.7, φ ≈ 2.4. Twelve items
+from four surveys then carry about as much information as five independent ones.</p>
+<p><strong>Why item counts over-flag, and why the flags move.</strong> Left at φ = 1, the funnel makes
+two errors:</p>
+<ul>
+<li><strong>Small providers are over-flagged.</strong> Every provider's binomial limits are √φ too
+  narrow. The additive τ² cannot correct this, because the missing variance shrinks with
+  volume (§4.12). Every p-value and q-value is too small as well.</li>
+<li><strong>τ̂ is inflated.</strong> τ̂ absorbs part of the clustering variance as if providers really
+  differed, which widens the limits of high-volume providers.</li>
+</ul>
+<p>Correcting φ therefore does more than remove flags. τ̂ falls, small providers drop out,
+and some large providers become more clearly unusual.</p>
+<p><strong>Which unit to pass.</strong> Pass one row per survey: y = items meeting the measure, n = items
+answered. Use <code>measure="proportion"</code> and <code>within_dispersion="estimate"</code>. Two other inputs
+fail:</p>
+<ul>
+<li><strong>One row per item.</strong> This hides the problem. A row holding a single yes/no has
+  variance fixed by its mean, so it cannot show clustering, and <code>"estimate"</code> refuses
+  rows whose n are all 1.</li>
+<li><strong>One row per provider.</strong> This leaves only the provider-level shape test (§4.12), which
+  a real between-provider spread can mask. In a downstream example with φ = 2.4 on both
+  top-box and bottom-box, the totals read "within" on top-box but "between" on
+  bottom-box.</li>
+</ul>
+<p>Recoding the measure as "all items Always", one binary per survey, would be an exact
+binomial. It is a different measure, though, not the published HCAHPS definition.</p>
+<p><strong>The fix.</strong> <code>within_dispersion=φ</code> gives the model y/φ events out of n/φ cases, the
+Rao–Scott effective sample size for clustered binary data [17]. It is the binomial
+analogue of the quasi-Poisson correction in §4.12. The proportion is unchanged.</p>
+<p><strong>Estimating φ.</strong> From survey-level rows:</p>
+<p>φ̂ = Σⱼ Σᵢ (yᵢⱼ − θ̂ⱼnᵢⱼ)² / nᵢⱼ / [θ̄(1 − θ̄)(N − K)],</p>
+<ul>
+<li>Residuals are taken around each provider's own θ̂ⱼ, so differences between providers
+  stay out of φ̂ (§4.12).</li>
+<li>The variance uses the pooled θ̄, not each provider's θ̂ⱼ(1 − θ̂ⱼ). At a few surveys per
+  provider many have θ̂ⱼ of 0 or 1. On a simulated bottom-box at 10% (§5), nearly one
+  physician in five had no bottom-box answer at all. Their own rate would drop them,
+  biasing φ̂.</li>
+<li>With the pooled rate, independent yes/no rows read φ̂ ≈ 1, where their own rate would
+  read N/(N − K).</li>
+<li>The remaining bias is −τ²/[θ̄(1 − θ̄)]: under 1% at realistic τ.</li>
+</ul>
+<p><strong>A denominator between whole numbers.</strong> n/φ is rarely an integer, and no binomial has a
+fractional size. Rounding it, the usual workaround, moves a five-item-equivalent
+provider by up to 10%. The normal approximation is badly placed at these counts (§4.1).
+qikit interpolates every tail linearly in ν = n/φ between m₀ = ⌊ν⌋ and m₀ + 1, at the
+same proportion p:</p>
+<p>T(p; ν) = (1 − w)·T_m₀(p·m₀) + w·T_m₀₊₁(p·(m₀ + 1)),  w = ν − m₀.</p>
+<p>Each T_m is the exact binomial or beta-binomial tail, itself interpolated between whole
+counts (§4.11). Everything follows from this one function:</p>
+<ul>
+<li><strong>Contours.</strong> The contours are where T crosses each tail probability, found by
+  bisection, so "beyond the line" and "p &lt; α" remain one statement.</li>
+<li><strong>Whole ν.</strong> At a whole ν, T is the exact tail. The contours are then the exact ones,
+  continuous through every integer and monotone in volume (both checked by the test
+  suite).</li>
+<li><strong>Consistency across models.</strong> The same holds for the binomial and the beta-binomial,
+  so τ̂ = 0 still reproduces the unadjusted chart to the bit.</li>
+<li><strong>Intervals and detectability.</strong> The 95% interval inverts the same tails in θ. That is
+  Korn and Graubard's effective-sample-size Clopper–Pearson interval for survey data
+  [16], with this interpolation in place of their beta form. <code>min_detectable</code>
+  interpolates the chance of crossing the drawn line in the same way.</li>
+<li><strong>Labels.</strong> <code>summary["limit_method"]</code> and <code>summary["p_value_method"]</code> read
+  <code>"interpolated"</code>. The arithmetic is lgamma-free, as in §4.5.</li>
+</ul>
+<p><strong>The case-level check.</strong> Case-level rows are several rows per unit: stays, or surveys.
+When they are present and <code>within_dispersion</code> is left at 1, qikit computes the row φ̂
+above, or the count version of §4.12 for oe/rate, and tests it with Pearson χ² on N − K
+degrees of freedom. It warns when φ̂ ≥ 1.25 and p &lt; 0.001. The floor is low because the
+test is powerful: at φ = 1.25 the 99.8% limits are √1.25 too narrow, which in the
+normal approximation lets through nearly three times the nominal false outliers. When it fires:</p>
+<ul>
+<li><code>dispersion_shape</code> becomes "within", or "both" if the totals also show "between";</li>
+<li><code>within_dispersion_hint</code> is the row φ̂, and <code>within_dispersion_hint_source</code> is
+  <code>"rows"</code> (otherwise <code>"totals"</code>);</li>
+<li>the warning, note and caption line of §4.12 follow, naming one row per survey as the
+  fix for a proportion.</li>
+</ul>
+<p>The check never applies the fix itself. Rows of one yes/no each, and rows that leave
+fewer than 30 residual degrees of freedom, are not tested.</p>
+<p><strong>Reading physician-level composites.</strong> Four surveys at φ = 2.42 give about five
+effective items. Against a top-box rate of 80%, the 99.8% lower contour is then 1.8%:
+only a physician with almost no "Always" answers is an outlier. Against a bottom-box rate
+of 10%, the upper contour is 79%. <code>min_detectable</code> and <code>underpowered</code> say so per
+provider. For choosing
+physicians for intervention, prefer <code>signal="fdr"</code> with a one-sided <code>worse=</code>. Top-box and
+bottom-box are two tests of the same items, so a physician flagged on both has one
+finding, not two.</p>
+<h3 id="414-shrunk-estimates-and-reliability">4.14 Shrunk estimates and reliability<a class="headerlink" href="#414-shrunk-estimates-and-reliability" title="Permanent link">&para;</a></h3>
+<p>Every funnel reports, per provider:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>raw_excess</code></td>
+<td>(Y − θ₀N), signed so positive is worse: the observed excess days or events</td>
+</tr>
+<tr>
+<td><code>reliability</code></td>
+<td>B, the shrinkage weight below</td>
+</tr>
+<tr>
+<td><code>eb_rate</code></td>
+<td>B·y + (1 − B)·θ₀ (on the plotted scale)</td>
+</tr>
+<tr>
+<td><code>eb_excess</code></td>
+<td>(eb_rate − reference)·N, signed as <code>raw_excess</code></td>
+</tr>
+<tr>
+<td><code>eb_low</code>, <code>eb_high</code></td>
+<td>Equal-tailed <code>interval=</code> (95%) quantiles of the provider's posterior</td>
+</tr>
+<tr>
+<td><code>prob_worse</code></td>
+<td>P(true value worse than the reference), from the same posterior</td>
+</tr>
+<tr>
+<td><code>estimate_flag</code></td>
+<td>Where [<code>eb_low</code>, <code>eb_high</code>] lies against the reference</td>
+</tr>
+</tbody>
+</table>
+<p>θ₀ here is the prior's center: the center line, or under <code>compare_to="model"</code> the pooled
+value (below). The reference is the center line, or 1.0 under <code>compare_to="model"</code>
+(<code>summary["reference"]</code>).</p>
+<p><strong>The estimator is the chart's own posterior mean.</strong> The adjusted funnels already model
+true provider rates as gamma (counts) or beta (proportions) around θ₀ with variance τ²
+(§4.5). For those conjugate families the posterior mean of a provider's true rate is
+exactly linear in its observed rate: Bühlmann credibility [22]. For the Poisson–gamma
+model with a = θ₀²/τ², b = θ₀/τ², the posterior mean is (a + O)/(b + E), so
+B = τ²/(τ² + θ₀/E). For the beta-binomial with α + β = s = θ₀(1 − θ₀)/τ² − 1, it is
+(α + Y)/(s + n), so B = n/(n + s). Both use the effective n/φ under <code>within_dispersion</code>.
+There is no choice between a "linear" and an "exact" estimator to make: they are the
+same number. B is also the reliability of the provider's score in the sense of the
+physician-profiling literature, τ²/(τ² + V₀) [24]; for the beta-binomial it carries the
+model's (n − 1)/n factor.</p>
+<p><strong>The prior's spread is estimated by maximum likelihood.</strong> The limits keep the chart's
+<code>tau_method</code>, but the estimate columns use τ̂ by maximum likelihood of the same
+mixture model around θ₀ (<code>summary["estimate_tau"]</code>), or <code>tau=</code> when given. The
+published estimator understates τ, often returning 0 for a real spread (§4.16). For a
+screen whose flags are reviewed, that errs toward flagging, which is acceptable. For an
+estimate, it over-shrinks every provider toward θ₀ and leaves the intervals short: with
+τ estimated by the published method, 95% intervals covered 49–89% of true values; by
+maximum likelihood, 91–95% (§5). Maximum likelihood is not robust to outliers (§4.16):
+a few extreme providers raise τ̂, which shrinks everyone less. For an estimate that is
+the cautious direction. Before 1.2 the estimate columns used the chart's τ, so their
+values changed with 1.2.</p>
+<p><strong>Intervals.</strong> With a = θ₀²/τ², b = θ₀/τ², a provider's true value has posterior
+Gamma(a + O, rate b + E) on counts (O/E, rates, means), and with α = θ₀s, β = (1 − θ₀)s,
+Beta(α + Y, β + n − Y) on proportions, all on effective counts (O/φ out of E/φ). <code>eb_low</code>
+and <code>eb_high</code> are its (1 − c)/2 and (1 + c)/2 quantiles for <code>interval=</code> c, found by
+inverting the regularized incomplete gamma and beta functions with safeguarded Newton
+steps on log x (gamma) or logit x (beta); no dependency beyond numpy. <code>estimate_flag</code> is
+<code>"worse"</code> or <code>"better"</code> (with <code>worse=</code>; <code>"higher"</code> or <code>"lower"</code> without) when the whole
+interval lies on one side of the reference, and <code>"no different"</code> otherwise. It is the
+CMS reporting rule [23, 45] in this model, and it has no multiplicity control.</p>
+<p><strong>Against the risk model.</strong> <code>compare_to="model"</code> draws limits around 1.0 with no
+spread, so the chart itself has no prior to shrink toward. The estimate columns then
+use a prior centered on the providers' pooled value Σnᵢyᵢ/Σnᵢ, with τ̂ estimated around
+that value (or <code>tau=</code>, which here sets only this spread). Each provider is judged
+against 1.0: <code>prob_worse</code> is P(true O/E &gt; 1.0), and <code>estimate_flag</code> compares the
+interval with 1.0. The pooled center is deliberate. τ estimated around 1.0 would absorb
+any system-wide gap between the providers and the model (§4.2.1), and the pooled value
+is the best prior guess for a low-volume provider in this system. Limits, p-values,
+q-values and <code>signal</code> are exactly those of <code>center=1.0, overdispersion=False</code>. The same
+prior applies to that explicit pair.</p>
+<p>This adapts the CMS hospital-level method [45] to physicians, with an external expected
+(Vizient, CMS) as the baseline. It applies established methods [21, 23, 35, 46, 49]; it
+is not a replication of a published physician-level design. CMS fits a hierarchical
+logistic model on patient-level data with full uncertainty. <code>funnel()</code> uses the
+Poisson–gamma or beta-binomial model on provider totals, with τ plugged in. Its
+intervals are therefore somewhat narrower when τ is poorly determined (few providers).
+The example notebook (<code>docs/examples/hierarchical_readmissions.ipynb</code>) fits the
+patient-level model for comparison.</p>
+<p><strong>No spread, no shrinkage target.</strong> When τ̂ = 0, every B is 0, every <code>eb_rate</code> is θ₀,
+every <code>eb_excess</code> is 0 against the center line, and the interval columns are NaN with a
+note. That is the honest answer: the data show no between-provider spread, so no
+provider's difference can be told from chance. No fallback weight is invented. An
+estimated τ that would leave even the largest provider's reliability below 0.01 counts as
+no spread: maximum likelihood returns such values from numerical noise beside the
+τ = 0 boundary, and their priors carry nothing. An unadjusted chart with a custom center
+(<code>overdispersion=False</code>, not against the risk model) has no prior either.</p>
+<p><strong>Why rank on <code>eb_excess</code>.</strong> <code>raw_excess</code> scales with volume, so a high-volume provider
+with a small, noisy difference outranks a mid-volume provider with a large, certain one.
+<code>eb_excess</code> is the expected excess once chance is discounted. It is a defensible
+prioritization loss, the expected reducible days or events. Posterior means are not the
+optimal statistic for ranks themselves [26]. Shrunk estimates are steadier year to year
+and forecast future performance better than raw rates, most of all at low volume [46].
+The approach is the one the CMS hospital measures [45] and the COPSS–CMS white paper
+endorse [23, 21], and reliability is how
+physician profiling is judged: Adams et al. found most physicians' cost profiles below
+the 0.7 reliability usually asked of high-stakes use (59% of physicians), with about 22%
+misclassified in a two-tier network [24]. Hofer et al. made the same point for diabetes report cards [25].
+<code>reliability</code> lets an application apply that floor.</p>
+<p><strong>Minimum denominator for a reliability target.</strong> In both families B = n/(n + k) on the
+denominator the model sees, with k = θ₀/τ² on counts and k = s = θ₀(1 − θ₀)/τ² − 1 on
+proportions. So the denominator at which reliability reaches a target R is</p>
+<div class="highlight"><pre><span></span><code>n_R = k · R/(1 − R)
+</code></pre></div>
+<p>and <code>FunnelResult.min_denominator()</code> returns it, multiplied by φ under a scalar
+<code>within_dispersion</code> so that it is in the caller's units. For a mean this is
+R/(1 − R) · σ²/τ² cases, with σ² the variance of one case: the classical result for
+the reliability of a mean. It uses the same θ₀ and τ̂ as the <code>reliability</code> column
+(the maximum-likelihood τ̂ around the prior's center), so a provider is at or above
+n_R exactly when its <code>reliability</code> is at or above R; the method reports how many are
+on each side (<code>n_above</code>, <code>n_below</code>) and the volume they hold. The floor for O/E is in
+expected events, not cases: it is the expected count that carries the information.</p>
+<p>The range (<code>min_low</code>, <code>min_high</code>) is n_R at the two ends of the profile-likelihood 95%
+interval for τ (<code>summary["estimate_tau_ci"]</code>). Since n_R ∝ 1/τ², it is wide whenever τ
+is poorly determined, which is the usual case below about 30 providers, and its upper
+end is infinite when the interval reaches τ = 0. It reflects the uncertainty in τ
+only; θ₀ is treated as known. When τ̂ = 0 no floor is returned: with no spread between
+providers no volume makes a score reliable, and substituting a conventional threshold
+would misstate that. The target R is not a statistical quantity. 0.7 is the convention
+for high-stakes profiling [24]; a lower target suits a screen whose results are
+reviewed, a higher one decisions about a single provider.</p>
+<p><code>funnel_rollup()</code> repeats this at each level of a hierarchy (physician, group,
+hospital), fitting each level separately. τ at a coarser level is the spread between
+that level's units, which is usually smaller than the spread between physicians, so a
+coarser level's floor is often higher even as its units grow: rolling up helps only
+when volume grows faster than the floor. The levels are fitted independently, not as
+one nested model, so the table compares levels; it does not partition the variance
+between them.</p>
+<p><strong><code>prob_worse</code></strong> is the posterior probability, under the same model, that the provider's
+true value is worse than the reference: the upper (or, for <code>worse="lower"</code>, lower) tail of
+Gamma(a + O, b + E) or Beta(α + Y, β + n − Y) at the reference, on effective counts, from
+the regularized incomplete gamma and beta functions. It is NaN when τ = 0. It answers a
+different question from <code>signal</code>; §4.16 explains which to use.</p>
+<p><strong>Ranks.</strong> The caterpillar plot (<code>plot(kind="caterpillar")</code>) orders providers by
+<code>eb_rate</code> but draws each interval, because league-table ranks are very uncertain even
+when real differences between providers exist [47]. Jones and Spiegelhalter [49] set out
+how screening for divergent providers and estimating each provider's value from the
+same hierarchical model fit together. Here, <code>signal</code> is the screen and the estimate
+columns are the estimates.</p>
+<p><strong>At physician level</strong> much of the variation in an outcome may belong to the hospital,
+not the physician. Goodwin et al. found hospitalists varied meaningfully in length of
+stay and discharge destination but very little in 30-day readmission or mortality, and
+the hospital explained much of the hospitalist variation [48]. Expect low reliability
+for physician readmissions, and facet or adjust by hospital or campus.</p>
+<p><strong>Caveat: exchangeability.</strong> Shrinking toward θ₀ assumes providers are alike apart from
+noise and τ². A volume–outcome relationship breaks that, because small providers would
+then be shrunk toward a mean that is not theirs. The volume test is still planned (§6).</p>
+<h3 id="415-single-case-robustness">4.15 Single-case robustness<a class="headerlink" href="#415-single-case-robustness" title="Permanent link">&para;</a></h3>
+<p>Physician leaders ask whether a flag is "one patient". With case-level rows, every
+funnel answers per provider:</p>
+<ul>
+<li><strong><code>p_value_drop1</code>:</strong> the p-value with the provider's most extreme case removed. That is
+  the case with the largest y − θ₀n toward <code>worse=</code>, or toward the provider's own side
+  when <code>worse=None</code>. It is tested against the same θ₀, τ² and φ. With provider rows from
+  SQL, <code>max_case_y=</code>/<code>max_case_n=</code> supply that case
+  (<code>MAX_BY(obs, obs − exp)</code>, with the benchmark 1.0 standing in for θ₀).</li>
+<li><strong><code>flag_survives_drop1</code>:</strong> for flagged providers, whether they still flag at the alert
+  tier with that case removed. Under <code>signal="fdr"</code> the same p-value cutoff the step
+  used is held fixed.</li>
+<li><strong><code>fragility</code>:</strong> case rows only. The fewest worst cases that must be removed, in order,
+  before the flag goes (scanning up to min(k − 1, 50)). <code>summary["n_fragile"]</code> counts
+  flagged providers at 1, and a note asks a reviewer to look at that case before acting.
+  This is the provider analogue of a trial's Fragility Index [27], a number clinicians
+  already read.</li>
+</ul>
+<p><strong>No q-value.</strong> A request asked for <code>q_value_loo</code>, the leave-one-out p substituted into
+the Benjamini–Hochberg step. Choosing each provider's <em>worst</em> case is a one-sided
+selection made after seeing the data, and no false discovery rate guarantee survives it.
+These columns are descriptive robustness checks, not tests.</p>
+<p><strong>Fragility is not a license to drop cases.</strong> Hofer et al. showed that outlier
+physicians on diabetes report cards could greatly improve their profiles by removing
+their 1–3 worst-controlled patients [25]. That is exactly why a flag that hinges on one
+case needs that case reviewed, not removed. Exclusions must be decided by pre-specified
+rules (§4.12 trimming) before the funnel is drawn, never by fragility after it.</p>
+<p><strong>What fragility means depends on the measure.</strong> For days (length of stay), one case
+contributes many units, and a fragility of 1 says one long stay carries the flag. That
+is worth reviewing, as a placement delay or a coding error. For event counts (deaths,
+readmissions) every event is one patient. A low-volume provider flagged on 3 events
+against 1 expected will almost always have fragility 1, and that is the discreteness of
+counts, not a data problem. The note says so on event-count charts.</p>
+<p><strong>Trimming comes first.</strong> Length-of-stay benchmarks cap or trim outlying stays at
+DRG-specific points before aggregating (§4.12 advises the same). That is the primary
+defense against single stays. These columns are a check on what remains. For a model-
+based check of whole providers, the cross-validated mixed predictive p-values of
+Marshall and Spiegelhalter [28] remove a provider from the estimate of θ₀ and τ² it is
+judged against, the circularity of §4.2.</p>
+<h3 id="416-choosing">4.16 Choosing τ<a class="headerlink" href="#416-choosing" title="Permanent link">&para;</a></h3>
+<p>τ, the spread of true values between providers, decides how wide the adjusted funnel
+is, how much <code>eb_rate</code> shrinks, and what <code>prob_worse</code> means. The model itself, true
+rates gamma- or beta-distributed around θ₀ with variance τ², is the one the
+random-effects literature uses: Pavlou et al.'s Normal–Poisson random-effects model [9],
+drawn exactly. The literature differs on where τ comes from, and qikit offers each:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>τ from</th>
+<th>Estimator</th>
+<th>Strengths</th>
+<th>Weaknesses</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tau_method="spiegelhalter"</code> (default)</td>
+<td>This period</td>
+<td>Method of moments on 10%-winsorized Pearson residuals, then DerSimonian–Laird [1, eqs. 6–10]</td>
+<td>Reproduces published funnels exactly; robust to the outliers being screened for; the more sensitive screen</td>
+<td>Understates τ (often 0 for a real spread), so average providers flag more than the stated rate</td>
+<td>Spiegelhalter [1], FunnelPlotR [13], NHS/CQC</td>
+</tr>
+<tr>
+<td><code>tau_method="winsorized"</code></td>
+<td>This period</td>
+<td>The same × c(0.10) [1, eq. 9]</td>
+<td>Close to unbiased from K ≈ 50, so chance flags run at the stated rate; equally robust</td>
+<td>Less sensitive; overstates τ slightly at small K with no real spread</td>
+<td>qikit (§4.3)</td>
+</tr>
+<tr>
+<td><code>tau_method="ml"</code></td>
+<td>This period</td>
+<td>Maximum likelihood of the chart's own mixture model, θ₀ fixed; reports a 95% profile-likelihood interval (<code>tau_ci</code>)</td>
+<td>Uses every count; on clean data returns exactly 0 under the null more often than not; quantifies its own uncertainty</td>
+<td>Not robust: a single gross outlier among 30 providers inflates τ̂ and hides itself</td>
+<td>Random-effects models: Pavlou [9], CMS's hierarchical models [23]</td>
+</tr>
+<tr>
+<td><code>tau_method="cqc"</code>, <code>"shmi"</code></td>
+<td>This period</td>
+<td>Residuals on the √ (arcsine) or log scale, winsorized or truncated (§4.17)</td>
+<td>Reproduce CQC and NHS SHMI funnels</td>
+<td>Normal limits on the transformed scale, not exact</td>
+<td>CQC, NHS SHMI, FunnelPlotR [13]</td>
+</tr>
+<tr>
+<td><code>tau=</code> (fixed)</td>
+<td>Earlier periods, set in advance</td>
+<td>Whatever produced it (typically the default on several prior years, reviewed)</td>
+<td>Cannot be inflated by this period's outliers; no small-K bias; holds every period to the same yardstick</td>
+<td>Needs clean, representative history; goes stale if coding, the risk model or attribution change</td>
+<td>Discussed by Pavlou [9]; regulatory practice</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Evidence.</strong> 150 replicates, E ~ U(3, 30), Poisson–gamma provider effects. The
+"fixed" τ was estimated by the winsorized estimator on an independent earlier period with twice the
+volume and no outliers, which is the best case for that option:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Winsorized</th>
+<th>ML</th>
+<th>Fixed in advance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>K = 30, τ = 0</td>
+<td>0.062 (IQR 0–0.141)</td>
+<td>0.000 (0–0.098)</td>
+<td>0.000 (0–0.069)</td>
+</tr>
+<tr>
+<td>K = 30, τ = 0.15</td>
+<td>0.149</td>
+<td>0.146</td>
+<td>0.150</td>
+</tr>
+<tr>
+<td>K = 150, τ = 0.3</td>
+<td>0.281</td>
+<td>0.297</td>
+<td>0.283</td>
+</tr>
+<tr>
+<td>K = 150, τ = 0.15, plus 3% outliers at O/E 2.5</td>
+<td>0.176</td>
+<td><strong>0.249</strong></td>
+<td>0.145</td>
+</tr>
+<tr>
+<td>K = 30, τ = 0, plus <strong>one</strong> outlier (O/E 2.5 at E = 15)</td>
+<td>0.084 (0–0.147)</td>
+<td><strong>0.216</strong> (0.172–0.264)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>K = 150, τ = 0, plus one outlier</td>
+<td>0.025 (0–0.075)</td>
+<td>0.095 (0.056–0.121)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>The last two rows are from the §5 runs, which plant one outlier in every replicate.</p>
+<ul>
+<li><strong>On clean data the winsorized estimator and ML agree,</strong> and ML is better behaved at small K.</li>
+<li><strong>ML's advantage does not survive a single outlier.</strong> With one gross outlier among 30
+  providers and no real spread, ML's median τ̂ is 0.216, and that outlier's detection
+  falls from 90% to 67%. With 3% outliers at K = 150, ML overstates τ by two-thirds.</li>
+<li><strong>The winsorized estimator overstates by a sixth or less.</strong></li>
+<li><strong>A fixed τ never sees the outliers, so it does not overstate at all.</strong></li>
+</ul>
+<p>Since a screening chart cannot assume its data are free of the outliers it looks for,
+ML is for data already cleaned, or for comparison with random-effects analyses.</p>
+<p><strong>Why the default is <code>"spiegelhalter"</code>.</strong> A general-purpose default has to work for a
+user who does nothing:</p>
+<ul>
+<li>It needs no history, which rules out a fixed τ as the default.</li>
+<li>It must not let the providers being screened for widen their own limits. Funnels exist
+  to find outliers, and ML's failure there is the worst failure a screening chart can
+  have. Both winsorized estimators pass.</li>
+<li>Between the two, the published one errs toward flagging, which is the right error for
+  a screen whose flags are reviewed, and like the CQC, NHS and FunnelPlotR
+  estimators it is uncorrected (§4.3). To reproduce their funnels exactly, use <code>"cqc"</code>
+  or <code>"shmi"</code> (§4.17). Where the stated chance-flag rate matters more than
+  sensitivity, choose <code>"winsorized"</code>, and compare the two with <code>funnel_sensitivity()</code>.</li>
+</ul>
+<p>Below K = 30 a note recommends a fixed <code>tau=</code>.</p>
+<p><strong>Using a fixed τ well.</strong></p>
+<ol>
+<li>Estimate τ on several earlier periods (<code>"winsorized"</code> is the less biased choice), per
+   measure and per facet.</li>
+<li>Review those periods' flags and confirm τ is stable from year to year.</li>
+<li>Fix τ for the reporting period, and record the value and its source.</li>
+</ol>
+<p>qikit still estimates τ from the current data and reports it as
+<code>summary["tau_estimated"]</code>. When that is more than 1.5-fold away from the fixed value, a
+note says the spread may have changed since τ was set. <code>tau=0</code> gives the unadjusted
+chart.</p>
+<p><strong>Two questions: <code>signal</code> and <code>prob_worse</code>.</strong> Ohlssen, Sharples and Spiegelhalter [35]
+distinguish <em>divergent</em> providers, unusual against the distribution of peers, from
+providers whose true value differs from the average. The funnel's <code>signal</code> answers the
+first: a provider is tested against θ₀ with the spread τ included. CMS's hierarchical
+models answer the second [23]: a hospital is reported as worse when its shrunk estimate's
+interval lies above the national rate. <code>prob_worse</code> is that second question in this
+model, and <code>estimate_flag == "worse"</code> is the same rule read from the interval. The two
+questions respond to τ in different ways. 10 replicates of K = 500, E ~ U(3, 30),
+<code>worse="higher"</code>, share of providers flagged (<code>scripts/simulate_eb_intervals.py</code>; the
+estimate columns use the ML prior of §4.14):</p>
+<table>
+<thead>
+<tr>
+<th>true τ</th>
+<th><code>signal</code> (beyond the 95% line)</th>
+<th><code>prob_worse</code> &gt; 0.975</th>
+<th><code>estimate_flag</code> worse</th>
+<th>Truly &gt; 20% above average</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1.6%</td>
+<td>0.0%</td>
+<td>0.0%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>0.15</td>
+<td>3.5%</td>
+<td>0.1%</td>
+<td>0.1%</td>
+<td>9.1%</td>
+</tr>
+<tr>
+<td>0.30</td>
+<td>4.8%</td>
+<td>5.1%</td>
+<td>5.1%</td>
+<td>23.2%</td>
+</tr>
+</tbody>
+</table>
+<p>As real variation grows, the funnel's flag rate rises only slowly, because that
+variation is what peers look like. The CMS-style rule starts near zero and climbs
+faster, because more providers really are worse than average. Use <code>signal</code> to choose whom to review as unusual. Use <code>prob_worse</code>
+when the question is whether a provider is probably worse than average, for example for
+improvement targeting, and say which question was asked.</p>
+<p><strong>State of the literature.</strong> No healthcare publication found applies, recommends or
+evaluates the winsorization consistency factor. Funnel guidelines [8], applied studies,
+FunnelPlotR [13] and the NHS indicators use the uncorrected estimate, and one applied
+paper states that it averages 1 under the null, which winsorizing makes untrue. The
+default rests on eq. 9 and qikit's own simulations, not on external validation, so it is an
+option, not the default. A report that compares qikit with a published funnel uses the
+default, or <code>"cqc"</code>/<code>"shmi"</code> for a CQC or SHMI funnel (§4.17). The random-effects literature [9, 23, 35] prefers
+likelihood estimation or a pre-specified τ. qikit offers both, with the robustness
+caveat above.</p>
+<h3 id="417-cqc-and-shmi-over-dispersion-on-a-transformed-scale">4.17 CQC and SHMI: over-dispersion on a transformed scale<a class="headerlink" href="#417-cqc-and-shmi-over-dispersion-on-a-transformed-scale" title="Permanent link">&para;</a></h3>
+<p>The Care Quality Commission [36] and the NHS Summary Hospital-level Mortality Indicator
+[37] measure over-dispersion on a scale where the null variance does not depend on the
+center, and draw normal limits there. FunnelPlotR [13] implements both
+(<code>sr_method = "CQC"</code> and <code>"SHMI"</code>). <code>tau_method="cqc"</code> and <code>"shmi"</code> follow its source:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>"cqc"</code></th>
+<th><code>"shmi"</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scale T</td>
+<td>√ for ratios and rates; arcsine √ for proportions</td>
+<td>log, for ratios and rates only</td>
+</tr>
+<tr>
+<td>SD under the null, sᵢ</td>
+<td>1/(2√nᵢ)</td>
+<td>1/√(θ₀nᵢ)</td>
+</tr>
+<tr>
+<td>Robustness</td>
+<td>z winsorized at its 10th and 90th percentiles</td>
+<td>providers in the lowest and highest tenths of ranked z dropped (rank groups ⌊rank·10/(K + 1)⌋, keep 1–8)</td>
+</tr>
+<tr>
+<td>φ̂, τ̂²</td>
+<td>mean(z²); DerSimonian–Laird on wᵢ = 1/sᵢ², 0 when Kφ̂ &lt; K − 1</td>
+<td>same</td>
+</tr>
+<tr>
+<td>Limits</td>
+<td>T⁻¹(T(θ₀) ± z·√(sᵢ² + τ̂²))</td>
+<td>same</td>
+</tr>
+</tbody>
+</table>
+<p><code>summary["tau_scale"]</code> records the scale and <code>summary["limit_method"]</code> says
+<code>"transformed_normal"</code>. P-values come from the same normal model on the same scale, so a
+point beyond the line still has p below the line's level. With τ̂² = 0 both methods draw
+the exact unadjusted contours, the same as every other method, since the transformed
+normal would only approximate them. The shrinkage columns use τ̂² carried back to the y
+scale by the delta method (4θ₀τ² for √, 4θ₀(1 − θ₀)τ² for arcsine, θ₀²τ² for log).</p>
+<p><strong>Checked against FunnelPlotR.</strong> <code>tests/test_reference.py</code> compares φ̂, τ̂² and the
+limits with FunnelPlotR on its <code>medpar</code> data (standardized ratios under both methods,
+length of stay, and a proportion) to 1e-6. Two departures are deliberate:</p>
+<ul>
+<li><strong>FunnelPlotR draws CQC ratio limits on the √ scale.</strong> It returns 1 ± z·√(s² + τ²)
+  without squaring back, so its adjusted CQC limits for a ratio are about half as wide as
+  the method intends. qikit squares them back. φ̂ and τ̂² agree exactly; only the limits
+  are skipped in the reference test.</li>
+<li><strong>Arcsine limits past 100%.</strong> Where the upper arcsine contour passes π/2, sin² folds
+  back below 1 in FunnelPlotR. qikit caps the limit at 1, the largest proportion
+  possible. The reference test masks those points.</li>
+</ul>
+<p><strong>A provider with no events</strong> has z = −∞ on the log scale. When truncation keeps it,
+FunnelPlotR returns φ̂ = ∞; qikit leaves it out of φ̂.</p>
+<p><strong>When to use them.</strong> To reproduce a CQC or SHMI funnel, or to report on the same basis
+as those indicators. For a physician screen the default is preferred: its limits are
+exact rather than normal on a transformed scale, which matters at the small expected
+counts most physicians have. <code>funnel_sensitivity()</code> shows which flags change.</p>
+<h3 id="418-benchmarks-what-the-best-providers-achieve-benchmark">4.18 Benchmarks: what the best providers achieve (<code>benchmark=</code>)<a class="headerlink" href="#418-benchmarks-what-the-best-providers-achieve-benchmark" title="Permanent link">&para;</a></h3>
+<p>A funnel shows which providers differ from the center line. The center line is the
+average, and the average is not a goal. <code>benchmark=</code> adds a goal that the best providers
+in the same data already reach. It is drawn as a dashed line, and it does not change
+<code>signal</code>. Both options need <code>worse=</code>. <code>benchmark_share=</code> (default 0.10) defines "the
+best".</p>
+<table>
+<thead>
+<tr>
+<th><code>benchmark=</code></th>
+<th>What it is</th>
+<th>Suits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"abc"</code></td>
+<td>Kiefe and Weissman's achievable benchmark of care [38, 39]: the pooled rate of the best providers holding 10% of patients</td>
+<td>Process-of-care proportions (H&amp;P in 24 h, vaccination)</td>
+</tr>
+<tr>
+<td><code>"eb"</code></td>
+<td>The 90th percentile, toward better, of the shrunk estimates <code>eb_rate</code> [44]</td>
+<td>Outcomes (O/E mortality, length of stay, readmission) and per-case amounts (<code>measure="mean"</code>: minutes or cost per case)</td>
+</tr>
+</tbody>
+</table>
+<p>Both run on every measure. <code>"abc"</code> on <code>"oe"</code>, <code>"rate"</code> or <code>"mean"</code> adds a note that its
+authors designed it for proportions; <code>"eb"</code> is the choice there.</p>
+<p><strong>The ABC method.</strong> These are the three steps of Kiefe et al. [38, Table 1], restated by
+Weissman et al. [39, Table 1]:</p>
+<ol>
+<li>Rank providers best first by the adjusted performance fraction,
+   APF = (x + 1)/(d + 2). The authors give it as a Bayesian estimator, citing Agresti.
+   It is the posterior mean under a uniform prior, and it keeps a provider with 3 of 3
+   from topping the list on luck: that provider's APF is 0.8, below 196 of 200 at 0.975.
+   The APF is "used solely for the purpose of ranking". In no event should it be used to
+   compare individual providers [39, p. 272].</li>
+<li>Starting with the best provider, add providers until together they hold at least 10%
+   of all patients. The 10% is of patients, not providers, so a run of tiny providers
+   cannot make up the group. The point where the group reaches 10% is the breakpoint.
+   Every provider tied at the breakpoint joins, so the share held can run past 10%, to
+   12% "or even higher" [39, p. 273]. qikit reports it as <code>coverage</code> in <code>summary["benchmark"]</code>.</li>
+<li>The ABC is the group's patients who received the intervention divided by all of the
+   group's patients: the pooled raw rate Σx/Σd. It is not the mean of their rates and
+   not their APFs. Some providers in the group can fall below the ABC itself.</li>
+</ol>
+<p><code>worse=</code> sets the direction. With <code>worse="lower"</code>, a high value is good and providers are
+ranked from the highest APF down. With <code>worse="higher"</code>, as for low-value care [42], they
+are ranked from the lowest up. Excluded providers neither join the group nor count
+toward the share.</p>
+<p><strong>Worked examples checked in <code>tests/test_funnel.py</code>:</strong>
+- <em>GAMUT</em> [41]. Delta (196/200), Envoy (193/200) and SkyWest (125/130) hold 530 of 5,237
+  patients (10.1%), so the ABC is 514/530 = 0.970.
+- <em>Kiefe 1998, smoking-cessation counselling</em> [38]. Across 106 hospitals and 1,253
+  patients the pooled rate was 14%. The 12 best hospitals held at least 125 patients and
+  gave an ABC of 49%. The source data are not published, so this one is not a test.</p>
+<p><strong>At physician level.</strong> In the randomized trial [40], 70 physicians, each with at least 20
+eligible patients, were ranked on the APF until 10% of patients were included. The ABCs
+for five diabetes process measures ranged from 82% to 99%. Adding the ABC to feedback
+raised the odds of appropriate care by 1.33 to 1.57 times.</p>
+<p><strong>The share.</strong> Weissman et al. call 10% "somewhat arbitrary". Another share may be used if
+it is agreed before the benchmark providers are identified [39, p. 273]. Hall et al. [43]
+used 15%, to include more patients and hospitals and to reduce the influence of small
+ones. Set <code>benchmark_share=</code> in advance, never after seeing who would be in the group.</p>
+<p><strong>Minimum sufficient denominator (MSD).</strong> Kiefe et al. [38, Table 3] tabulate, for each
+mean rate p̄, the fewest patients at which 100% performance would differ significantly
+from p̄. They give no formula. The smallest N with p̄ᴺ &lt; 0.025 reproduces all 19 rows of
+their table, so the rule is: N of N treated must be a one-sided exact binomial event at
+2.5% (two-sided 5%). That is a reconstruction, not the authors' stated formula. The nine
+MSDs Hall et al. report [43, Table 4] match the same table read at the overall rate
+rounded down to 5%. At a 94% rate they used the 90% row (36), where the exact rule gives
+60.</p>
+<p>qikit ranks every provider on the APF, as Kiefe and Weissman do, and reports the MSD in
+<code>summary["benchmark"]</code> without using it to rank:
+- <code>msd</code>: the exact rule, at the center line in the good direction (1 − p̄ when lower is
+  better).
+- <code>n_below_msd</code>: how many eligible providers fall below it.
+- <code>without_small</code>: the ABC recomputed without those providers.
+- A note when that changes the ABC by more than 5%.</p>
+<p>Hall et al. used the MSD as a switch, with the APF only below it and the raw rate above.
+They found their warfarin benchmark fell from 94% to 76% when hospitals below the MSD
+were excluded. <code>without_small</code> is that check. For counts with
+<code>worse="higher"</code>, the MSD is the analogue for zero events: the expected count at which
+P(0) = e^(−θ₀n) &lt; 0.025, so n &gt; 3.69/θ₀.</p>
+<p><strong>Reporting.</strong> Following Hall et al. [43], <code>summary["benchmark"]</code> holds <code>method</code>,
+<code>share</code> and <code>value</code>, and under <code>"abc"</code> also:
+- <code>providers</code>: how many providers set the ABC.
+- <code>coverage</code>: their share of the patients.
+- <code>group_denominator</code>: the median and range of those providers' patients.
+- <code>msd</code>, <code>n_below_msd</code> and <code>without_small</code>, as above.</p>
+<p>The <code>meets_benchmark</code> column marks whether each provider is at the benchmark or better.
+Hall's "top performers" are those at or above it.</p>
+<p>A note calls the ABC provisional when fewer than three providers set it.</p>
+<p><strong>O/E and rates under <code>"abc"</code>: an extension, against the authors' advice.</strong> The ABC was
+designed for process-of-care indicators. Weissman et al. "urge that it be applied to
+outcome measures with only extreme caution, if at all" [39, p. 271]. Outcomes need risk
+adjustment, are less sensitive to quality, and can be gamed through coding [39,
+pp. 274–275]. They also oppose the ABC where "the right rate is not known, particularly
+when the purpose is to decrease use of medical services" [39, p. 274], which covers
+length of stay and low-value care.</p>
+<p>qikit still computes it for <code>"oe"</code> and <code>"rate"</code>. It ranks by (y + 1)/(n + 1/θ₀), the
+same posterior-mean idea with a prior worth one event at the center line; for O/E with
+θ₀ = 1 that is (O + 1)/(E + 1). Under <code>within_dispersion</code>, ranking uses y/φ out of n/φ.
+Each such result carries a note pointing to <code>"eb"</code>.</p>
+<p><strong><code>"eb"</code>: the shrunk-percentile benchmark.</strong> This is the (1 − <code>benchmark_share</code>) quantile
+of <code>eb_rate</code> across eligible providers, toward the better side: the 10th percentile of
+O/E when higher is worse. It uses the posterior means of the funnel's own random-effects
+model (§4.14). O'Brien et al. [44] proposed it, and Hall et al. [43] compared it with the
+ABC. The two were within 3% for most indicators, but the shrunk version was 7–32% lower
+where small providers dominated, because shrinkage pulls their lucky extremes back. It
+needs no adjustment for small numbers, it is defined for any measure the funnel fits, and
+it suits outcomes. When the funnel finds no spread (τ̂ = 0, or <code>overdispersion=False</code>)
+every shrunk estimate is the center line, and so is the benchmark; a note says so. Hall
+et al. kept the ABC for its transparency. "eb" is less transparent, and better founded
+for outcomes.</p>
+<p>The percentile counts providers, as O'Brien et al. do, not patients as the ABC does. At
+physician level, many low-volume physicians are shrunk close to the center line, which
+pulls the percentile toward it. A patient-weighted percentile would match the ABC's "10%
+of patients", but it is not the published method.</p>
+<p><strong>When the two disagree.</strong> On an outcome, report <code>"eb"</code>. An ABC far better than the
+<code>"eb"</code> benchmark is pooling providers who were lucky. On the bundled surgeon data, with
+τ̂ = 0, the ABC is an O/E of 0.61 and <code>"eb"</code> is the center line, 1.02. There is no
+spread the data can show, so no surgeon is reliably better than average.</p>
+<p><strong>Peer groups.</strong> Hall et al. found that benchmarks from regional stroke centers differed
+from those of all hospitals. Larger centers face different case mix and constraints
+[43]. <code>facets=</code> gives each peer group its own benchmark, for example
+<code>facets="hospital_type"</code>. Choose peer groups for comparability before looking at the
+benchmarks.</p>
+<p><strong>Intended use.</strong> The authors present the ABC in confidential, non-punitive feedback.
+They discourage its use for physician compensation, credentialing or public report cards,
+where statistical confidence matters more [39, p. 274]. Hall et al. report no confidence
+interval around the ABC, "because the purpose of our benchmarks is to drive quality
+improvement". The same holds for <code>"eb"</code>. A benchmark is a goal, not a test. At physician
+volumes the gap between a provider and the benchmark is often within chance, and
+<code>min_detectable</code> and <code>ci_lower</code>/<code>ci_upper</code> say how far the provider's own data can tell.</p>
+<h3 id="419-continuous-per-case-amounts-measuremean">4.19 Continuous per-case amounts (<code>measure="mean"</code>)<a class="headerlink" href="#419-continuous-per-case-amounts-measuremean" title="Permanent link">&para;</a></h3>
+<p>Minutes of EHR time per discharge, cost per case and days per stay are amounts, not
+counts. The question is the same: does a provider's mean differ from its peers' by more
+than chance and the spread between providers allow?</p>
+<p><strong>The model.</strong> <code>measure="mean"</code> is the quasi-Poisson model of §4.12 applied to the raw
+amounts: y = the amount, n = 1 per case, and φ estimated. A provider's total over k
+cases has variance φ·θⱼ·k, so its mean has variance φθⱼ/k. φ is the variance-to-mean
+ratio of one case, in y's units (minutes²/minute), and <code>summary["case_sd"]</code> = √(φ̂·θ₀)
+reports the within-provider SD of one case in plain units. τ² is added on top as for
+every measure (§4.4), and the center line is the pooled mean Σy/Σk.</p>
+<p><strong>Why no rescaling is needed.</strong> The model is scale-equivariant. Multiply every amount
+by c and φ̂ is multiplied by c, the effective counts y/φ and k/φ are unchanged, and so
+are every p-value, q-value, reliability and flag. Only the limits, the center line and
+the amounts move, by c. Minutes and hours therefore give the same chart, labeled
+differently, and the test suite checks this. It is also why the construction users
+built first agrees with it to machine precision: dividing each case by the pooled mean
+and passing it as O/E with n = 1, then <code>multiply=</code> the pooled mean. That is the same
+model at c = 1/θ₀.</p>
+<p><strong>Why not a normal model.</strong> A normal model with one σ² for every provider would add a
+new family to every part of the engine: contours, tests, τ estimators, shrinkage,
+power, the benchmarks. Variance proportional to the mean fits non-negative, right-skewed
+amounts at least as well, because providers with longer times usually vary more, and
+every option comes along unchanged: <code>signal="fdr"</code>, <code>tau_method</code>, drop-one robustness,
+<code>benchmark="eb"</code>, <code>facets=</code> and <code>multiply=</code>.</p>
+<p><strong>Inputs.</strong>
+- Case rows: <code>y=</code> the amount, one row per case. <code>n=</code> may be omitted; if given, it must
+  be 1.
+- SQL totals: <code>y = SUM(amount)</code>, <code>n = COUNT(*)</code> and <code>sum_sq = SUM(amount * amount)</code>. This
+  is the <code>Σ y²/n</code> of §4.12 with n = 1. <code>cases=</code> is implied by <code>n</code>, and <code>max_case_y=</code>
+  alone gives drop-one robustness.</p>
+<p><code>within_dispersion</code> is always estimated, or given per provider as a column. A scalar is
+refused, because no one knows φ in minutes²/minute. <code>fdr_min_denominator</code> counts cases.
+The "φ below 1" note of §4.12 does not apply: φ &lt; 1 here means only that the amounts are
+in small units.</p>
+<p><strong>Limits.</strong>
+- Amounts must be ≥ 0. Signed values, such as change scores, are refused (§6).
+- Long cases dominate φ̂, as long stays do. Cap amounts at a stated percentile first
+  where the measure's convention does.</p>
+<h2 id="5-evidence-from-simulation">5. Evidence from simulation<a class="headerlink" href="#5-evidence-from-simulation" title="Permanent link">&para;</a></h2>
+<p>The engine was run on simulated cohorts. To reproduce every table below, run
+<code>uv run python scripts/simulate_funnel_dispersion.py</code> (estimates unchanged in 1.0). All rates use the
+contours as drawn: the upper contour sits at the exact test's boundary (§4.1).</p>
+<p><strong>Between-provider spread.</strong> 300 replicates per row. Volumes are E ~ U(3, 30) for
+counts and n ~ U(20, 200) for proportions (base rate 12%). True provider effects are
+drawn with relative SD τ, plus one planted outlier (O/E 2.5 at E = 15, or 30% at
+n = 120). On proportions τ̂ is on the absolute scale, so the true value is 0.12·τ (0.018
+at τ = 0.15, 0.036 at τ = 0.3). "In-distribution" is the share of non-outlier providers
+flagged above the 99.8% limit (nominal 0.1%). "Outlier" is how often the planted outlier
+is detected. Each adjusted chart was run with all three estimators on the same draws:
+<code>"spiegelhalter"</code> (published, the default), <code>"winsorized"</code> and <code>"ml"</code> (§4.16).</p>
+<p>Flag rates (in-distribution / outlier):</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>K</th>
+<th>τ</th>
+<th>Unadjusted</th>
+<th>Spiegelhalter (default)</th>
+<th>Winsorized</th>
+<th>ML</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Counts</td>
+<td>30</td>
+<td>0</td>
+<td>0.02% / 90%</td>
+<td>0.02% / 90%</td>
+<td>0.01% / 83%</td>
+<td>0.00% / 67%</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>30</td>
+<td>0.15</td>
+<td>0.20% / 90%</td>
+<td>0.09% / 85%</td>
+<td>0.03% / 71%</td>
+<td>0.00% / 47%</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>30</td>
+<td>0.3</td>
+<td>1.89% / 90%</td>
+<td>0.29% / 58%</td>
+<td>0.05% / 33%</td>
+<td>0.01% / 11%</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>150</td>
+<td>0</td>
+<td>0.05% / 91%</td>
+<td>0.05% / 91%</td>
+<td>0.03% / 90%</td>
+<td>0.02% / 90%</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>150</td>
+<td>0.15</td>
+<td>0.36% / 93%</td>
+<td>0.31% / 92%</td>
+<td>0.08% / 79%</td>
+<td>0.03% / 75%</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>150</td>
+<td>0.3</td>
+<td>2.38% / 91%</td>
+<td>0.54% / 70%</td>
+<td>0.11% / 38%</td>
+<td>0.06% / 30%</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>30</td>
+<td>0.3</td>
+<td>1.30% / 93%</td>
+<td>0.25% / 69%</td>
+<td>0.02% / 39%</td>
+<td>0.00% / 15%</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>150</td>
+<td>0.15</td>
+<td>0.30% / 97%</td>
+<td>0.25% / 96%</td>
+<td>0.05% / 88%</td>
+<td>0.02% / 85%</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>150</td>
+<td>0.3</td>
+<td>1.88% / 98%</td>
+<td>0.49% / 83%</td>
+<td>0.08% / 52%</td>
+<td>0.02% / 40%</td>
+</tr>
+</tbody>
+</table>
+<p>τ̂, median (IQR):</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>K</th>
+<th>τ (true)</th>
+<th>Spiegelhalter (default)</th>
+<th>Winsorized</th>
+<th>ML</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Counts</td>
+<td>30</td>
+<td>0</td>
+<td>0 (0–0)</td>
+<td>0.084 (0–0.147)</td>
+<td>0.216 (0.172–0.264)</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>30</td>
+<td>0.15</td>
+<td>0.014 (0–0.127)</td>
+<td>0.175 (0.108–0.231)</td>
+<td>0.258 (0.204–0.298)</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>30</td>
+<td>0.3</td>
+<td>0.222 (0.168–0.272)</td>
+<td>0.323 (0.269–0.373)</td>
+<td>0.376 (0.326–0.413)</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>150</td>
+<td>0</td>
+<td>0 (0–0)</td>
+<td>0.025 (0–0.075)</td>
+<td>0.095 (0.056–0.121)</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>150</td>
+<td>0.15</td>
+<td>0 (0–0.046)</td>
+<td>0.152 (0.126–0.181)</td>
+<td>0.180 (0.159–0.196)</td>
+</tr>
+<tr>
+<td>Counts</td>
+<td>150</td>
+<td>0.3</td>
+<td>0.196 (0.171–0.217)</td>
+<td>0.291 (0.270–0.313)</td>
+<td>0.313 (0.291–0.334)</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>30</td>
+<td>0.3 (0.036)</td>
+<td>0.026 (0.019–0.032)</td>
+<td>0.038 (0.032–0.045)</td>
+<td>0.045 (0.040–0.050)</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>150</td>
+<td>0.15 (0.018)</td>
+<td>0 (0–0.003)</td>
+<td>0.019 (0.015–0.022)</td>
+<td>0.022 (0.020–0.025)</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>150</td>
+<td>0.3 (0.036)</td>
+<td>0.023 (0.020–0.026)</td>
+<td>0.035 (0.032–0.038)</td>
+<td>0.038 (0.035–0.040)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The winsorized estimator is the accurate one at physician-group scale.</strong> At K = 150
+  its median is 0.152 and 0.291 for a true 0.15 and 0.3 (proportions: 0.019 and 0.035
+  against 0.018 and 0.036). The published τ̂ is 0 and 0.196 (0 and 0.023): a real spread
+  of 0.15 goes undetected in most replicates.</li>
+<li><strong>Accurate τ̂ is what makes the chart calibrated.</strong> At K = 150, τ = 0.3, the winsorized
+  estimator flags 0.11% of in-distribution providers against a nominal 0.1%. The published chart
+  flags 0.54%, five times nominal, and every one of those is a provider whose only
+  difference is the ordinary spread between peers.</li>
+<li><strong>ML is pulled up by the single planted outlier in every replicate.</strong> Its τ̂ exceeds
+  the truth in every row: 0.216 when the true τ is 0 at K = 30, and 0.095 at K = 150.
+  Its limits are therefore the widest, and it finds the planted outlier least often
+  (67% at K = 30, τ = 0, against 83% for the winsorized estimator). On outlier-free data ML matches
+  it and is better at small K (§4.16). This table is the case a screening chart
+  must survive.</li>
+<li><strong>The planted outlier is caught less often as τ̂ rises, and that is partly correct.</strong>
+  Its detection falls from 70% (published) to 38% (winsorized) at K = 150, τ = 0.3. The
+  published chart caught it more often because it under-estimated τ and drew limits too
+  narrow for the real spread, the same narrowness that produced the excess false flags.
+  A provider at O/E 2.5 with 15 expected events is less unusual among peers who truly
+  vary by 30% than the published chart claimed. That trade is inherent to asking
+  "unusual among peers?" rather than "different from target?" (§2, §4.16). For the
+  second question, use <code>center=1.0</code> with <code>overdispersion=False</code>, or read <code>prob_worse</code>.</li>
+<li><strong>At small K with no real spread, the winsorized estimator errs upward.</strong> With K = 30, τ = 0, the
+  published τ̂ is 0 (and its limits are then identical to the unadjusted ones). Its
+  median is 0.084, the familiar positive bias of a variance estimate truncated
+  at 0 when it is noisy. It costs the planted outlier 90% → 83%, while the false-flag
+  rate stays below nominal. By K = 150 the effect is small (median 0.025, detection
+  91% → 90%). With a few dozen providers, prefer a pre-specified τ (§4.16).</li>
+<li><strong>With no real spread every chart runs below nominal</strong> (0.00–0.05% against 0.1%). That
+  is the exact test's conservatism at small counts: a discrete count rarely lands
+  exactly on the tail.</li>
+</ul>
+<p><strong>Clustered counts: length of stay.</strong> 20 replicates of K = 500 providers. Each provider
+has a lognormal number of stays (median 60), each stay's days are gamma with mean 5 and
+variance-to-mean φ, and there is no true provider effect, so every flag is false.
+<code>funnel(measure="oe", worse="higher")</code> is run with its default additive τ², once with
+<code>tau_method="winsorized"</code> and once with the default <code>"spiegelhalter"</code> on the same draws:</p>
+<table>
+<thead>
+<tr>
+<th>φ</th>
+<th><code>within_dispersion</code></th>
+<th>Outlier, debiased</th>
+<th>Alert, debiased</th>
+<th>Outlier, published</th>
+<th>Alert, published</th>
+<th>φ̂ median</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3</td>
+<td>1 (default)</td>
+<td>0.72%</td>
+<td>3.69%</td>
+<td>1.27%</td>
+<td>5.46%</td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>"estimate"</code></td>
+<td>0.13%</td>
+<td>2.07%</td>
+<td>0.15%</td>
+<td>2.25%</td>
+<td>3.00</td>
+</tr>
+<tr>
+<td>8</td>
+<td>1 (default)</td>
+<td>1.10%</td>
+<td>4.39%</td>
+<td>2.13%</td>
+<td>5.92%</td>
+<td></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>"estimate"</code></td>
+<td>0.10%</td>
+<td>1.97%</td>
+<td>0.12%</td>
+<td>2.11%</td>
+<td>7.96</td>
+</tr>
+</tbody>
+</table>
+<p>Nominal rates are 0.10% (outlier) and 2.40% (alert). τ̂ absorbs part of the excess but
+not the part that shrinks with volume. The debiased τ̂ absorbs more of it, but without
+<code>within_dispersion</code> the chart still flags 7–11 times the nominal outlier rate (13–21
+with the published estimator), all of it noise. With φ̂ the tiers hold their nominal
+share under either estimator. Debiasing does not replace the within-case correction.</p>
+<p><strong>The dispersion-shape warning (§4.12).</strong> The share of runs that warn of clustered
+counts (100 replicates at K = 40 and 200, 20 at K = 1000). The event-count scenarios
+use E lognormal around 40: plain Poisson, a lognormal provider effect with SD 0.5, and
+a binary-outcome O/E at a 15% event rate:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>K = 40</th>
+<th>K = 200</th>
+<th>K = 1000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Poisson, no spread</td>
+<td>0%</td>
+<td>0%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Between-provider spread only (lognormal, SD 0.5)</td>
+<td>0%</td>
+<td>0%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Binary-outcome O/E (φ ≈ 0.85)</td>
+<td>0%</td>
+<td>0%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Aggregated length of stay, φ = 3</td>
+<td>10%</td>
+<td>93%</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Aggregated length of stay, φ = 8</td>
+<td>29%</td>
+<td>100%</td>
+<td>100%</td>
+</tr>
+</tbody>
+</table>
+<p>It is built never to cry wolf on event counts. It catches clustered days reliably from
+about 200 providers, the scale at which length-of-stay benchmarking is usually done.</p>
+<p><strong>Clustered proportions: a three-item survey composite (§4.13).</strong> There were 20
+replicates of K = 575 physicians, matching the downstream request:</p>
+<ul>
+<li>Each physician had a lognormal number of surveys (median 15, minimum 4).</li>
+<li>Each survey had three items sharing a beta-distributed propensity with intraclass
+  correlation 0.71, so φ = 2.42.</li>
+<li>Base rates were 80% (top-box, <code>worse="lower"</code>) and 10% (bottom-box, <code>worse="higher"</code>).</li>
+<li>"No effect" draws every physician from the base rate, so every flag is false.</li>
+<li>"Spread" adds a true SD between physicians (0.05 top-box, 0.03 bottom-box) and plants
+  10 physicians 25 points worse (top-box) or 15 points worse (bottom-box).</li>
+<li>Rates are among the non-planted physicians. The nominal one-sided rates are 0.1%
+  outlier and 2.4% alert.</li>
+</ul>
+<p>The arms are:</p>
+<ul>
+<li><strong>Default:</strong> item counts per physician.</li>
+<li><strong>Rounded deflation:</strong> y and n divided by φ̂ and rounded, the downstream workaround.</li>
+<li><strong><code>"estimate"</code>:</strong> survey rows.</li>
+</ul>
+<p>Each arm was run with <code>tau_method="winsorized"</code> and with the default <code>"spiegelhalter"</code> on the same
+draws. Cells give debiased / published.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Arm</th>
+<th>Outlier</th>
+<th>Alert</th>
+<th>Planted caught</th>
+<th><code>signal="fdr"</code> flags (false)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Top-box, no effect</td>
+<td>default</td>
+<td>0.25% / 0.54%</td>
+<td>2.30% / 3.84%</td>
+<td></td>
+<td>0.6 (0.6) / 2.3 (2.3)</td>
+</tr>
+<tr>
+<td></td>
+<td>rounded deflation</td>
+<td>0.05% / 0.06%</td>
+<td>1.38% / 1.70%</td>
+<td></td>
+<td>0 / 0</td>
+</tr>
+<tr>
+<td></td>
+<td><code>"estimate"</code></td>
+<td>0.03% / 0.03%</td>
+<td>1.27% / 1.41%</td>
+<td></td>
+<td>0 / 0</td>
+</tr>
+<tr>
+<td>Top-box, spread + planted</td>
+<td>default</td>
+<td>0.14% / 0.33%</td>
+<td>1.94% / 3.48%</td>
+<td>12% / 28%</td>
+<td>0.5 (0.3) / 4.3 (1.9)</td>
+</tr>
+<tr>
+<td></td>
+<td>rounded deflation</td>
+<td>0.03% / 0.19%</td>
+<td>1.08% / 2.46%</td>
+<td>11% / 27%</td>
+<td>0.3 (0.0) / 3.1 (0.7)</td>
+</tr>
+<tr>
+<td></td>
+<td><code>"estimate"</code></td>
+<td>0.02% / 0.19%</td>
+<td>0.90% / 2.38%</td>
+<td>11% / 27%</td>
+<td>0.5 (0.0) / 3.2 (0.7)</td>
+</tr>
+<tr>
+<td>Bottom-box, no effect</td>
+<td>default</td>
+<td>0.18% / 0.50%</td>
+<td>2.37% / 3.70%</td>
+<td></td>
+<td>0.5 (0.5) / 2.2 (2.2)</td>
+</tr>
+<tr>
+<td></td>
+<td>rounded deflation</td>
+<td>0.05% / 0.09%</td>
+<td>1.43% / 1.60%</td>
+<td></td>
+<td>0 / 0</td>
+</tr>
+<tr>
+<td></td>
+<td><code>"estimate"</code></td>
+<td>0.00% / 0.01%</td>
+<td>1.19% / 1.23%</td>
+<td></td>
+<td>0 / 0</td>
+</tr>
+<tr>
+<td>Bottom-box, spread + planted</td>
+<td>default</td>
+<td>0.13% / 0.39%</td>
+<td>1.94% / 3.50%</td>
+<td>4% / 17%</td>
+<td>0.6 (0.4) / 3.3 (1.9)</td>
+</tr>
+<tr>
+<td></td>
+<td>rounded deflation</td>
+<td>0.03% / 0.16%</td>
+<td>1.42% / 2.42%</td>
+<td>5% / 16%</td>
+<td>0.1 (0.1) / 1.9 (0.6)</td>
+</tr>
+<tr>
+<td></td>
+<td><code>"estimate"</code></td>
+<td>0.03% / 0.13%</td>
+<td>1.26% / 2.01%</td>
+<td>8% / 12%</td>
+<td>0.3 (0.1) / 1.4 (0.4)</td>
+</tr>
+</tbody>
+</table>
+<p>φ̂ had a median of 2.36–2.42 against a true 2.42.</p>
+<ul>
+<li><strong>With no true effect, item counts over-flag.</strong> In the default arm, outliers run at two
+  to five times nominal, and FDR selection makes false picks. With φ̂, the outlier rate
+  drops below nominal and FDR selects no one, under either estimator.</li>
+<li><strong>Below nominal is expected.</strong> At about five effective items the exact test is
+  conservative (§5, first table). The no-effect <code>"estimate"</code> rows (alerts 1.2–1.4%)
+  are that floor.</li>
+<li><strong>With real spread, only the debiased τ̂ sees it.</strong> On the <code>"estimate"</code> arm, a separate
+  check (8 replicates per scenario) put the published τ̂ at 0.002–0.006 against a true
+  0.05 on top-box, and 0 against 0.03 on bottom-box. The debiased τ̂ was 0.049–0.054 and
+  0.025–0.029. With the spread modeled, in-distribution rates fall back to the
+  no-effect floor (alerts 0.9–1.3%). The published chart's rates are near nominal only
+  because real spread between physicians is being reported as signal.</li>
+<li><strong>The planted physicians are caught less often</strong> (top-box 27% → 11%), for the reason
+  in the first table. Physicians 25 points below a peer group that genuinely varies by
+  5 points, measured on about five effective items, are not reliably distinguishable
+  from that spread. The published chart caught more by under-stating it. At this panel
+  size, <code>min_detectable</code> is the honest summary: most physicians cannot be flagged at
+  all.</li>
+<li><strong>Rounding is close to the interpolated fix on average,</strong> but it moves individual
+  physicians.</li>
+</ul>
+<p>The case-level row check (§4.13), on top-box survey rows with a between-physician SD of
+0.05, warned in this share of runs (50 replicates at K = 40, 20 at K = 575):</p>
+<table>
+<thead>
+<tr>
+<th>φ</th>
+<th>K = 40</th>
+<th>K = 575</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.00 (independent items)</td>
+<td>0%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>1.10</td>
+<td>0%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>1.25 (the floor)</td>
+<td>30%</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>2.42</td>
+<td>100%</td>
+<td>100%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The fixed-center gap guard (§4.2.1).</strong> <code>uv run python scripts/simulate_center_gap.py</code>:
+500 cohorts per cell over K ∈ {20, 50, 200, 1000}, two volume bands (physician: 5–50
+expected events; hospital: 50–500), true spread τ ∈ {0, 0.1, 0.2} (relative SD; on the
+logit scale for proportions), within-case clumping φ ∈ {1, 2}, and O/E, rate (2 per
+1,000) and proportion (10%). The providers' system value sits a stated offset above the
+fixed center. The script first checks that its direct call of the guard agrees with
+<code>funnel()</code>.</p>
+<p>With no gap the guard warned in at most 0.4% of cohorts in any of the 144 cells (mean
+0.03%). Under <code>tau_method="ml"</code> and <code>"winsorized"</code> the worst cell was 1.2% (ML, K = 20
+physicians, τ = 0.2, 250 cohorts).</p>
+<p>Warning rate by gap, averaged over τ, φ and measure:</p>
+<table>
+<thead>
+<tr>
+<th>Volume</th>
+<th>K</th>
+<th>2.5%</th>
+<th>5%</th>
+<th>10%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hospital</td>
+<td>20</td>
+<td>0.7%</td>
+<td>5.8%</td>
+<td>36%</td>
+</tr>
+<tr>
+<td>Hospital</td>
+<td>50</td>
+<td>1.0%</td>
+<td>16%</td>
+<td>69%</td>
+</tr>
+<tr>
+<td>Hospital</td>
+<td>200</td>
+<td>0.7%</td>
+<td>25%</td>
+<td>92%</td>
+</tr>
+<tr>
+<td>Hospital</td>
+<td>1000</td>
+<td>0%</td>
+<td>20%</td>
+<td>96%</td>
+</tr>
+<tr>
+<td>Physician</td>
+<td>20</td>
+<td>0.1%</td>
+<td>0.2%</td>
+<td>1.9%</td>
+</tr>
+<tr>
+<td>Physician</td>
+<td>1000</td>
+<td>0%</td>
+<td>0%</td>
+<td>6.6%</td>
+</tr>
+</tbody>
+</table>
+<p>Median widening of the limits at the median volume:</p>
+<table>
+<thead>
+<tr>
+<th>Volume</th>
+<th>2.5%</th>
+<th>5%</th>
+<th>10%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hospital</td>
+<td>0.7–1.9%</td>
+<td>6.6–7.0%</td>
+<td>26–27%</td>
+</tr>
+<tr>
+<td>Physician</td>
+<td>0%</td>
+<td>0%</td>
+<td>0.4–1.5%</td>
+</tr>
+</tbody>
+</table>
+<p>The guard is quiet where a gap does no harm. At physician volumes chance dominates each
+provider's variance, so a 10% gap barely moves the limits (at most 1.5%). At hospital
+volumes a 10% gap widens them by about a quarter, and the guard catches it in 36% of
+20-provider cohorts and 92–96% at K ≥ 200. A 5% gap widens them by about 7%, under the
+10% materiality bar, so it warns less often (17% on hospital volumes on average; a 5%
+bar would double that, at a worst-cell false-warning rate of 0.6%). Real spread and
+clumping (τ = 0.2, φ = 2) lower detection at 10% to about half on hospital volumes,
+because they make the gap harder to tell from the scatter between providers.</p>
+<p><strong>Coverage of the shrunk-estimate intervals (§4.14).</strong> <code>uv run python
+scripts/simulate_eb_intervals.py</code>: each provider's true value is drawn from the model's
+own mixture distribution (gamma or beta, mean θ₀, SD τ), then its data given that value.
+Coverage is the share of (provider, cohort) pairs whose true value lies in
+[<code>eb_low</code>, <code>eb_high</code>] (nominal 95%). Scenarios:</p>
+<ul>
+<li>O/E counts: K = 200, E from 5 to 100 (log-uniform), 200 cohorts.</li>
+<li>Proportions: K = 200, n from 50 to 1,000, base rate 13%, 200 cohorts.</li>
+<li>Length of stay: K = 100, 20–200 stays each, lognormal noise (φ near 2),
+  <code>within_dispersion="estimate"</code>, 50 cohorts.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>true τ</th>
+<th>τ known (<code>tau=</code>)</th>
+<th>τ by ML (default)</th>
+<th>τ by the published estimator (before 1.2)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O/E counts</td>
+<td>0.1</td>
+<td>94.7%</td>
+<td>91.3%</td>
+<td>55.8%, no interval in 92% of cohorts</td>
+</tr>
+<tr>
+<td>O/E counts</td>
+<td>0.2</td>
+<td>95.1%</td>
+<td>94.7%</td>
+<td>74.1%</td>
+</tr>
+<tr>
+<td>O/E counts</td>
+<td>0.3</td>
+<td>94.9%</td>
+<td>94.8%</td>
+<td>85.3%</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>0.1</td>
+<td>94.8%</td>
+<td>92.6%</td>
+<td>49.4%, no interval in 64% of cohorts</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>0.2</td>
+<td>94.9%</td>
+<td>94.6%</td>
+<td>81.8%</td>
+</tr>
+<tr>
+<td>Proportions</td>
+<td>0.3</td>
+<td>94.9%</td>
+<td>94.9%</td>
+<td>89.0%</td>
+</tr>
+<tr>
+<td>Length of stay</td>
+<td>0.1</td>
+<td>91.1%</td>
+<td>90.1%</td>
+<td>89.9%</td>
+</tr>
+<tr>
+<td>Length of stay</td>
+<td>0.2</td>
+<td>89.7%</td>
+<td>88.7%</td>
+<td>89.0%</td>
+</tr>
+<tr>
+<td>Length of stay</td>
+<td>0.3</td>
+<td>89.4%</td>
+<td>89.0%</td>
+<td>88.0%</td>
+</tr>
+</tbody>
+</table>
+<p>Coverage is flat across volume terciles (within 2 points of the overall figure in
+every row). Two findings:</p>
+<ul>
+<li><strong>ML τ̂ is the choice for estimates.</strong> It reaches nominal coverage once the spread is
+  measurable (τ ≥ 0.2), and is 2–4 points short at τ = 0.1, where τ̂ is itself
+  uncertain. The published estimator over-shrinks.</li>
+<li><strong>Length of stay runs about 5 points short even with τ known.</strong> The posterior treats
+  each provider's total as quasi-Poisson, y/φ out of E/φ. The variance of a total of
+  skewed per-stay amounts grows with Σeᵢ² rather than Σeᵢ, so the gamma posterior is
+  slightly too narrow. Read these intervals as about 90%.</li>
+</ul>
+<h2 id="6-known-limitations-and-planned-work">6. Known limitations and planned work<a class="headerlink" href="#6-known-limitations-and-planned-work" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Small cohorts.</strong> τ̂ is imprecise below about 30 providers (IQR 0.17–0.27 when
+  τ = 0.3, K = 30), and the pooled center line can be pulled by one extreme provider
+  (§4.2).</li>
+<li><strong>Debiasing at small K.</strong> The consistency factor of <code>tau_method="winsorized"</code> (§4.3)
+  assumes residuals near normal. With few providers and no real spread it overstates τ
+  slightly (median 0.06–0.08 at K = 30, τ = 0). A note says so below K = 30. A
+  pre-specified <code>tau=</code> is the remedy there (§4.16). <code>tau_method="ml"</code> is better only on
+  clean data.</li>
+<li><strong>Maximum likelihood is not robust.</strong> <code>tau_method="ml"</code> has no winsorizing. One gross
+  outlier among 30 providers takes its median τ̂ from 0 to 0.22, and 3% outliers at
+  K = 150 inflate it by two-thirds (§4.16, §5).</li>
+<li><strong>No outcome–volume test yet</strong> [1, §4; 8, step 5]. A funnel assumes outcome does not
+  depend on volume.</li>
+<li><strong>Binary outcomes on an O/E chart.</strong> Observed counts that are sums of yes/no outcomes
+  have variance Σp(1 − p) &lt; Σp = E. Poisson limits are therefore slightly too wide for
+  common outcomes: about 8% at a 15% event rate, negligible for mortality.
+  <code>within_dispersion="estimate"</code> from case rows finds φ̂ ≈ 1 − θ̄ and corrects it; the
+  summary labels this as the binomial-variance correction rather than flooring it at 1
+  (§4.12). At small counts its fractional effective counts make the test interpolated
+  rather than exact. With a scalar <code>within_dispersion</code> the default stays 1.</li>
+<li><strong>Within-provider clustering.</strong> One φ per chart (or facet), or one φᵢ per provider
+  from a column the caller computes (§4.12). qikit does not yet estimate case-mix φ_g
+  from stay rows itself.</li>
+<li><strong>Items clustered in surveys use a single pooled φ</strong> (§4.13). A provider whose
+  patients skip items has smaller clusters and a slightly smaller design effect,
+  1 + (m̄ⱼ − 1)ρ. qikit does not model this; it is negligible when item nonresponse is
+  low.</li>
+<li><strong>Item-level rows hide the clustering.</strong> qikit cannot tell items from cases when every
+  row is one yes/no. It refuses <code>"estimate"</code> on such rows and documents the unit to
+  pass (§4.13).</li>
+<li><strong>Signed continuous values.</strong> <code>measure="mean"</code> needs amounts ≥ 0, because its
+  variance grows with the mean (§4.19). Change scores and other signed values would need
+  a normal family with a common σ², which is not built.</li>
+<li><strong>Very large expected counts.</strong> Above λ = 10⁵ the contours and p-values switch to
+  Byar's approximation, and <code>summary["limit_method"]</code> says <code>"byar"</code>. No physician-level
+  measure comes near this.</li>
+<li><strong>Planned:</strong> a robust likelihood estimate of τ (heavy-tailed random effects, or
+  detect-then-refit [35]), the volume test, <code>strata=</code> (per-DRG φ_g from stay rows,
+  shrunk toward the pool [19], combined to φᵢ), and a discrete false discovery rate step
+  for bounded tails [31, 32].</li>
+<li><strong>Evaluated and declined</strong> (so they are not proposed again without new evidence):</li>
+<li>Per-provider own-variance O/E with limma-style shrinkage (§4.12): self-masking.</li>
+<li><code>q_value</code> from leave-one-out p-values (§4.15): post-selection.</li>
+<li>Storey's π̂₀ and a power-screened BH (§4.11): little gain with τ² in the null, and the
+    screen drops gross low-volume outliers.</li>
+<li>A winsorized or median center line. At K in the hundreds no provider moves ΣO/ΣE.
+    The median of ratios is not volume-weighted and is skewed at small E. A center
+    other than ΣO/ΣE breaks Σ excess = 0. <code>center=1.0</code> is already the robust anchor (§4.2).</li>
+<li>Monotone "smoothed" display contours. No sawtooth was found on the drawn grid in any
+    family or volume range. The proposed running minimum on upper limits would draw lines
+    <em>inside</em> the exact test, showing unflagged points beyond a line. If ever needed, the
+    conservative envelope u(n) = max over m ≥ n of u(m) is the correct form.</li>
+<li>scipy special functions in <code>dist.py</code> (§4.5).</li>
+</ul>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Spiegelhalter DJ. Funnel plots for comparing institutional performance. <em>Statistics
+   in Medicine</em> 2005;24(8):1185–1202.</li>
+<li>Spiegelhalter DJ. Handling over-dispersion of performance indicators. <em>Quality &amp;
+   Safety in Health Care</em> 2005;14:347–351.</li>
+<li>DerSimonian R, Laird N. Meta-analysis in clinical trials. <em>Controlled Clinical Trials</em>
+   1986;7:177–188.</li>
+<li>Breslow NE, Day NE. <em>Statistical Methods in Cancer Research, Volume II: The Design and
+   Analysis of Cohort Studies</em>. IARC, 1987. (Byar's approximation.)</li>
+<li>Garwood F. Fiducial limits for the Poisson distribution. <em>Biometrika</em>
+   1936;28:437–442.</li>
+<li>Laney DB. Improved control charts for attributes. <em>Quality Engineering</em>
+   2002;14(4).</li>
+<li>Clayton D, Kaldor J. Empirical Bayes estimates of age-standardized relative risks for
+   use in disease mapping. <em>Biometrics</em> 1987;43:671–681.</li>
+<li>Verburg IWM, Holman R, Peek N, Abu-Hanna A, de Keizer NF. Guidelines on constructing
+   funnel plots for quality indicators: a case study on mortality in intensive care unit
+   patients. <em>Statistical Methods in Medical Research</em> 2018;27(11):3350–3366.</li>
+<li>Pavlou M, Ambler G, Omar RZ, et al. Outlier identification and monitoring of
+   institutional or clinician performance: an overview of statistical methods and
+   application to national audit data. <em>BMC Health Services Research</em> 2023;23:23.</li>
+<li>Walker K, Neuburger J, Groene O, Cromwell DA, van der Meulen J. Public reporting of
+    surgeon outcomes: low numbers of procedures lead to false complacency. <em>Lancet</em>
+    2013;382(9905):1674–1677.</li>
+<li>Mohammed MA, Panesar JS, Laney DB, Wilson R. Statistical process control charts for
+    attribute data involving very large sample sizes: a review of problems and
+    solutions. <em>BMJ Quality &amp; Safety</em> 2013;22:362–368.</li>
+<li>Jones HE, Ohlssen DI, Spiegelhalter DJ. Use of the false discovery rate when
+    comparing multiple health care providers. <em>Journal of Clinical Epidemiology</em>
+    2008;61(3):232–240.</li>
+<li>Mainey C. FunnelPlotR: funnel plots for comparing institutional performance (R
+    package). https://github.com/chrismainey/FunnelPlotR</li>
+<li>Clopper CJ, Pearson ES. The use of confidence or fiducial limits illustrated in the
+    case of the binomial. <em>Biometrika</em> 1934;26(4):404–413.</li>
+<li>Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical and
+    powerful approach to multiple testing. <em>Journal of the Royal Statistical Society,
+    Series B</em> 1995;57(1):289–300.</li>
+<li>Korn EL, Graubard BI. Confidence intervals for proportions with small expected
+    number of positive counts estimated from survey data. <em>Survey Methodology</em>
+    1998;24(2):193–201.</li>
+<li>Rao JNK, Scott AJ. A simple method for the analysis of clustered binary data.
+    <em>Biometrics</em> 1992;48(2):577–585.</li>
+<li>Kish L. <em>Survey Sampling</em>. Wiley, 1965.</li>
+<li>Smyth GK. Linear models and empirical Bayes methods for assessing differential
+    expression in microarray experiments. <em>Statistical Applications in Genetics and
+    Molecular Biology</em> 2004;3:Article 3. doi:10.2202/1544-6115.1027</li>
+<li>Jackson D, White IR. When should meta-analysis avoid making hidden normality
+    assumptions? <em>Biometrical Journal</em> 2018;60(6):1040–1058. doi:10.1002/bimj.201800071</li>
+<li>Normand SLT, Glickman ME, Gatsonis CA. Statistical methods for profiling providers of
+    medical care: issues and applications. <em>Journal of the American Statistical
+    Association</em> 1997;92(439):803–814. doi:10.1080/01621459.1997.10474036</li>
+<li>Morris CN. Parametric empirical Bayes inference: theory and applications. <em>Journal of
+    the American Statistical Association</em> 1983;78(381):47–55. doi:10.2307/2287098
+    (Bühlmann H. Experience rating and credibility. <em>ASTIN Bulletin</em> 1967;4(3):199–207.)</li>
+<li>Ash AS, Fienberg SE, Louis TA, Normand SLT, Stukel TA, Utts J. <em>Statistical Issues in
+    Assessing Hospital Performance</em>. Committee of Presidents of Statistical Societies,
+    commissioned by the Centers for Medicare &amp; Medicaid Services, 2012.</li>
+<li>Adams JL, Mehrotra A, Thomas JW, McGlynn EA. Physician cost profiling — reliability
+    and risk of misclassification. <em>New England Journal of Medicine</em>
+    2010;362(11):1014–1021. doi:10.1056/NEJMsa0906323</li>
+<li>Hofer TP, Hayward RA, Greenfield S, Wagner EH, Kaplan SH, Manning WG. The
+    unreliability of individual physician "report cards" for assessing the costs and
+    quality of care of a chronic disease. <em>JAMA</em> 1999;281(22):2098–2105.
+    doi:10.1001/jama.281.22.2098</li>
+<li>Lin R, Louis TA, Paddock SM, Ridgeway G. Loss function based ranking in two-stage,
+    hierarchical models. <em>Bayesian Analysis</em> 2006;1(4):915–946. doi:10.1214/06-BA130</li>
+<li>Walsh M, Srinathan SK, McAuley DF, et al. The statistical significance of randomized
+    controlled trial results is frequently fragile: a case for a Fragility Index.
+    <em>Journal of Clinical Epidemiology</em> 2014;67(6):622–628.
+    doi:10.1016/j.jclinepi.2013.10.019</li>
+<li>Marshall EC, Spiegelhalter DJ. Identifying outliers in Bayesian hierarchical models:
+    a simulation-based approach. <em>Bayesian Analysis</em> 2007;2(2):409–444.
+    doi:10.1214/07-BA218</li>
+<li>Bourgon R, Gentleman R, Huber W. Independent filtering increases detection power for
+    high-throughput experiments. <em>PNAS</em> 2010;107(21):9546–9551.
+    doi:10.1073/pnas.0914005107</li>
+<li>Tarone RE. A modified Bonferroni method for discrete data. <em>Biometrics</em>
+    1990;46(2):515–522. doi:10.2307/2531456</li>
+<li>Gilbert PB. A modified false discovery rate multiple-comparisons procedure for
+    discrete data, applied to human immunodeficiency virus genetics. <em>Journal of the
+    Royal Statistical Society, Series C</em> 2005;54(1):143–158.
+    doi:10.1111/j.1467-9876.2005.00475.x</li>
+<li>Döhler S, Durand G, Roquain E. New FDR bounds for discrete and heterogeneous tests.
+    <em>Electronic Journal of Statistics</em> 2018;12(1):1867–1900. doi:10.1214/18-EJS1441</li>
+<li>Storey JD, Tibshirani R. Statistical significance for genomewide studies. <em>PNAS</em>
+    2003;100(16):9440–9445. doi:10.1073/pnas.1530509100</li>
+<li>Veroniki AA, Jackson D, Viechtbauer W, et al. Methods to estimate the between-study
+    variance and its uncertainty in meta-analysis. <em>Research Synthesis Methods</em>
+    2016;7(1):55–79. doi:10.1002/jrsm.1164</li>
+<li>Ohlssen DI, Sharples LD, Spiegelhalter DJ. A hierarchical modelling framework for
+    identifying unusual performance in health care providers. <em>Journal of the Royal
+    Statistical Society, Series A</em> 2007;170(4):865–890.</li>
+<li>Spiegelhalter D, Sherlaw-Johnson C, Bardsley M, et al. Statistical methods for
+    healthcare regulation: rating, screening and surveillance. <em>Journal of the Royal
+    Statistical Society, Series A</em> 2012;175(1):1–47. (The CQC methods.)</li>
+<li>NHS England (formerly NHS Digital). Summary Hospital-level Mortality Indicator
+    (SHMI): indicator specification and methodology, current edition.</li>
+<li>Kiefe CI, Weissman NW, Allison JJ, Farmer R, Weaver M, Williams OD. Methodology
+    matters—XII. Identifying achievable benchmarks of care: concepts and methodology.
+    <em>International Journal for Quality in Health Care</em> 1998;10(5):443–447.
+    doi:10.1093/intqhc/10.5.443</li>
+<li>Weissman NW, Allison JJ, Kiefe CI, et al. Achievable benchmarks of care: the ABCs of
+    benchmarking. <em>Journal of Evaluation in Clinical Practice</em> 1999;5(3):269–281.
+    doi:10.1046/j.1365-2753.1999.00203.x</li>
+<li>Kiefe CI, Allison JJ, Williams OD, Person SD, Weaver MT, Weissman NW. Improving
+    quality improvement using achievable benchmarks for physician feedback: a randomized
+    controlled trial. <em>JAMA</em> 2001;285(22):2871–2879. doi:10.1001/jama.285.22.2871</li>
+<li>GAMUT Quality Improvement Collaborative. Achievable Benchmarks of Care (ABC): worked
+    example. https://www.gamutqi.org/abc</li>
+<li>Achievable benchmarks of care in low-value care delivery in children's hospitals.
+    PMC12680974. https://pmc.ncbi.nlm.nih.gov/articles/PMC12680974/</li>
+<li>Hall RE, Khan F, Bayley MT, et al. Benchmarks for acute stroke care delivery.
+    <em>International Journal for Quality in Health Care</em> 2013;25(6):710–718.
+    doi:10.1093/intqhc/mzt069</li>
+<li>O'Brien SM, DeLong ER, Peterson ED. Impact of case volume on hospital performance
+    assessment. <em>Archives of Internal Medicine</em> 2008;168:1277–1283.</li>
+<li>Keenan PS, Normand SLT, Lin Z, et al. An administrative claims measure suitable for
+    profiling hospital performance on the basis of 30-day all-cause readmission rates
+    among patients with heart failure. <em>Circulation: Cardiovascular Quality and
+    Outcomes</em> 2008;1(1):29–37. doi:10.1161/CIRCOUTCOMES.108.802686</li>
+<li>Dimick JB, Staiger DO, Birkmeyer JD. Ranking hospitals on surgical mortality: the
+    importance of reliability adjustment. <em>Health Services Research</em> 2010;45(6 Pt
+    1):1614–1629. doi:10.1111/j.1475-6773.2010.01158.x</li>
+<li>Marshall EC, Spiegelhalter DJ. Reliability of league tables of in vitro
+    fertilisation clinics: retrospective analysis of live birth rates. <em>BMJ</em>
+    1998;316:1701–1704. doi:10.1136/bmj.316.7146.1701</li>
+<li>Goodwin JS, Lin YL, Singh S, Kuo YF. Variation in length of stay and outcomes among
+    hospitalized patients attributable to hospitals and hospitalists. <em>Journal of
+    General Internal Medicine</em> 2013;28(3):370–376. doi:10.1007/s11606-012-2255-6</li>
+<li>Jones HE, Spiegelhalter DJ. The identification of "unusual" health-care providers
+    from a hierarchical model. <em>The American Statistician</em> 2011;65(3):154–163.
+    doi:10.1198/tast.2011.10190</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../excel-addin-roadmap/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Excel add-in scope">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Excel add-in scope
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../qic-methods/" class="md-footer__link md-footer__link--next" aria-label="Next: Control charts">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Control charts
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
