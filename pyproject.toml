@@ -32,10 +32,15 @@ dependencies = ["numpy>=1.24", "pandas>=2.0"]
 plot = ["plotly>=5.21"]
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "hypothesis>=6.100", "ruff>=0.4", "mypy>=1.8", "plotly>=5.21"]
 app = ["streamlit>=1.30.0", "openpyxl>=3.1.0", "plotly>=5.21"]
+docs = [
+    "mkdocs-material>=9.6",
+    "mkdocstrings-python>=1.16",
+]
 
 [project.urls]
 Homepage = "https://github.com/clinical-qikit/qikit"
-Methods = "https://github.com/clinical-qikit/qikit/blob/main/docs/methods.md"
+Documentation = "https://clinical-qikit.github.io/qikit/docs/"
+Methods = "https://clinical-qikit.github.io/qikit/docs/methods/"
 Changelog = "https://github.com/clinical-qikit/qikit/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]

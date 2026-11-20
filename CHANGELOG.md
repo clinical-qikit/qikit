@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- **A documentation site** at https://clinical-qikit.github.io/qikit/docs/: the guide,
+  the methods, an API reference built from the docstrings, and this changelog. The
+  guide pages are drawn from the README's sections, so the README stays the one copy.
+  Each release tag publishes it; `mkdocs build --strict` runs in CI.
+
 ## 1.4.5 (2026-11-19)
 
 ### Fixed

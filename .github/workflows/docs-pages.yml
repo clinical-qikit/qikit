@@ -1,0 +1,63 @@
+name: Documentation on GitHub Pages
+
+# Each release tag vX.Y.Z publishes the documentation site to the gh-pages branch under
+# docs/, so it describes the release on PyPI. The add-in's vX.Y.Z/ and latest/ folders
+# on that branch are left alone, and the root page points here.
+#
+# To publish a documentation fix before the next release, run this workflow by hand on
+# main (or any ref).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to publish"
+        required: true
+        default: main
+
+permissions:
+  contents: write
+
+# Shared with addin-pages.yml: both push to gh-pages.
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      REF: ${{ inputs.ref || github.ref_name }}
+      NO_MKDOCS_2_WARNING: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.REF }}
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv sync --extra docs --python 3.13
+      - run: uv run --no-sync mkdocs build --strict
+      - name: Push to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --depth 1 origin gh-pages
+          git worktree add pages FETCH_HEAD
+          rm -rf pages/docs
+          cp -R site pages/docs
+          touch pages/.nojekyll
+          cat > pages/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>qikit</title>
+          <meta http-equiv="refresh" content="0; url=docs/">
+          <p>qikit: see the <a href="docs/">documentation</a>.</p>
+          HTML
+          git -C pages add -A
+          if git -C pages diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git -C pages commit -m "Publish documentation ($REF)"
+          git -C pages push origin HEAD:gh-pages
